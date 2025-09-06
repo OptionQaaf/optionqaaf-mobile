@@ -32,17 +32,20 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
 ## 🚀 Getting Started
 
 1. **Clone the repo:**
+
    ```bash
    git clone https://github.com/optionqaaf/optionqaaf-mobile.git
    cd optionqaaf-mobile
    ```
 
 2. **Install dependencies:**
+
    ```bash
    pnpm install
    ```
 
 3. **Start the app:**
+
    ```bash
    npx expo start
    ```
