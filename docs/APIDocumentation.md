@@ -1,0 +1,245 @@
+# 🧱 OptionQaaf Shopify Mobile App – Developer Reference
+
+This is your personal reference for understanding, scaling, and maintaining the Shopify-powered mobile app you built
+with Expo, React Query, GraphQL Codegen, and more.
+
+---
+
+## ✅ Core Architecture Overview
+
+### 🧠 Data Flow
+
+```
+Screen (useProduct)
+→ React Query (cache)
+→ Service (getProductByHandle)
+→ GraphQL client (shopifyClient.request)
+→ Shopify Storefront GraphQL
+→ JSON response (typed via codegen)
+→ Back to your UI
+```
+
+---
+
+## 🔌 Packages Used
+
+| Package                                                | Purpose                       |
+| ------------------------------------------------------ | ----------------------------- |
+| `graphql`                                              | Base GraphQL tools            |
+| `@graphql-codegen/cli`                                 | Codegen for types             |
+| `graphql-request`                                      | Lightweight GraphQL client    |
+| `@tanstack/react-query`                                | Fetching, caching, pagination |
+| `zustand`                                              | Global state (prefs, cartId)  |
+| `react-native-mmkv`                                    | Persistent local storage      |
+| `expo-router`                                          | File-based navigation         |
+| `dotenv`                                               | Load env for codegen          |
+| `@react-native-async-storage/async-storage` (optional) | Expo Go fallback for MMKV     |
+
+---
+
+## 📦 Folder Structure (Simplified)
+
+```
+lib/
+  └── shopify/
+      ├── client.ts
+      ├── fragments.graphql
+      ├── queries/
+      ├── gql/  ← auto-generated
+      └── services/
+
+features/
+  └── product/api.ts
+  └── cart/api.ts
+  └── recommendations/api.ts
+
+store/
+  └── prefs.ts
+  └── cartId.ts
+
+app/
+  └── index.tsx
+  └── test/
+```
+
+---
+
+## 🔁 React Query Reference
+
+| Hook                | Use case                           |
+| ------------------- | ---------------------------------- |
+| `useQuery`          | Read: product, cart, menu          |
+| `useInfiniteQuery`  | Pagination: PLP, search            |
+| `useMutation`       | Write: add/update/remove from cart |
+| `invalidateQueries` | Refetch specific data on change    |
+
+Example:
+
+```ts
+const { data } = useQuery({
+  queryKey: ["product", handle],
+  queryFn: () => getProductByHandle(handle),
+})
+```
+
+---
+
+## 🛠 Services Layer
+
+Service functions isolate logic like this:
+
+```ts
+export async function getProductByHandle(handle, locale) {
+  return callShopify(() =>
+    shopifyClient.request(ProductByHandleDocument, {
+      handle,
+      country: locale?.country,
+      language: locale?.language,
+    }),
+  )
+}
+```
+
+Use in hook:
+
+```ts
+export function useProduct(handle) {
+  const locale = currentLocale()
+  return useQuery({ queryKey: ["product", handle], queryFn: () => getProductByHandle(handle, locale) })
+}
+```
+
+---
+
+## 🌎 Localization via Preferences
+
+Zustand store: `store/prefs.ts`
+
+```ts
+export const usePrefs = create<PrefsState>((set) => ({
+  country: "US",
+  language: "EN",
+  currency: "USD",
+  setPrefs: (prefs) => set((prev) => ({ ...prev, ...prefs })),
+}))
+
+export function currentLocale() {
+  const { country, language } = usePrefs.getState()
+  return { country, language }
+}
+```
+
+All GraphQL queries use `@inContext` and accept `country` and `language`.
+
+---
+
+## 🛒 Cart Flow
+
+Zustand + MMKV + GraphQL mutations
+
+```ts
+const { cartId, setCartId } = useCartId() // store
+const { mutate: addToCart } = useAddToCart()
+
+await ensureCart() // creates if not exists
+addToCart({ merchandiseId: variantId, quantity: 1 })
+```
+
+Hooks:
+
+- `useEnsureCart()`
+- `useCartQuery()`
+- `useAddToCart()` / `useUpdateLine()` / `useRemoveLine()`
+
+Cart ID is persisted via MMKV or fallback.
+
+---
+
+## 🧭 Menus from Shopify Admin
+
+Query menus like this:
+
+```ts
+const { data: menu } = useMenu("main-menu")
+```
+
+Get `AppMenuItem[]` with nested children and routes.
+
+Use helper:
+
+```ts
+const path = routeToPath(item.route)
+router.push(path)
+```
+
+---
+
+## 💡 Adding a New Feature (Playbook)
+
+### Example: Recommended Products carousel
+
+1. Create query:
+
+```graphql
+query RecommendedProducts($productId: ID!, $country: CountryCode, $language: LanguageCode) @inContext(...) {
+  productRecommendations(productId: $productId) { ...ProductCard }
+}
+```
+
+2. Run codegen
+
+3. Add service:
+
+```ts
+export async function getRecommendedProducts(productId, locale) {
+  return callShopify(() =>
+    shopifyClient.request(RecommendedProductsDocument, {
+      productId,
+      country: locale?.country,
+      language: locale?.language,
+    }),
+  )
+}
+```
+
+4. Add hook:
+
+```ts
+export function useRecommendedProducts(productId: string) {
+  const locale = currentLocale()
+  return useQuery({
+    queryKey: ["recommended", productId, locale],
+    queryFn: async () => (await getRecommendedProducts(productId, locale)).productRecommendations ?? [],
+  })
+}
+```
+
+5. Use in PDP:
+
+```tsx
+const { data: recommended } = useRecommendedProducts(product.id)
+```
+
+---
+
+## 🔐 MMKV & Expo Go Notes
+
+- In **Expo Go**, MMKV v3 is unavailable → fallback is used (in-memory or AsyncStorage).
+- When building with **Dev Client** or **EAS**, MMKV v3 works by default.
+- You can safely leave the fallback in place.
+
+---
+
+## ✅ Final Summary
+
+You’ve built:
+
+- A typed Shopify API integration
+- A scalable service + query architecture
+- Fully cached cart, products, search, and menus
+- Dynamic navigation powered by Shopify Admin
+- Clean state handling and local persistence
+
+Use this doc to repeat your success. One feature at a time.
+
+---

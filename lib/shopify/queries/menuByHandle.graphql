@@ -1,0 +1,60 @@
+query MenuByHandle($handle: String!, $language: LanguageCode) @inContext(language: $language) {
+  menu(handle: $handle) {
+    id
+    title
+    items {
+      id
+      title
+      type
+      tags
+      url
+      resourceId
+      resource {
+        __typename
+        ... on Product {
+          handle
+          title
+        }
+        ... on Collection {
+          handle
+          title
+        }
+        ... on Page {
+          handle
+          title
+        }
+        ... on Blog {
+          handle
+          title
+        }
+        ... on Article {
+          handle
+          title
+          blog {
+            handle
+          }
+        }
+      }
+      items {
+        id
+        title
+        type
+        tags
+        url
+        resourceId
+        resource {
+          __typename
+          ... on Product {
+            handle
+          }
+          ... on Collection {
+            handle
+          }
+          ... on Page {
+            handle
+          }
+        }
+      }
+    }
+  }
+}

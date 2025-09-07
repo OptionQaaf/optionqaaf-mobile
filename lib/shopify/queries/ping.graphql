@@ -1,0 +1,5 @@
+query PingShopName {
+  shop {
+    name
+  }
+}

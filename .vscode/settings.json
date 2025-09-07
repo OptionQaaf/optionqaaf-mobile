@@ -4,5 +4,8 @@
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
   },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
   "tailwindCSS.classAttributes": ["class", "className", "headerClassName"]
 }

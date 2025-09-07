@@ -1,0 +1,62 @@
+mutation CartCreate(
+  $lines: [CartLineInput!]
+  $buyerIdentity: CartBuyerIdentityInput
+  $country: CountryCode
+  $language: LanguageCode
+) @inContext(country: $country, language: $language) {
+  cartCreate(input: { lines: $lines, buyerIdentity: $buyerIdentity }) {
+    cart {
+      ...CartCommon
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+
+query CartQuery($id: ID!, $country: CountryCode, $language: LanguageCode)
+@inContext(country: $country, language: $language) {
+  cart(id: $id) {
+    ...CartCommon
+  }
+}
+
+mutation CartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!, $country: CountryCode, $language: LanguageCode)
+@inContext(country: $country, language: $language) {
+  cartLinesAdd(cartId: $cartId, lines: $lines) {
+    cart {
+      ...CartCommon
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+
+mutation CartLinesUpdate($cartId: ID!, $lines: [CartLineUpdateInput!]!, $country: CountryCode, $language: LanguageCode)
+@inContext(country: $country, language: $language) {
+  cartLinesUpdate(cartId: $cartId, lines: $lines) {
+    cart {
+      ...CartCommon
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+
+mutation CartLinesRemove($cartId: ID!, $lineIds: [ID!]!, $country: CountryCode, $language: LanguageCode)
+@inContext(country: $country, language: $language) {
+  cartLinesRemove(cartId: $cartId, lineIds: $lineIds) {
+    cart {
+      ...CartCommon
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,134 @@
+fragment Money on MoneyV2 {
+  amount
+  currencyCode
+}
+
+fragment Image on Image {
+  id
+  url
+  altText
+  width
+  height
+}
+
+fragment ProductCard on Product {
+  id
+  handle
+  title
+  vendor
+  featuredImage {
+    ...Image
+  }
+  priceRange {
+    minVariantPrice {
+      ...Money
+    }
+    maxVariantPrice {
+      ...Money
+    }
+  }
+}
+
+fragment ProductDetail on Product {
+  id
+  handle
+  title
+  vendor
+  description
+  featuredImage {
+    ...Image
+  } # ← ADD THIS LINE
+  media(first: 10) {
+    nodes {
+      ... on MediaImage {
+        image {
+          ...Image
+        }
+      }
+      ... on Video {
+        id
+        sources {
+          url
+          format
+        }
+      }
+    }
+  }
+  options {
+    name
+    values
+  }
+  variants(first: 50) {
+    nodes {
+      id
+      title
+      availableForSale
+      selectedOptions {
+        name
+        value
+      }
+      price {
+        ...Money
+      }
+      compareAtPrice {
+        ...Money
+      }
+      image {
+        ...Image
+      }
+    }
+  }
+}
+
+fragment CartCommon on Cart {
+  id
+  totalQuantity
+  checkoutUrl
+  cost {
+    subtotalAmount {
+      ...Money
+    }
+    totalAmount {
+      ...Money
+    }
+    totalTaxAmount {
+      ...Money
+    }
+  }
+  lines(first: 50) {
+    nodes {
+      id
+      quantity
+      merchandise {
+        ... on ProductVariant {
+          id
+          title
+          product {
+            id
+            title
+            handle
+            vendor
+            featuredImage {
+              ...Image
+            }
+          }
+          price {
+            ...Money
+          }
+          compareAtPrice {
+            ...Money
+          }
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
+      cost {
+        subtotalAmount {
+          ...Money
+        }
+      }
+    }
+  }
+}

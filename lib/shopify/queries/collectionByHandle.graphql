@@ -1,0 +1,21 @@
+query CollectionByHandle(
+  $handle: String!
+  $pageSize: Int!
+  $after: String
+  $country: CountryCode
+  $language: LanguageCode
+) @inContext(country: $country, language: $language) {
+  collection(handle: $handle) {
+    id
+    title
+    products(first: $pageSize, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        ...ProductCard
+      }
+    }
+  }
+}

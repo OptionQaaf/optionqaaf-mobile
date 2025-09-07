@@ -1,0 +1,12 @@
+query SearchProducts($query: String!, $pageSize: Int!, $after: String, $country: CountryCode, $language: LanguageCode)
+@inContext(country: $country, language: $language) {
+  products(first: $pageSize, after: $after, query: $query) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      ...ProductCard
+    }
+  }
+}

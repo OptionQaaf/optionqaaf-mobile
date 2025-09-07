@@ -1,0 +1,6 @@
+query RecommendedProducts($productId: ID!, $country: CountryCode, $language: LanguageCode)
+@inContext(country: $country, language: $language) {
+  productRecommendations(productId: $productId) {
+    ...ProductCard
+  }
+}
