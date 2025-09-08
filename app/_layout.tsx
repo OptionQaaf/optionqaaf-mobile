@@ -1,3 +1,4 @@
+import { DrawerProvider } from "@/features/navigation/Drawer" // ⬅️ add
 import { hydrateCartId } from "@/store/cartId"
 import { FontProvider } from "@/theme/FontProvider"
 import { ToastHost } from "@/ui/feedback/Toast"
@@ -19,8 +20,10 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <FontProvider>
-            <Stack screenOptions={{ headerShown: false }} />
-            <ToastHost />
+            <DrawerProvider>
+              <Stack screenOptions={{ headerShown: false }} />
+              <ToastHost />
+            </DrawerProvider>
           </FontProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>

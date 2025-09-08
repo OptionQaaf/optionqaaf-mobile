@@ -1,5 +1,5 @@
-import { callShopify, sdk } from "@/lib/shopify/client"
-import type { MenuByHandleQuery } from "@/lib/shopify/gql/graphql"
+import { callShopify, shopifyClient } from "@/lib/shopify/client"
+import { MenuByHandleDocument, type MenuByHandleQuery } from "@/lib/shopify/gql/graphql"
 import { currentLocale } from "@/store/prefs"
 
 export type AppRoute =
@@ -13,8 +13,9 @@ export type AppRoute =
 export type AppMenuItem = { id: string; title: string; route: AppRoute; children: AppMenuItem[] }
 
 export async function getMenuByHandle(handle: string, language?: string) {
+  const lang = (language as any) ?? currentLocale().language
   return callShopify<MenuByHandleQuery>(async () => {
-    return sdk.MenuByHandle({ handle, language: (language as any) ?? currentLocale().language })
+    return shopifyClient.request(MenuByHandleDocument, { handle, language: lang })
   })
 }
 
@@ -29,7 +30,6 @@ function toRoute(node: any): AppRoute {
   if (t === "Article" && node.resource?.blog?.handle && node.resource?.handle)
     return { kind: "article", title: node.title, blogHandle: node.resource.blog.handle, handle: node.resource.handle }
   if (node.url) return { kind: "url", title: node.title, url: node.url }
-  // Fallback to URL if Shopify can’t resolve resource (e.g., not published)
   return { kind: "url", title: node.title, url: node.url ?? "#" }
 }
 
@@ -44,7 +44,6 @@ export function normalizeMenu(data: MenuByHandleQuery | null | undefined): AppMe
   return items.map(mapNode)
 }
 
-// Route helpers the UI can use when navigating
 export function routeToPath(r: AppRoute): string {
   switch (r.kind) {
     case "collection":

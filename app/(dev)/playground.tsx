@@ -58,7 +58,7 @@ export default function Playground() {
         </Story>
 
         <Story title="Button">
-          <View className="flex-row items-center gap-3 mb-3">
+          <View className="gap-3 mb-3">
             <Segment
               options={["solid", "outline", "ghost", "link"]}
               value={variant}

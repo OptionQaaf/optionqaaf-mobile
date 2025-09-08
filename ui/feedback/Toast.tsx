@@ -1,4 +1,5 @@
 import { a11yAlert } from "@/ui/a11y/a11y"
+import { hapticOnce, haptics } from "@/ui/feedback/useHaptics"
 import { MOTION } from "@/ui/motion/motion"
 import { Pressable, Text, View } from "react-native"
 import Animated from "react-native-reanimated"
@@ -26,6 +27,11 @@ export const useToast = create<Store>((set) => ({
     const id = idSeq++
     const toast: Toast = { id, duration: 2500, ...t }
     set((s) => ({ toasts: [...s.toasts, toast] }))
+
+    if (t.type === "success") hapticOnce(haptics.success)
+    else if (t.type === "danger") hapticOnce(haptics.error)
+    else hapticOnce(haptics.impact.light)
+
     setTimeout(() => {
       set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) }))
     }, toast.duration)

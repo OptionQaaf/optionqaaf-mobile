@@ -72,6 +72,7 @@ export function Button({
 
   return (
     <PressableOverlay
+      haptic="light"
       {...a11yButton(typeof children === "string" ? children : undefined, disabled || isLoading)}
       disabled={disabled || isLoading}
       onPress={onPress}

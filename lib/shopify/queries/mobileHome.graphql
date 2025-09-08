@@ -1,0 +1,55 @@
+# Reuse your shared fragments (same file you already import elsewhere)
+# import "../fragments.graphql"
+
+query MobileHome($handle: String!, $language: LanguageCode) @inContext(language: $language) {
+  metaobject(handle: { handle: $handle, type: "mobile_home" }) {
+    id
+    type
+    fields {
+      key
+      value
+      references(first: 50) {
+        nodes {
+          __typename
+          # sections should be Metaobject references — narrow to Metaobject
+          ... on Metaobject {
+            id
+            type
+            fields {
+              key
+              value
+              reference {
+                __typename
+
+                # Poster image, etc.
+                ... on MediaImage {
+                  image {
+                    ...Image
+                  }
+                }
+
+                # Future rails / fallbacks
+                ... on Collection {
+                  handle
+                  title
+                  image {
+                    ...Image
+                  }
+                }
+
+                ... on Product {
+                  handle
+                  title
+                  featuredImage {
+                    ...Image
+                  }
+                }
+              }
+            }
+          }
+          # If any non-Metaobject sneaks in, we ignore it by design
+        }
+      }
+    }
+  }
+}

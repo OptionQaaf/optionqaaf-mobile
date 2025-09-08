@@ -1,4 +1,4 @@
-// ui/primitives/Dropdown.tsx
+import { hapticOnce, haptics } from "@/ui/feedback/useHaptics"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { cn } from "@/ui/utils/cva"
 import { Check, ChevronDown, X } from "lucide-react-native"
@@ -38,7 +38,9 @@ export function Dropdown({
   const openSheet = () => {
     setMounted(true)
     progress.value = withTiming(1, { duration: 140 })
+    hapticOnce(haptics.impact.light)
   }
+
   const closeSheet = () => {
     progress.value = withTiming(0, { duration: 140 }, (f) => {
       if (f) runOnJS(setMounted)(false)
@@ -61,6 +63,7 @@ export function Dropdown({
         disabled={item.disabled}
         onPress={() => {
           onChange?.(item.id)
+          hapticOnce(haptics.selection)
           setOpen(false)
         }}
         className={cn("flex-row items-center justify-between px-4 h-12", item.disabled && "opacity-40")}
