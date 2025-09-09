@@ -11,10 +11,10 @@ type Props = {
 
 const NBSP = "\u00A0" // non-breaking space
 
-export function RibbonMarquee({ text = "OPTIONQAAF", speed = 30, theme = "light", height = 40, onPress }: Props) {
+export function RibbonMarquee({ text = "OPTIONQAAF", speed = 30, theme = "light", height = 32, onPress }: Props) {
   const { width: screenW } = useWindowDimensions()
-  const colorBg = theme === "dark" ? "#0B0B0B" : "#FFFFFF"
-  const colorFg = theme === "dark" ? "#FFFFFF" : "#0B0B0B"
+  const colorBg = theme === "dark" ? "#0B0B0B" : "#8E1A26"
+  const colorFg = theme === "dark" ? "#FFFFFF" : "#FFEDED"
 
   // one logical "unit" with bullet + NBSP spacing (doesn't collapse)
   const unit = useMemo(() => `${text}${NBSP}${NBSP}\u2022${NBSP}${NBSP}`, [text])
@@ -64,6 +64,8 @@ export function RibbonMarquee({ text = "OPTIONQAAF", speed = 30, theme = "light"
     includeFontPadding: false,
     textAlignVertical: "center" as const,
     lineHeight: height,
+    fontSize: 10,
+    fontWeight: "700" as const,
   }
 
   const SegmentRow = ({ measure }: { measure?: boolean }) => (

@@ -1,4 +1,4 @@
-import { ImageBackground, Pressable, Text as RNText, View } from "react-native"
+import { ImageBackground, Pressable, Text as RNText, View, useWindowDimensions } from "react-native"
 
 // Lazy import so it doesn't explode if not installed; we fall back to a flat tint.
 let LinearGradient: any
@@ -9,7 +9,6 @@ try {
 
 type Props = {
   title?: string
-  subtitle?: string
   eyebrow?: string
   ctaLabel?: string
   image?: { url: string }
@@ -25,7 +24,6 @@ type Props = {
 
 export function SplitBanner({
   title,
-  subtitle,
   eyebrow,
   ctaLabel,
   image,
@@ -36,6 +34,7 @@ export function SplitBanner({
   tint = 0.45,
   uppercaseTitle = true,
 }: Props) {
+  const { width } = useWindowDimensions()
   const aClass =
     align === "center"
       ? "items-center text-center"
@@ -48,12 +47,11 @@ export function SplitBanner({
   const isBrand = theme === "brand"
   const fg = isDark ? "#FFFFFF" : "#0B0B0B"
   const subFg = isDark ? "rgba(255,255,255,0.85)" : "rgba(11,11,11,0.85)"
-  const brand = "#8E1A26" // OptionQaaf deep red; tweak if you have a token
+  const brand = "#8E1A26"
 
-  // responsive headline sizing
-  const titleLen = (title ?? "").length
-  const titleSize = titleLen <= 10 ? 56 : titleLen <= 16 ? 48 : titleLen <= 24 ? 42 : 36
-  const titleLine = Math.round(titleSize * 1.02)
+  // responsive headline sizing (by width, clamped)
+  const titleSize = Math.round(Math.min(84, Math.max(38, width * 0.14)))
+  const titleLine = Math.round(titleSize * 1.05)
 
   const Title = () =>
     title ? (
@@ -64,6 +62,7 @@ export function SplitBanner({
           fontSize: titleSize,
           lineHeight: titleLine,
           letterSpacing: 0.5,
+          textTransform: uppercaseTitle ? "uppercase" : "none",
         }}
       >
         {title}
@@ -82,19 +81,6 @@ export function SplitBanner({
         }}
       >
         {eyebrow}
-      </RNText>
-    ) : null
-
-  const Subtitle = () =>
-    subtitle ? (
-      <RNText
-        style={{
-          color: subFg,
-          fontSize: 16,
-          letterSpacing: 0.6,
-        }}
-      >
-        {subtitle}
       </RNText>
     ) : null
 
@@ -152,7 +138,6 @@ export function SplitBanner({
         <View className={`flex-1 justify-end p-4 ${aClass}`}>
           <Eyebrow />
           <Title />
-          <Subtitle />
           <CTA />
 
           {/* brand stripe (subtle accent) */}

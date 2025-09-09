@@ -11,12 +11,12 @@ import { Image, Text as RNText, ScrollView, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 const COUNTRIES: Array<{ id: CountryCode; label: string; flag: string; currency: CurrencyCode; symbol: string }> = [
-  { id: "SA", label: "Saudi Arabia", flag: "🇸🇦", currency: "SAR", symbol: "﷼" },
-  { id: "AE", label: "United Arab Emirates", flag: "🇦🇪", currency: "AED", symbol: "د.إ" },
-  { id: "KW", label: "Kuwait", flag: "🇰🇼", currency: "KWD", symbol: "د.ك" },
-  { id: "QA", label: "Qatar", flag: "🇶🇦", currency: "QAR", symbol: "ر.ق" },
-  { id: "BH", label: "Bahrain", flag: "🇧🇭", currency: "BHD", symbol: "ب.د" },
-  { id: "OM", label: "Oman", flag: "🇴🇲", currency: "OMR", symbol: "ر.ع" },
+  { id: "SA", label: "Saudi Arabia / السعودية", flag: "🇸🇦", currency: "SAR", symbol: "﷼" },
+  { id: "AE", label: "United Arab Emirates / الإمارات", flag: "🇦🇪", currency: "AED", symbol: "د.إ" },
+  { id: "KW", label: "Kuwait / الكويت", flag: "🇰🇼", currency: "KWD", symbol: "د.ك" },
+  { id: "QA", label: "Qatar / قطر", flag: "🇶🇦", currency: "QAR", symbol: "ر.ق" },
+  { id: "BH", label: "Bahrain / البحرين", flag: "🇧🇭", currency: "BHD", symbol: "ب.د" },
+  { id: "OM", label: "Oman / عمان", flag: "🇴🇲", currency: "OMR", symbol: "ر.ع" },
 ]
 
 export default function LocaleOnboarding() {
@@ -65,7 +65,7 @@ export default function LocaleOnboarding() {
             {/* FORM GROUP */}
             <View className="flex-col gap-4">
               {/* Language */}
-              <View className="flex-col gap-2">
+              {/* <View className="flex-col gap-2">
                 <View>
                   <H3>Language</H3>
                   <Muted className="text-md">Select your language</Muted>
@@ -91,13 +91,13 @@ export default function LocaleOnboarding() {
                     )
                   })}
                 </View>
-              </View>
+              </View> */}
 
               {/* Country (pills grid; no FlatList) */}
               <View className="flex-col gap-4">
                 <View>
-                  <H3>Country</H3>
-                  <Muted className="text-md">Choose your country</Muted>
+                  <H3>Country / الدولة</H3>
+                  <Muted className="text-md">Choose your country / اختر دولتك</Muted>
                 </View>
 
                 <View className="gap-2">
@@ -123,9 +123,9 @@ export default function LocaleOnboarding() {
                               {c.label}
                             </RNText>
                           </View>
-                          <RNText>
+                          {/* <RNText>
                             <Muted className="text-[15px]">{`(${c.symbol} ${c.currency})`}</Muted>
-                          </RNText>
+                          </RNText> */}
                         </View>
                       </PressableOverlay>
                     )
@@ -134,10 +134,21 @@ export default function LocaleOnboarding() {
               </View>
             </View>
 
-            {/* CTA */}
-            <Button size="lg" onPress={continueHandler}>
-              Continue
-            </Button>
+            <View className="gap-6">
+              <View className="items-center">
+                <Muted className="text-center text-sm text-primary/80" style={{ writingDirection: "rtl" }}>
+                  🚀 توصيل سريع إلى باب منزلك وأسعار شاملة.
+                </Muted>
+                <Muted className="text-center text-sm text-primary/80">
+                  🚚 Fast delivery to your doorstep. All-inclusive prices.
+                </Muted>
+              </View>
+
+              {/* CTA */}
+              <Button size="lg" onPress={continueHandler}>
+                Continue
+              </Button>
+            </View>
           </SafeAreaView>
         </ScrollView>
       </View>

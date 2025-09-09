@@ -1,12 +1,13 @@
 import { useMenu } from "@/features/navigation/api"
+import type { AppMenuItem } from "@/lib/shopify/services/menus"
 import { routeToPath } from "@/lib/shopify/services/menus"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
 import { Icon } from "@/ui/nav/MenuBar"
 import { router } from "expo-router"
-import { ChevronLeft } from "lucide-react-native"
-import { useMemo, useRef } from "react"
-import { Dimensions, Image, Linking, Text, View } from "react-native"
+import { ChevronLeft, X } from "lucide-react-native"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Dimensions, Image, Linking, ScrollView, Text, View } from "react-native"
 import { Gesture, GestureDetector } from "react-native-gesture-handler"
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -60,13 +61,63 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
 function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
   const { data } = useMenu("new-menu") // adjust handle if needed
   const insets = useSafeAreaInsets()
+  const rootItems = data ?? []
+
+  const [levelsStack, setLevelsStack] = useState<{ title: string; items: AppMenuItem[] }[]>([])
+  const [displayDepth, setDisplayDepth] = useState(0)
+  const animMode = useRef<"push" | "pop" | null>(null)
+
+  const baseLevel = useMemo(
+    () => ({ title: "Menu", items: Array.isArray(rootItems) ? rootItems : [] }),
+    [rootItems],
+  )
+  const levels = useMemo(
+    () => [baseLevel].concat(Array.isArray(levelsStack) ? levelsStack : []),
+    [baseLevel, levelsStack],
+  )
+  const slideX = useSharedValue(0)
+  const sliderA = useAnimatedStyle(() => ({ transform: [{ translateX: slideX.value }] }))
+
+  const clearAnimMode = () => {
+    animMode.current = null
+  }
+  useEffect(() => {
+    const modeOnStart = animMode.current
+    slideX.value = withTiming(-displayDepth * WIDTH, { duration: 240 }, (finished) => {
+      if (finished) {
+        if (modeOnStart === "pop") {
+          runOnJS(setLevelsStack)((prev) => prev.slice(0, -1))
+        }
+        runOnJS(clearAnimMode)()
+      }
+    })
+  }, [displayDepth])
 
   const LOGO_W = 64
   const LOGO_H = 28
+  const atRoot = displayDepth === 0
+  const onHeaderPress = () => {
+    if (!atRoot) {
+      animMode.current = "pop"
+      setDisplayDepth((d) => Math.max(0, d - 1))
+      return
+    }
+    // At root: close and fully reset immediately for snappier UX
+    onNavigate()
+    setLevelsStack([])
+    setDisplayDepth(0)
+  }
+  const closeAndReset = () => {
+    onNavigate()
+    setTimeout(() => {
+      setLevelsStack([])
+      setDisplayDepth(0)
+    }, 260)
+  }
 
   return (
     <Screen>
-      {/* header: centered logo + chevron at right */}
+      {/* header: centered logo + chevron at right (back/close) */}
       <View className="px-4 pb-6 flex-row items-center justify-between" style={{ paddingTop: insets.top ? 0 : 12 }}>
         <View className="w-6" />
         <Image
@@ -74,30 +125,46 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
           style={{ width: LOGO_W, height: LOGO_H }}
           resizeMode="contain"
         />
-        <Icon onPress={onNavigate}>
-          <ChevronLeft size={24} color="#0B0B0B" />
+        <Icon onPress={onHeaderPress}>
+          {atRoot ? <X size={24} color="#0B0B0B" /> : <ChevronLeft size={24} color="#0B0B0B" />}
         </Icon>
       </View>
 
-      {/* big list */}
-      <View className="flex-1 px-4 gap-4">
-        {(data ?? []).map((item) => (
-          <PressableOverlay
-            key={item.id}
-            onPress={() => {
-              const path = routeToPath(item.route)
-              if (path.startsWith("http")) {
-                Linking.openURL(path)
-              } else {
-                router.push(path as any)
-              }
-              onNavigate()
-            }}
-            className="rounded-2xl px-1 py-1"
-          >
-            <Text className="text-[32px] leading-[38px] font-extrabold text-primary">{item.title}</Text>
-          </PressableOverlay>
-        ))}
+      {/* big list (scrollable) with smooth horizontal transition between levels */}
+      <View className="flex-1" style={{ overflow: "hidden" }}>
+        <Animated.View style={[{ flexDirection: "row", width: WIDTH * levels.length }, sliderA]}>
+          {(Array.isArray(levels) ? levels : []).map((level, idx) => (
+            <View key={`level-${idx}`} style={{ width: WIDTH }}>
+              <ScrollView>
+                <View className="px-4 gap-2">
+                  {(Array.isArray(level.items) ? level.items : []).map((item) => (
+                    <PressableOverlay
+                      key={item.id}
+                      onPress={() => {
+                        if (item.children && item.children.length > 0) {
+                          animMode.current = "push"
+                          setLevelsStack((prev) => [...prev, { title: item.title, items: item.children }])
+                          setDisplayDepth((d) => d + 1)
+                          return
+                        }
+                        const path = routeToPath(item.route)
+                        if (path.startsWith("http")) {
+                          Linking.openURL(path)
+                        } else {
+                          router.push(path as any)
+                        }
+                        closeAndReset()
+                      }}
+                      className="rounded-2xl px-1 py-1"
+                    >
+                      <Text className="text-[32px] leading-[38px] font-extrabold text-primary">{item.title}</Text>
+                    </PressableOverlay>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          ))}
+        </Animated.View>
       </View>
 
       {/* footer */}

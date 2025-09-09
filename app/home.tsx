@@ -5,19 +5,28 @@ import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { router } from "expo-router"
 import { StatusBar } from "expo-status-bar"
-import { Linking, ScrollView, View } from "react-native"
+import { DeviceEventEmitter, Linking, ScrollView, View } from "react-native"
+import { useEffect, useRef } from "react"
 
 const ABSOLUTE_RE = /^(https?:|mailto:|tel:|sms:)/i
 
 export default function Home() {
   const { data, isLoading } = useMobileHome("app-home")
   const sections = data?.sections ?? []
+  const scrollRef = useRef<ScrollView>(null)
 
   const go = (url?: string) => {
     if (!url) return
     if (ABSOLUTE_RE.test(url)) Linking.openURL(url)
     else router.push(url as any)
   }
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("home:scrollToTop", () => {
+      scrollRef.current?.scrollTo({ y: 0, animated: true })
+    })
+    return () => sub.remove()
+  }, [])
 
   return (
     <Screen bleedTop bleedBottom>
@@ -26,7 +35,7 @@ export default function Home() {
         <MenuBar variant="light" floating />
 
         {isLoading ? (
-          <ScrollView contentContainerStyle={{ paddingBottom: 0 }}>
+          <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 0 }}>
             <View className="pt-0">
               <Skeleton className="h-[360px] w-full" />
               <Skeleton className="h-[44px] w-full" />
@@ -35,7 +44,7 @@ export default function Home() {
             </View>
           </ScrollView>
         ) : (
-          <ScrollView contentContainerStyle={{ paddingBottom: 0 }}>
+          <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 0 }}>
             <View className="pt-0">
               {sections.map((s) => {
                 const Cmp = (sectionRegistry as any)[s.kind]

@@ -1,17 +1,18 @@
-import { Pressable, Text as RNText, View } from "react-native"
+import { Pressable, Text as RNText, View, useWindowDimensions } from "react-native"
 
-type Props = { title?: string; subtitle?: string; theme?: string; onPress?: () => void }
+type Props = { title?: string; theme?: string; onPress?: () => void }
 
-export function EditorialQuote({ title, subtitle, theme = "light", onPress }: Props) {
+export function EditorialQuote({ title, theme = "light", onPress }: Props) {
   const light = theme === "light"
+  const { width } = useWindowDimensions()
+  const size = Math.round(Math.min(72, Math.max(36, width * 0.12)))
+  const line = Math.round(size * 1.05)
   return (
     <Pressable onPress={onPress}>
       <View className={light ? "bg-white" : "bg-black"}>
-        {subtitle ? (
-          <RNText className={`px-5 pt-8 text-xl ${light ? "text-black/70" : "text-white/70"}`}>{subtitle}</RNText>
-        ) : null}
         <RNText
-          className={`px-4 pb-8 text-[40px] leading-[44px] font-extrabold ${light ? "text-black" : "text-white"}`}
+          className={`p-4 font-extrabold ${light ? "text-black" : "text-white"}`}
+          style={{ fontSize: size, lineHeight: line }}
         >
           {title}
         </RNText>

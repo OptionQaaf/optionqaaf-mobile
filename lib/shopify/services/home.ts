@@ -10,7 +10,6 @@ export type AppHomeSection =
       kind: "hero_poster"
       id: string
       title?: string
-      subtitle?: string
       image?: ImageRef
       url?: string
       theme?: string
@@ -23,7 +22,6 @@ export type AppHomeSection =
       kind: "headline_promo"
       id: string
       title?: string
-      subtitle?: string
       url?: string
       theme?: string
       country?: string
@@ -47,7 +45,6 @@ export type AppHomeSection =
       kind: "split_banner"
       id: string
       title?: string
-      subtitle?: string
       image?: ImageRef
       url?: string
       theme?: string
@@ -82,7 +79,6 @@ export type AppHomeSection =
       kind: "product_rail"
       id: string
       title?: string
-      subtitle?: string
       collectionHandle?: string
       theme?: string
       country?: string
@@ -94,7 +90,6 @@ export type AppHomeSection =
       kind: "editorial_quote"
       id: string
       title?: string
-      subtitle?: string
       theme?: string
       url?: string
       country?: string
@@ -165,7 +160,6 @@ function toSection(node: any): AppHomeSection | null {
         kind,
         id: node.id,
         title,
-        subtitle,
         url,
         theme,
         image: imgFrom(imageRef),
@@ -176,7 +170,7 @@ function toSection(node: any): AppHomeSection | null {
       }
     }
     case "headline_promo":
-      return { kind, id: node.id, title, subtitle, url, theme, country, language, startAt, endAt }
+      return { kind, id: node.id, title, url, theme, country, language, startAt, endAt }
 
     case "ribbon_marquee": {
       const text = title || subtitle || "" // use either; prefer title
@@ -191,7 +185,6 @@ function toSection(node: any): AppHomeSection | null {
         kind,
         id: node.id,
         title,
-        subtitle,
         url,
         theme,
         image: imgFrom(imageRef),
@@ -241,11 +234,11 @@ function toSection(node: any): AppHomeSection | null {
     case "product_rail": {
       const coll = ref(node, "collection")
       const handle = coll?.handle as string | undefined
-      return { kind, id: node.id, title, subtitle, collectionHandle: handle, theme, country, language, startAt, endAt }
+      return { kind, id: node.id, title, collectionHandle: handle, theme, country, language, startAt, endAt }
     }
 
     case "editorial_quote":
-      return { kind, id: node.id, title, subtitle, theme, url, country, language, startAt, endAt }
+      return { kind, id: node.id, title, theme, url, country, language, startAt, endAt }
 
     default:
       return null
