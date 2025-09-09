@@ -8,7 +8,7 @@ const buttonStyles = cva("flex-row items-center justify-center rounded-xl gap-2"
   variants: {
     variant: {
       solid: "bg-brand",
-      outline: "bg-surface border border-border", // was transparent
+      outline: "bg-surface border border-border",
       ghost: "bg-transparent",
       link: "bg-transparent",
     },
@@ -18,7 +18,7 @@ const buttonStyles = cva("flex-row items-center justify-center rounded-xl gap-2"
       lg: "h-12 px-6",
     },
     fullWidth: { true: "w-full", false: "" },
-    disabled: { true: "opacity-50", false: "" },
+    disabled: { true: "opacity-50 ", false: "" },
   },
   compoundVariants: [{ variant: "link", className: "px-0 py-0 h-auto" }],
   defaultVariants: { variant: "solid", size: "md", fullWidth: false, disabled: false },

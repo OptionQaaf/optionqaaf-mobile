@@ -14,7 +14,7 @@ type Props = {
 
 export function MenuBar({ variant = "light", floating = false, scrim = 0, back = false }: Props) {
   const { toggle } = useDrawer()
-  const color = variant === "light" ? "#FFFFFF" : "#0B0B0B"
+  const color = "#1e1e1e"
   const pathname = usePathname()
 
   const LOGO_W = 32
@@ -65,7 +65,7 @@ export function MenuBar({ variant = "light", floating = false, scrim = 0, back =
               <Menu size={24} color={color} />
             </Icon>
           )}
-          <Icon onPress={() => {}}>
+          <Icon onPress={() => router.push("/search" as any)}>
             <Search size={22} color={color} />
           </Icon>
         </View>

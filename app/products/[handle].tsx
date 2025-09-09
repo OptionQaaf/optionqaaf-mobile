@@ -109,15 +109,46 @@ export default function ProductScreen() {
     )
   }
 
-  // description (prefer HTML fallback if plain description missing)
-  const stripHtml = (html: string) =>
-    html
+  // description: sanitize aggressively to avoid script blobs surfacing as text
+  const sanitizeDescription = (input: string | undefined | null): string | undefined => {
+    if (!input) return undefined
+    let txt = String(input)
+    // Strip common HTML containers and scripts
+    txt = txt
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<noscript[\s\S]*?>[\s\S]*?<\/noscript>/gi, " ")
+      .replace(/<!--([\s\S]*?)-->/g, " ")
       .replace(/<[^>]+>/g, " ")
+    // Remove JS comments and obvious code blocks if any slipped through
+    txt = txt.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|\n)\s*\/\/.*$/gm, " ")
+    // If suspicious code-like tokens are present, cut content at first occurrence
+    const suspicious =
+      /(function\s*\(|=>|\bvar\s+|\blet\s+|\bconst\s+|window\.|document\.|navigator\.|eval\s*\(|\)\s*=>)/i
+    const idx = txt.search(suspicious)
+    if (idx >= 0) txt = txt.slice(0, Math.max(0, idx))
+    // Decode a few common entities and normalize whitespace
+    txt = txt
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
       .replace(/\s+/g, " ")
       .trim()
-  const description: string | undefined =
-    ((product as any)?.description as string | undefined) ||
-    ((product as any)?.descriptionHtml ? stripHtml(String((product as any).descriptionHtml)) : undefined)
+    // Guard: if after sanitization it's not meaningful, drop it
+    const alnum = txt.replace(/[^a-zA-Z0-9]+/g, "")
+    if (alnum.length < 12) return undefined
+    return txt
+  }
+  const description: string | undefined = (() => {
+    const plain = sanitizeDescription((product as any)?.description)
+    const fromHtml = sanitizeDescription((product as any)?.descriptionHtml)
+    // Prefer the longer, meaningful one
+    if (plain && fromHtml) return plain.length >= fromHtml.length ? plain : fromHtml
+    return plain ?? fromHtml ?? undefined
+  })()
 
   return (
     <Screen bleedTop bleedBottom>
@@ -151,7 +182,7 @@ export default function ProductScreen() {
                   className="mb-3"
                 />
               ))}
-              {description ? <Text className="text-primary mb-4">{description}</Text> : null}
+              {/* {description ? <Text className="text-primary mb-4">{description}</Text> : null} */}
               <View className="flex-row w-full items-center justify-between mb-4">
                 {/* <PressableOverlay className="px-3 py-2 rounded-full bg-neutral-100">
                   <Text className="text-primary font-geist-semibold">Size Guide</Text>
@@ -188,7 +219,7 @@ export default function ProductScreen() {
                   disabled={!available}
                   className={`px-5 py-3 rounded-full items-center ${available ? "bg-brand" : "bg-neutral-300"}`}
                 >
-                  <Text className="text-white font-bold text-[16px]">Add to Cart</Text>
+                  <Text className="text-white font-bold text-[16px]">{available ? "Add to Cart" : "Out of Stock"}</Text>
                 </PressableOverlay>
               </View>
             </Animated.View>
