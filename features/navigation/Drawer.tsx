@@ -61,36 +61,22 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
 function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
   const { data } = useMenu("new-menu") // adjust handle if needed
   const insets = useSafeAreaInsets()
-  const rootItems = data ?? []
+  const rootItems = Array.isArray(data) ? data : []
 
   const [levelsStack, setLevelsStack] = useState<{ title: string; items: AppMenuItem[] }[]>([])
   const [displayDepth, setDisplayDepth] = useState(0)
-  const animMode = useRef<"push" | "pop" | null>(null)
 
   const baseLevel = useMemo(
     () => ({ title: "Menu", items: Array.isArray(rootItems) ? rootItems : [] }),
     [rootItems],
   )
-  const levels = useMemo(
-    () => [baseLevel].concat(Array.isArray(levelsStack) ? levelsStack : []),
-    [baseLevel, levelsStack],
-  )
-  const slideX = useSharedValue(0)
-  const sliderA = useAnimatedStyle(() => ({ transform: [{ translateX: slideX.value }] }))
-
-  const clearAnimMode = () => {
-    animMode.current = null
-  }
+  const levels = useMemo(() => [baseLevel, ...(Array.isArray(levelsStack) ? levelsStack : [])], [baseLevel, levelsStack])
+  // Minimal transition: fade current level
+  const fade = useSharedValue(1)
+  const fadeA = useAnimatedStyle(() => ({ opacity: fade.value }))
   useEffect(() => {
-    const modeOnStart = animMode.current
-    slideX.value = withTiming(-displayDepth * WIDTH, { duration: 240 }, (finished) => {
-      if (finished) {
-        if (modeOnStart === "pop") {
-          runOnJS(setLevelsStack)((prev) => prev.slice(0, -1))
-        }
-        runOnJS(clearAnimMode)()
-      }
-    })
+    fade.value = 0
+    fade.value = withTiming(1, { duration: 160 })
   }, [displayDepth])
 
   const LOGO_W = 64
@@ -98,7 +84,7 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
   const atRoot = displayDepth === 0
   const onHeaderPress = () => {
     if (!atRoot) {
-      animMode.current = "pop"
+      setLevelsStack((prev) => (Array.isArray(prev) ? prev.slice(0, -1) : []))
       setDisplayDepth((d) => Math.max(0, d - 1))
       return
     }
@@ -130,11 +116,16 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
         </Icon>
       </View>
 
-      {/* big list (scrollable) with smooth horizontal transition between levels */}
+      {/* big list (scrollable) with clean fade between levels */}
       <View className="flex-1" style={{ overflow: "hidden" }}>
-        <Animated.View style={[{ flexDirection: "row", width: WIDTH * levels.length }, sliderA]}>
-          {(Array.isArray(levels) ? levels : []).map((level, idx) => (
-            <View key={`level-${idx}`} style={{ width: WIDTH }}>
+        {(() => {
+          const currentLevelIndex = Math.min(
+            Math.max(0, displayDepth),
+            Math.max(0, (Array.isArray(levels) ? levels : []).length - 1),
+          )
+          const level = (Array.isArray(levels) ? levels : [])[currentLevelIndex] ?? baseLevel
+          return (
+            <Animated.View style={[{ flex: 1 }, fadeA]}>
               <ScrollView>
                 <View className="px-4 gap-2">
                   {(Array.isArray(level.items) ? level.items : []).map((item) => (
@@ -142,8 +133,11 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
                       key={item.id}
                       onPress={() => {
                         if (item.children && item.children.length > 0) {
-                          animMode.current = "push"
-                          setLevelsStack((prev) => [...prev, { title: item.title, items: item.children }])
+                          setLevelsStack((prev) =>
+                            Array.isArray(prev)
+                              ? [...prev, { title: item.title, items: item.children ?? [] }]
+                              : [{ title: item.title, items: item.children ?? [] }],
+                          )
                           setDisplayDepth((d) => d + 1)
                           return
                         }
@@ -162,9 +156,9 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
                   ))}
                 </View>
               </ScrollView>
-            </View>
-          ))}
-        </Animated.View>
+            </Animated.View>
+          )
+        })()}
       </View>
 
       {/* footer */}

@@ -213,6 +213,7 @@ export default function ProductScreen() {
           price={price}
           compareAt={compareAt > price ? compareAt : undefined}
           currency={currency}
+          available={available}
           onAdd={() => {
             // placeholder: cart wiring will be added later
             // eslint-disable-next-line no-console

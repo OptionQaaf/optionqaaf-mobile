@@ -35,6 +35,7 @@ export default function CollectionScreen() {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useCollectionProducts(h || "", 24)
   const meta = useCollectionMeta(h || "")
   const products = (data?.pages?.flatMap((p: any) => p.nodes) ?? []) as any[]
+  const loadedCount = products.length
 
   // derive hero image from first product if collection image not available
   const heroImage = (meta.data?.pages?.[0]?.image as string) || products?.[0]?.featuredImage?.url || undefined
@@ -59,6 +60,8 @@ export default function CollectionScreen() {
       setShowFilters(false)
     })
   }
+
+  // removed eager fetch here; see targeted fetch below based on zero results
 
   // Enable LayoutAnimation on Android for smooth grid resize
   useEffect(() => {
@@ -85,6 +88,8 @@ export default function CollectionScreen() {
     const min = minPrice ? Number(minPrice) : -Infinity
     const max = maxPrice ? Number(maxPrice) : Infinity
     const base = products.filter((p) => {
+      // Hide out-of-stock products by default
+      if (p?.availableForSale === false) return false
       if (vset.size > 0 && !vset.has(p?.vendor)) return false
       const price = Number(p?.priceRange?.minVariantPrice?.amount ?? 0)
       if (price < min || price > max) return false
@@ -103,6 +108,20 @@ export default function CollectionScreen() {
     }
     return base
   }, [products, query, selectedVendors, sort, minPrice, maxPrice])
+
+  // Auto-load more pages while searching and no results found yet
+  useEffect(() => {
+    const q = query.trim()
+    if (!q) return
+    if (filtered.length > 0) return
+    if (!hasNextPage || isFetchingNextPage) return
+    // Safety cap to avoid unbounded fetches
+    if (loadedCount >= 120) return
+    const t = setTimeout(() => {
+      fetchNextPage()
+    }, 80)
+    return () => clearTimeout(t)
+  }, [query, filtered.length, hasNextPage, isFetchingNextPage, loadedCount, fetchNextPage])
 
   const { width } = useWindowDimensions()
   const heroH = Math.max(280, Math.min(440, Math.round(width * 1.0)))

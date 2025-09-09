@@ -16,6 +16,7 @@ fragment ProductCard on Product {
   handle
   title
   vendor
+  availableForSale
   featuredImage {
     ...Image
   }

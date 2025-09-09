@@ -21,7 +21,7 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <FontProvider>
             <DrawerProvider>
-              <Stack screenOptions={{ headerShown: false }} />
+              <Stack screenOptions={{ headerShown: false, animation: "fade" }} />
               <ToastHost />
             </DrawerProvider>
           </FontProvider>
