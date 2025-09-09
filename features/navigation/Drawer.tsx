@@ -1,6 +1,8 @@
+import { CURRENCIES, CURRENCIES_MAP } from "@/features/currency/config"
 import { useMenu } from "@/features/navigation/api"
 import type { AppMenuItem } from "@/lib/shopify/services/menus"
 import { routeToPath } from "@/lib/shopify/services/menus"
+import { usePrefs } from "@/store/prefs"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
 import { Icon } from "@/ui/nav/MenuBar"
@@ -66,11 +68,11 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
   const [levelsStack, setLevelsStack] = useState<{ title: string; items: AppMenuItem[] }[]>([])
   const [displayDepth, setDisplayDepth] = useState(0)
 
-  const baseLevel = useMemo(
-    () => ({ title: "Menu", items: Array.isArray(rootItems) ? rootItems : [] }),
-    [rootItems],
+  const baseLevel = useMemo(() => ({ title: "Menu", items: Array.isArray(rootItems) ? rootItems : [] }), [rootItems])
+  const levels = useMemo(
+    () => [baseLevel, ...(Array.isArray(levelsStack) ? levelsStack : [])],
+    [baseLevel, levelsStack],
   )
-  const levels = useMemo(() => [baseLevel, ...(Array.isArray(levelsStack) ? levelsStack : [])], [baseLevel, levelsStack])
   // Minimal transition: fade current level
   const fade = useSharedValue(1)
   const fadeA = useAnimatedStyle(() => ({ opacity: fade.value }))
@@ -162,12 +164,63 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
       </View>
 
       {/* footer */}
-      <View className="px-4 pb-10 pt-8 gap-4">
-        <Text className="text-[18px] text-secondary">Shipping Policy</Text>
-        <Text className="text-[18px] text-secondary">Terms of Service</Text>
-        <Text className="text-[18px] text-secondary">Privacy Policy</Text>
-        <Text className="text-[18px] text-secondary">Refund Policy</Text>
-      </View>
+      <DrawerFooter />
     </Screen>
+  )
+}
+
+function DrawerFooter() {
+  const { currency, setPrefs } = usePrefs()
+  const [open, setOpen] = useState(false)
+  const selected = (currency?.toUpperCase?.() ?? "USD") as keyof typeof CURRENCIES_MAP
+  const item = CURRENCIES_MAP[selected] ?? CURRENCIES_MAP.USD
+
+  return (
+    <View className="px-4 pb-10 pt-8 gap-4 relative">
+      {/* currency selector */}
+      {/* legal links */}
+      <Text className="text-[18px] text-secondary">Shipping Policy</Text>
+      <Text className="text-[18px] text-secondary">Terms of Service</Text>
+      <Text className="text-[18px] text-secondary">Privacy Policy</Text>
+      <Text className="text-[18px] text-secondary">Refund Policy</Text>
+
+      <View>
+        <PressableOverlay
+          haptic="light"
+          onPress={() => setOpen((v) => !v)}
+          className="flex-row items-center justify-between rounded-2xl border border-[#E6E6E6] bg-white px-3 py-3"
+        >
+          <View className="flex-row items-center gap-2">
+            <Text className="text-[20px]">{item.flag}</Text>
+            <Text className="text-[18px] font-semibold text-primary">{item.code}</Text>
+          </View>
+        </PressableOverlay>
+
+        {open ? (
+          <View
+            className="absolute left-0 right-0 -top-2 translate-y-[-100%] rounded-2xl border border-[#E6E6E6] bg-white"
+            style={{ zIndex: 10, elevation: 10 }}
+          >
+            {CURRENCIES.map((c) => (
+              <PressableOverlay
+                key={c.code}
+                onPress={() => {
+                  setPrefs({ currency: c.code })
+                  setOpen(false)
+                }}
+                className="px-3 py-3"
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center gap-2">
+                    <Text className="text-[20px]">{c.flag}</Text>
+                    <Text className="text-[16px] font-semibold text-primary">{c.code}</Text>
+                  </View>
+                </View>
+              </PressableOverlay>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    </View>
   )
 }

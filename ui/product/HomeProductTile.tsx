@@ -1,4 +1,6 @@
 import { ImageBackground, Pressable, Text, useWindowDimensions, View } from "react-native"
+import { usePrefs } from "@/store/prefs"
+import { convertAmount } from "@/features/currency/rates"
 
 // Lazy import gradient to avoid hard dependency
 let LinearGradient: any
@@ -33,6 +35,7 @@ export function HomeProductTile({
   showPrice = false,
 }: Props) {
   const { width: winW } = useWindowDimensions()
+  const { currency: prefCurrency } = usePrefs()
   const w = width ?? Math.round(winW * 0.44)
   const radius = rounded === "none" ? 0 : rounded === "3xl" ? 24 : rounded === "2xl" ? 18 : 12
   // Responsive overlay sizes relative to card width
@@ -53,9 +56,12 @@ export function HomeProductTile({
           borderRadius: 999,
         }}
       >
-        <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>
-          {new Intl.NumberFormat(undefined, { style: "currency", currency }).format(price)}
-        </Text>
+        {(() => {
+          const target = (prefCurrency || currency || "USD").toUpperCase()
+          const amt = convertAmount(price, currency, target)
+          const txt = new Intl.NumberFormat(undefined, { style: "currency", currency: target }).format(amt)
+          return <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>{txt}</Text>
+        })()}
       </View>
     ) : null
 

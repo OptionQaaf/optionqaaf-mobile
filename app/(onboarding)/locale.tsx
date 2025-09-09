@@ -1,5 +1,5 @@
 import { markOnboardingDone } from "@/lib/storage/flags"
-import { usePrefs, type CountryCode, type CurrencyCode, type LanguageCode } from "@/store/prefs"
+import { usePrefs, type LanguageCode } from "@/store/prefs"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
 import { Button } from "@/ui/primitives/Button"
@@ -9,15 +9,9 @@ import { router } from "expo-router"
 import { useMemo, useState } from "react"
 import { Image, Text as RNText, ScrollView, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-
-const COUNTRIES: Array<{ id: CountryCode; label: string; flag: string; currency: CurrencyCode; symbol: string }> = [
-  { id: "SA", label: "Saudi Arabia / السعودية", flag: "🇸🇦", currency: "SAR", symbol: "﷼" },
-  { id: "AE", label: "United Arab Emirates / الإمارات", flag: "🇦🇪", currency: "AED", symbol: "د.إ" },
-  { id: "KW", label: "Kuwait / الكويت", flag: "🇰🇼", currency: "KWD", symbol: "د.ك" },
-  { id: "QA", label: "Qatar / قطر", flag: "🇶🇦", currency: "QAR", symbol: "ر.ق" },
-  { id: "BH", label: "Bahrain / البحرين", flag: "🇧🇭", currency: "BHD", symbol: "ب.د" },
-  { id: "OM", label: "Oman / عمان", flag: "🇴🇲", currency: "OMR", symbol: "ر.ع" },
-]
+import type { CountryCode } from "@/features/locale/countries"
+import type { CurrencyCode } from "@/features/currency/config"
+import { COUNTRIES } from "@/features/locale/countries"
 
 export default function LocaleOnboarding() {
   const { setPrefs } = usePrefs()

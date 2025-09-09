@@ -1,9 +1,9 @@
 import { kv } from "@/lib/storage/mmkv"
 import { create } from "zustand"
+import type { CurrencyCode } from "@/features/currency/config"
+import type { CountryCode } from "@/features/locale/countries"
 
 export type LanguageCode = "EN" | "AR"
-export type CountryCode = "SA" | "AE" | "KW" | "QA" | "BH" | "OM"
-export type CurrencyCode = "SAR" | "AED" | "KWD" | "QAR" | "BHD" | "OMR"
 
 export type PrefsState = {
   language: string
