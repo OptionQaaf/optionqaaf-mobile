@@ -1,4 +1,5 @@
 import { Text, View } from "react-native"
+import { cn } from "@/ui/utils/cva"
 
 type Props = {
   amount: number // e.g. 48 or 48.5 (major units)
@@ -6,6 +7,7 @@ type Props = {
   currency?: string // e.g. "USD", "EUR", "SAR"
   locale?: string // e.g. "en-US", "ar-SA"
   className?: string
+  amountClassName?: string
 }
 
 function formatCurrency(v: number, currency = "USD", locale = "en-US") {
@@ -16,14 +18,16 @@ function formatCurrency(v: number, currency = "USD", locale = "en-US") {
   }
 }
 
-export function Price({ amount, compareAt, currency = "USD", locale = "en-US", className }: Props) {
+export function Price({ amount, compareAt, currency = "USD", locale = "en-US", className, amountClassName }: Props) {
   const isOnSale = compareAt && compareAt > amount
   const pct = isOnSale ? Math.round(((compareAt! - amount) / compareAt!) * 100) : 0
 
   return (
     <View className={className}>
       <View className="flex-row items-baseline gap-2">
-        <Text className="text-primary font-geist-semibold text-[14px]">{formatCurrency(amount, currency, locale)}</Text>
+        <Text className={cn("text-primary font-geist-semibold text-[14px]", amountClassName)}>
+          {formatCurrency(amount, currency, locale)}
+        </Text>
 
         {isOnSale ? (
           <>

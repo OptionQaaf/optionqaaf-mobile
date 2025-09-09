@@ -1,7 +1,7 @@
 import { useDrawer } from "@/features/navigation/drawerContext"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { router, usePathname } from "expo-router"
-import { Menu, Search, ShoppingBag, User2 } from "lucide-react-native"
+import { ChevronLeft, Menu, Search, ShoppingBag, User2 } from "lucide-react-native"
 import { DeviceEventEmitter, Image, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
@@ -9,9 +9,10 @@ type Props = {
   variant?: "light" | "dark"
   floating?: boolean
   scrim?: number
+  back?: boolean
 }
 
-export function MenuBar({ variant = "light", floating = false, scrim = 0 }: Props) {
+export function MenuBar({ variant = "light", floating = false, scrim = 0, back = false }: Props) {
   const { toggle } = useDrawer()
   const color = variant === "light" ? "#FFFFFF" : "#0B0B0B"
   const pathname = usePathname()
@@ -55,9 +56,15 @@ export function MenuBar({ variant = "light", floating = false, scrim = 0 }: Prop
       <View className="flex-row items-center justify-between px-5 py-4">
         {/* left group */}
         <View className="flex-row items-center gap-4">
-          <Icon onPress={toggle}>
-            <Menu size={24} color={color} />
-          </Icon>
+          {back ? (
+            <Icon onPress={() => router.back()}>
+              <ChevronLeft size={24} color={color} />
+            </Icon>
+          ) : (
+            <Icon onPress={toggle}>
+              <Menu size={24} color={color} />
+            </Icon>
+          )}
           <Icon onPress={() => {}}>
             <Search size={22} color={color} />
           </Icon>

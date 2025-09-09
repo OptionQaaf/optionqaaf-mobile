@@ -26,9 +26,9 @@ export function AddToCartBar({
       <SafeAreaView edges={["bottom"]}>
         <View className="px-4 py-3 flex-row items-center gap-3">
           <View className="flex-1">
-            <Price amount={price} compareAt={compareAt} currency={currency} />
+            <Price amount={price} compareAt={compareAt} currency={currency} amountClassName="text-[22px]" />
           </View>
-          <Button onPress={onAdd} size="lg" className="px-6 rounded-full">
+          <Button onPress={onAdd} size="lg" className="px-6 rounded-full" textClassName="font-bold">
             Add to Cart
           </Button>
         </View>

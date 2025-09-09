@@ -39,6 +39,7 @@ fragment ProductDetail on Product {
   title
   vendor
   description
+  descriptionHtml
   featuredImage {
     ...Image
   } # ← ADD THIS LINE

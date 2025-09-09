@@ -3,7 +3,7 @@ import { Skeleton } from "@/ui/feedback/Skeleton"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
-import { useLocalSearchParams } from "expo-router"
+import { router, useLocalSearchParams } from "expo-router"
 import { Filter, LayoutGrid, Square } from "lucide-react-native"
 import React, { useEffect, useMemo, useState } from "react"
 import {
@@ -389,6 +389,10 @@ export default function CollectionScreen() {
                 imageRatio={3 / 4}
                 rounded="3xl"
                 padding={view === 2 ? "md" : "lg"}
+                onPress={() => {
+                  const h = item?.handle
+                  if (h) router.push(`/products/${h}` as any)
+                }}
               />
             )}
           />

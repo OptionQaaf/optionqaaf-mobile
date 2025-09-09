@@ -24,7 +24,7 @@ const buttonStyles = cva("flex-row items-center justify-center rounded-xl gap-2"
   defaultVariants: { variant: "solid", size: "md", fullWidth: false, disabled: false },
 })
 
-const labelStyles = cva("font-geist-medium", {
+const labelStyles = cva("font-geist-bold", {
   variants: {
     variant: {
       solid: "text-white",
@@ -51,6 +51,7 @@ type ButtonBaseProps = {
   onPress?: () => void
   accessibilityLabel?: string
   disabled?: boolean
+  textClassName?: string
 }
 
 type ButtonProps = ButtonBaseProps & VariantProps<typeof buttonStyles> & VariantProps<typeof labelStyles>
@@ -67,6 +68,7 @@ export function Button({
   children,
   onPress,
   accessibilityLabel,
+  textClassName,
 }: ButtonProps) {
   const spinnerColor = !variant || variant === "solid" ? "#FFFFFF" : "#0B0B0B"
 
@@ -84,7 +86,7 @@ export function Button({
 
         {/* Label */}
         {typeof children === "string" ? (
-          <RNText accessibilityLabel={accessibilityLabel} className={labelStyles({ variant, size })}>
+          <RNText accessibilityLabel={accessibilityLabel} className={cn(textClassName, labelStyles({ variant, size }))}>
             {children}
           </RNText>
         ) : (
