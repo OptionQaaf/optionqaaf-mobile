@@ -20,3 +20,16 @@ export function useCollectionProducts(handle: string, pageSize = 24) {
     initialPageParam: null as string | null,
   })
 }
+
+export function useCollectionMeta(handle: string) {
+  const locale = currentLocale()
+  return useInfiniteQuery({
+    queryKey: qk.plp(`${handle}:meta`, { pageSize: 1, locale }),
+    queryFn: async () => {
+      const res = await getCollectionProducts({ handle, pageSize: 1, after: null }, locale)
+      return { title: res.collection?.title ?? handle, image: res.collection?.image?.url as any }
+    },
+    initialPageParam: null as null,
+    getNextPageParam: () => undefined,
+  })
+}

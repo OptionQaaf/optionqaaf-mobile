@@ -8,6 +8,7 @@ query CollectionByHandle(
   collection(handle: $handle) {
     id
     title
+    image { ...Image }
     products(first: $pageSize, after: $after) {
       pageInfo {
         hasNextPage
