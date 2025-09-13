@@ -1,8 +1,9 @@
 import { useDrawer } from "@/features/navigation/drawerContext"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
+import { useCartQuery } from "@/features/cart/api"
 import { router, usePathname } from "expo-router"
 import { ChevronLeft, Menu, Search, ShoppingBag, User2 } from "lucide-react-native"
-import { DeviceEventEmitter, Image, View } from "react-native"
+import { DeviceEventEmitter, Image, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 type Props = {
@@ -84,9 +85,7 @@ export function MenuBar({ variant = "light", floating = false, scrim = 0, back =
           <Icon onPress={() => {}}>
             <User2 size={22} color={color} />
           </Icon>
-          <Icon onPress={() => {}}>
-            <ShoppingBag size={22} color={color} />
-          </Icon>
+          <CartIcon color={color} />
         </View>
       </View>
     </Container>
@@ -98,5 +97,38 @@ export function Icon({ children, onPress }: { children: React.ReactNode; onPress
     <PressableOverlay onPress={onPress} className="h-10 w-10 items-center justify-center rounded-2xl">
       {children}
     </PressableOverlay>
+  )
+}
+
+function CartIcon({ color }: { color: string }) {
+  const { data: cart } = useCartQuery()
+  const qty = cart?.totalQuantity ?? 0
+  const ref = (global as any).ReactCreateRef?.() || undefined
+  // fallback: use a simple callback ref
+  let _view: View | null = null
+  const setRef = (v: any) => {
+    _view = v
+    if (v && v.measureInWindow) {
+      // measure shortly after mount
+      setTimeout(() => v.measureInWindow((x: number, y: number, w: number, h: number) => DeviceEventEmitter.emit("cart:iconLayout", { x: x + w / 2, y: y + h / 2 })), 0)
+    }
+  }
+
+  return (
+    <View ref={setRef as any}>
+      <PressableOverlay onPress={() => router.push("/cart" as any)} className="h-10 w-10 items-center justify-center rounded-2xl">
+        <ShoppingBag size={22} color={color} />
+        {qty > 0 ? (
+          <View
+            style={{ position: "absolute", right: 2, top: 2 }}
+            className="min-w-[16px] h-[16px] px-[3px] rounded-full bg-brand items-center justify-center"
+          >
+            <Text className="text-[10px] text-white font-geist-semibold" numberOfLines={1}>
+              {qty}
+            </Text>
+          </View>
+        ) : null}
+      </PressableOverlay>
+    </View>
   )
 }

@@ -5,8 +5,8 @@ import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { router } from "expo-router"
 import { StatusBar } from "expo-status-bar"
-import { DeviceEventEmitter, Linking, ScrollView, View } from "react-native"
 import { useEffect, useRef } from "react"
+import { DeviceEventEmitter, Linking, ScrollView, View } from "react-native"
 
 const ABSOLUTE_RE = /^(https?:|mailto:|tel:|sms:)/i
 
@@ -30,7 +30,7 @@ export default function Home() {
 
   return (
     <Screen bleedTop bleedBottom>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <View className="flex-1">
         <MenuBar variant="light" floating />
 

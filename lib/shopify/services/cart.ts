@@ -10,6 +10,8 @@ import {
   type CartLinesUpdateMutation,
   CartQueryDocument,
   type CartQueryQuery,
+  CartDiscountCodesUpdateDocument,
+  type CartDiscountCodesUpdateMutation,
 } from "@/lib/shopify/gql/graphql"
 
 function assertNoUserErrors<T extends { userErrors?: { message: string }[] }>(payload: T) {
@@ -86,6 +88,23 @@ export async function removeLines(cartId: string, lineIds: string[], locale?: { 
       language: locale?.language as any,
     })
     assertNoUserErrors(res.cartLinesRemove!)
+    return res
+  })
+}
+
+export async function updateDiscountCodes(
+  cartId: string,
+  codes: string[] | undefined,
+  locale?: { country?: string; language?: string },
+) {
+  return callShopify<CartDiscountCodesUpdateMutation>(async () => {
+    const res = await shopifyClient.request(CartDiscountCodesUpdateDocument, {
+      cartId,
+      discountCodes: codes as any,
+      country: locale?.country as any,
+      language: locale?.language as any,
+    })
+    assertNoUserErrors(res.cartDiscountCodesUpdate!)
     return res
   })
 }

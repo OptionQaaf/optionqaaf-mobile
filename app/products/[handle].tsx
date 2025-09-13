@@ -1,3 +1,4 @@
+import { useAddToCart, useEnsureCart } from "@/features/cart/api"
 import { useProduct } from "@/features/pdp/api"
 import { useSearch } from "@/features/search/api"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -11,7 +12,7 @@ import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { VariantDropdown } from "@/ui/product/VariantDropdown"
 import { router, useLocalSearchParams } from "expo-router"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Animated, FlatList, Text, View, useWindowDimensions } from "react-native"
+import { Animated, DeviceEventEmitter, FlatList, Text, View, useWindowDimensions } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function ProductScreen() {
@@ -57,21 +58,28 @@ export default function ProductScreen() {
   const [sentinelY, setSentinelY] = useState(0)
   const [scrollY, setScrollY] = useState(0)
   const viewportBottom = scrollY + height - insets.bottom
-  const engageStickyAt = sentinelY - BAR_H - GAP
-  const disengageStickyAt = sentinelY - GAP
-  const [mode, setMode] = useState<"sticky" | "inline">("sticky")
-  useEffect(() => {
-    if (!sentinelY) return
-    if (mode === "sticky" && viewportBottom >= disengageStickyAt) setMode("inline")
-    if (mode === "inline" && viewportBottom <= engageStickyAt) setMode("sticky")
-  }, [viewportBottom, sentinelY, mode])
+  const engageStickyAt = Math.max(0, sentinelY - BAR_H - GAP)
+  const disengageStickyAt = Math.max(0, sentinelY - GAP)
+  const [mode, setMode] = useState<"sticky" | "inline" | null>(null)
 
-  const stickyOpacity = useRef(new Animated.Value(1)).current
+  const stickyOpacity = useRef(new Animated.Value(0)).current
   const inlineOpacity = useRef(new Animated.Value(0)).current
+  const setModeAnimated = (next: "sticky" | "inline") => {
+    setMode(next)
+    Animated.timing(stickyOpacity, { toValue: next === "sticky" ? 1 : 0, duration: 160, useNativeDriver: true }).start()
+    Animated.timing(inlineOpacity, { toValue: next === "inline" ? 1 : 0, duration: 160, useNativeDriver: true }).start()
+  }
+
+  // Decide initial mode once sentinel is laid out, and recompute on scroll/resize
   useEffect(() => {
-    Animated.timing(stickyOpacity, { toValue: mode === "sticky" ? 1 : 0, duration: 160, useNativeDriver: true }).start()
-    Animated.timing(inlineOpacity, { toValue: mode === "inline" ? 1 : 0, duration: 160, useNativeDriver: true }).start()
-  }, [mode])
+    const shouldInline = viewportBottom >= disengageStickyAt
+    const next = shouldInline ? "inline" : "sticky"
+    if (mode == null) {
+      setModeAnimated(next)
+      return
+    }
+    if (mode !== next) setModeAnimated(next)
+  }, [viewportBottom, sentinelY])
 
   const images = useMemo(() => {
     const urls: string[] = []
@@ -94,6 +102,24 @@ export default function ProductScreen() {
       }
     return list.length ? list : ["https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=1200"]
   }, [product, selectedVariant])
+
+  // cart actions
+  const ensureCart = useEnsureCart()
+  const addToCart = useAddToCart()
+  const inlineBtnPos = useRef<{ x: number; y: number } | null>(null)
+  const stickyStart = () => ({ x: Math.round(width / 2), y: Math.round(height - insets.bottom - 40) })
+  const onAddToCart = async ({ from }: { from?: { x: number; y: number } } = {}) => {
+    try {
+      if (!selectedVariant?.id) return
+      await ensureCart.mutateAsync()
+      await addToCart.mutateAsync({ merchandiseId: selectedVariant.id, quantity: 1 })
+      const img = (selectedVariant as any)?.image?.url ?? images[0]
+      DeviceEventEmitter.emit("cart:fly", { image: img, from: from ?? inlineBtnPos.current ?? stickyStart() })
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(e)
+    }
+  }
 
   // loading state
   if (isLoading) {
@@ -210,23 +236,35 @@ export default function ProductScreen() {
                     amountClassName="text-[22px] text-black"
                   />
                 </View>
-                <PressableOverlay
-                  onPress={() => {
-                    // placeholder: wire to cart later
-                    // eslint-disable-next-line no-console
-                    console.log("add_to_cart", { handle: h, variantId: selectedVariant?.id, qty: 1 })
+                <View
+                  ref={(v: any) => {
+                    if (v && v.measureInWindow) {
+                      setTimeout(
+                        () =>
+                          v.measureInWindow((x: number, y: number, w: number, h: number) => {
+                            inlineBtnPos.current = { x: x + w / 2, y: y + h / 2 }
+                          }),
+                        0,
+                      )
+                    }
                   }}
-                  disabled={!available}
-                  className={`px-5 py-3 rounded-full items-center ${available ? "bg-brand" : "bg-neutral-300"}`}
                 >
-                  <Text className="text-white font-bold text-[16px]">{available ? "Add to Cart" : "Out of Stock"}</Text>
-                </PressableOverlay>
+                  <PressableOverlay
+                    onPress={() => onAddToCart({})}
+                    disabled={!available}
+                    className={`px-5 py-3 rounded-full items-center ${available ? "bg-brand" : "bg-neutral-300"}`}
+                  >
+                    <Text className="text-white font-bold text-[16px]">
+                      {available ? "Add to Cart" : "Out of Stock"}
+                    </Text>
+                  </PressableOverlay>
+                </View>
               </View>
             </Animated.View>
             {/* removed spacer to reduce unused visual gap; paddingBottom at list keeps space for sticky bar */}
 
             {/* sentinel before related section */}
-            <View onLayout={(e) => !sentinelY && setSentinelY(e.nativeEvent.layout.y)} />
+            <View onLayout={(e) => setSentinelY(e.nativeEvent.layout.y)} />
 
             {/* Recommended products */}
             <Recommended vendor={(product as any)?.vendor} currentHandle={(product as any)?.handle} />
@@ -245,11 +283,7 @@ export default function ProductScreen() {
           compareAt={compareAt > price ? compareAt : undefined}
           currency={currency}
           available={available}
-          onAdd={() => {
-            // placeholder: cart wiring will be added later
-            // eslint-disable-next-line no-console
-            console.log("add_to_cart", { handle: h, variantId: selectedVariant?.id, qty: 1 })
-          }}
+          onAdd={() => onAddToCart({ from: stickyStart() })}
         />
       </Animated.View>
     </Screen>

@@ -60,3 +60,16 @@ mutation CartLinesRemove($cartId: ID!, $lineIds: [ID!]!, $country: CountryCode, 
     }
   }
 }
+
+# Apply or remove discount codes on a cart
+mutation CartDiscountCodesUpdate(
+  $cartId: ID!
+  $discountCodes: [String!]
+  $country: CountryCode
+  $language: LanguageCode
+) @inContext(country: $country, language: $language) {
+  cartDiscountCodesUpdate(cartId: $cartId, discountCodes: $discountCodes) {
+    cart { ...CartCommon }
+    userErrors { field message }
+  }
+}

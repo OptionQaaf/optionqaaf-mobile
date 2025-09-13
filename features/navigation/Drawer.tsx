@@ -6,7 +6,7 @@ import { usePrefs } from "@/store/prefs"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
 import { Icon } from "@/ui/nav/MenuBar"
-import { router } from "expo-router"
+import { router, usePathname } from "expo-router"
 import { ChevronLeft, X } from "lucide-react-native"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Dimensions, Image, Linking, ScrollView, Text, View } from "react-native"
@@ -19,6 +19,7 @@ const SCREEN_W = Dimensions.get("window").width
 const WIDTH = SCREEN_W // full width
 
 export function DrawerProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const x = useSharedValue(-WIDTH)
   const startX = useSharedValue(-WIDTH)
   const isOpenRef = useRef(false)
@@ -41,7 +42,34 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
       const next = Math.min(0, Math.max(-WIDTH, startX.value + e.translationX))
       x.value = next
     })
-    .onEnd(() => runOnJS(setOpen)(x.value > -WIDTH * 0.5))
+    .onEnd((e) => {
+      "worklet"
+      const startedOpen = startX.value > -WIDTH * 0.5
+      const shouldOpen = startedOpen
+        ? // started open: keep open unless user swiped left far/fast
+          !(x.value < -WIDTH * 0.1 || e.velocityX < -300)
+        : // started closed: open if user swiped right a little/fast
+          x.value > -WIDTH * 0.9 || e.velocityX > 300
+      runOnJS(setOpen)(!!shouldOpen)
+    })
+
+  // Edge pan area to open the drawer when it's closed (left 20px)
+  const EDGE_W = 32
+  const edgePan = Gesture.Pan()
+    .activeOffsetX(10)
+    .onBegin(() => {
+      // Only respond if currently closed
+      if (!isOpenRef.current) startX.value = x.value
+    })
+    .onUpdate((e) => {
+      if (isOpenRef.current) return
+      "worklet"
+      const next = Math.min(0, Math.max(-WIDTH, startX.value + e.translationX))
+      x.value = next
+    })
+    .onEnd((e) => {
+      if (!isOpenRef.current) runOnJS(setOpen)(x.value > -WIDTH * 0.9 || e.velocityX > 300)
+    })
 
   const drawerA = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }))
 
@@ -50,6 +78,17 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
   return (
     <DrawerContext.Provider value={value}>
       <View style={{ flex: 1 }}>{children}</View>
+
+      {/* Left-edge pan catcher to open the drawer (disabled on PDP) */}
+      {/^\/products\//.test(pathname) ? null : (
+        <GestureDetector gesture={edgePan}>
+          <Animated.View
+            style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: EDGE_W, backgroundColor: "transparent" }}
+            // Keep it non-intrusive; it's a small edge area.
+            pointerEvents="box-only"
+          />
+        </GestureDetector>
+      )}
 
       <GestureDetector gesture={pan}>
         <Animated.View style={[{ position: "absolute", left: 0, top: 0, bottom: 0, width: WIDTH }, drawerA]}>
@@ -103,16 +142,23 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
     }, 260)
   }
 
+  const onLogoPress = () => {
+    router.push("/home")
+    closeAndReset()
+  }
+
   return (
     <Screen>
       {/* header: centered logo + chevron at right (back/close) */}
       <View className="px-4 pb-6 flex-row items-center justify-between" style={{ paddingTop: insets.top ? 0 : 12 }}>
         <View className="w-6" />
-        <Image
-          source={require("@/assets/images/optionqaaf-logo.png")}
-          style={{ width: LOGO_W, height: LOGO_H }}
-          resizeMode="contain"
-        />
+        <Icon onPress={onLogoPress}>
+          <Image
+            source={require("@/assets/images/optionqaaf-logo.png")}
+            style={{ width: LOGO_W, height: LOGO_H }}
+            resizeMode="contain"
+          />
+        </Icon>
         <Icon onPress={onHeaderPress}>
           {atRoot ? <X size={24} color="#0B0B0B" /> : <ChevronLeft size={24} color="#0B0B0B" />}
         </Icon>

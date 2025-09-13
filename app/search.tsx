@@ -31,6 +31,7 @@ export default function SearchScreen() {
               value={query}
               onChangeText={setQuery}
               placeholder="Search products"
+              placeholderTextColor="#6B7280"
               className="flex-1 h-full py-0 px-2"
               style={{ textAlignVertical: "center" }}
               returnKeyType="search"

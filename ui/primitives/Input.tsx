@@ -75,7 +75,7 @@ export function Input({
             onBlur?.(e)
           }}
           secureTextEntry={hide}
-          placeholderTextColor="#9CA3AF"
+          placeholderTextColor="#6B7280"
         />
 
         {secureToggle ? (

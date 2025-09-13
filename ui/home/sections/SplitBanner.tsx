@@ -45,8 +45,8 @@ export function SplitBanner({
   // palette
   const isDark = theme === "dark"
   const isBrand = theme === "brand"
-  const fg = isDark ? "#FFFFFF" : "#0B0B0B"
-  const subFg = isDark ? "rgba(255,255,255,0.85)" : "rgba(11,11,11,0.85)"
+  const fg = "#FFFFFF"
+  const subFg = !isDark ? "rgba(255,255,255,0.85)" : "rgba(11,11,11,0.85)"
   const brand = "#8E1A26"
 
   // responsive headline sizing (by width, clamped)

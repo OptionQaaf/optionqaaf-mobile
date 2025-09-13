@@ -90,6 +90,7 @@ fragment CartCommon on Cart {
   id
   totalQuantity
   checkoutUrl
+  discountCodes { code applicable }
   cost {
     subtotalAmount {
       ...Money
@@ -121,13 +122,16 @@ fragment CartCommon on Cart {
           price {
             ...Money
           }
-          compareAtPrice {
-            ...Money
-          }
-          selectedOptions {
-            name
-            value
-          }
+      compareAtPrice {
+        ...Money
+      }
+      image {
+        ...Image
+      }
+      selectedOptions {
+        name
+        value
+      }
         }
       }
       cost {
