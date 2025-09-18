@@ -136,7 +136,7 @@ export default function ProductScreen() {
         keyExtractor={(_, i) => String(i)}
         renderItem={() => null}
         ListHeaderComponent={
-          <View>
+          <View className="bg-white">
             <ImageCarousel
               key={images[0] ?? "pimg"}
               images={images}

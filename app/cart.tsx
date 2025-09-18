@@ -1,5 +1,6 @@
 import { useCartQuery, useEnsureCart, useSyncCartChanges, useUpdateDiscountCodes } from "@/features/cart/api"
 import { convertAmount } from "@/features/currency/rates"
+import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { usePrefs } from "@/store/prefs"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -8,12 +9,12 @@ import { Animated, MOTION } from "@/ui/motion/motion"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Price } from "@/ui/product/Price"
 import { QuantityStepper } from "@/ui/product/QuantityStepper"
+import { BlurView } from "expo-blur"
 import { Image } from "expo-image"
-import { optimizeImageUrl, DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
 import { router } from "expo-router"
 import { Trash2 } from "lucide-react-native"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Alert, FlatList, Text, View, PixelRatio } from "react-native"
+import { Alert, FlatList, PixelRatio, Platform, Text, View } from "react-native"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function CartScreen() {
@@ -285,6 +286,49 @@ export default function CartScreen() {
 
       {/* Sticky bottom summary + discounts */}
       <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "#fff" }}>
+        {/* Floating sync info above summary */}
+        {sync.isPending ? (
+          <Animated.View
+            entering={MOTION.enter.fade}
+            exiting={MOTION.exit.fade}
+            style={{ position: "absolute", left: 0, right: 0, top: -28, alignItems: "center", zIndex: 10 }}
+          >
+            <View
+              style={{
+                borderRadius: 999,
+                paddingHorizontal: 12,
+                paddingVertical: 4,
+                shadowColor: "#000",
+                shadowOpacity: 0.08,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 2 },
+                overflow: "hidden",
+              }}
+            >
+              <BlurView
+                intensity={28}
+                tint="light"
+                style={{
+                  ...Platform.select({
+                    ios: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: 999 },
+                    android: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: 999 },
+                  }),
+                }}
+              />
+              <Text
+                className="text-muted text-[13px]"
+                style={{
+                  textAlign: "center",
+                  backgroundColor: "rgba(255,255,255,0.28)",
+                  borderRadius: 999,
+                  overflow: "hidden",
+                }}
+              >
+                Synchronizing…
+              </Text>
+            </View>
+          </Animated.View>
+        ) : null}
         <SafeAreaView edges={["bottom"]} style={{ backgroundColor: "#fff" }}>
           <View
             onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}

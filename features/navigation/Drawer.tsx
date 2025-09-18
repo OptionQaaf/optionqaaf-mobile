@@ -8,7 +8,7 @@ import { Screen } from "@/ui/layout/Screen"
 import { Icon } from "@/ui/nav/MenuBar"
 import { router, usePathname } from "expo-router"
 import { ChevronLeft, X } from "lucide-react-native"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Dimensions, Image, Linking, ScrollView, Text, View } from "react-native"
 import { Gesture, GestureDetector } from "react-native-gesture-handler"
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
@@ -101,7 +101,7 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
 }
 
 function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
-  const { data } = useMenu("new-menu") // adjust handle if needed
+  const { data } = useMenu("new-menu")
   const insets = useSafeAreaInsets()
   const rootItems = Array.isArray(data) ? data : []
 
