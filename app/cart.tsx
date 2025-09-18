@@ -5,6 +5,7 @@ import { usePrefs } from "@/store/prefs"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
+import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { Animated, MOTION } from "@/ui/motion/motion"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Price } from "@/ui/product/Price"
@@ -264,6 +265,7 @@ export default function CartScreen() {
     <Screen bleedBottom>
       <MenuBar />
       <FlatList
+        {...verticalScrollProps}
         data={data}
         keyExtractor={(l) => l.id}
         renderItem={({ item }) => <LineItem item={item} />}
@@ -277,6 +279,9 @@ export default function CartScreen() {
           </View>
         }
         contentContainerStyle={{ padding: 16, paddingBottom: listBottomPad }}
+        keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
+        scrollIndicatorInsets={{ bottom: listBottomPad }}
+        showsVerticalScrollIndicator={false}
         removeClippedSubviews
         initialNumToRender={8}
         windowSize={7}

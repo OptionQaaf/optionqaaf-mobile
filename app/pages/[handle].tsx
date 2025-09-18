@@ -1,12 +1,13 @@
 import { useMobileHome } from "@/features/home/api"
 import { useSearch } from "@/features/search/api"
 import { sectionRegistry } from "@/ui/home/sections/registry"
+import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { router, useLocalSearchParams } from "expo-router"
-import { Linking, ScrollView, Text, View } from "react-native"
+import { Linking, Text, View } from "react-native"
 
 const ABSOLUTE_RE = /^(https?:|mailto:|tel:|sms:)/i
 
@@ -37,7 +38,7 @@ export default function CustomPage() {
       <View className="flex-1">
         <MenuBar variant="light" floating back />
 
-        <ScrollView contentContainerStyle={{ paddingBottom: 12 }}>
+        <PageScrollView contentContainerStyle={{ paddingBottom: 12 }}>
           <View className="pt-0">
             {/* Aesthetic sections (reuse home metaobject) */}
             {sections.map((s) => {
@@ -46,7 +47,12 @@ export default function CustomPage() {
               switch (s.kind) {
                 case "duo_poster":
                   return (
-                    <Cmp key={s.id} {...(s as any)} onPressLeft={() => go(s.left?.url)} onPressRight={() => go(s.right?.url)} />
+                    <Cmp
+                      key={s.id}
+                      {...(s as any)}
+                      onPressLeft={() => go(s.left?.url)}
+                      onPressRight={() => go(s.right?.url)}
+                    />
                   )
                 case "trio_grid":
                   return (
@@ -88,9 +94,8 @@ export default function CustomPage() {
               />
             </View>
           </View>
-        </ScrollView>
+        </PageScrollView>
       </View>
     </Screen>
   )
 }
-

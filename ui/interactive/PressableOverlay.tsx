@@ -14,6 +14,7 @@ type Props = {
   hitSlop?: number | { top?: number; bottom?: number; left?: number; right?: number }
   haptic?: false | "light" | "medium" | "heavy"
   pressableClassName?: string
+  accessibilityLabel?: string
 }
 
 export function PressableOverlay({
@@ -25,6 +26,7 @@ export function PressableOverlay({
   onPress,
   hitSlop: hs,
   haptic = "light",
+  accessibilityLabel,
 }: Props) {
   const { style: aStyle, onPressIn, onPressOut } = usePressAnim()
 
@@ -44,6 +46,7 @@ export function PressableOverlay({
       onPress={onPress}
       hitSlop={hs ?? hitTarget}
       className={pressableClassName}
+      accessibilityLabel={accessibilityLabel}
     >
       <Animated.View style={aStyle} className={cn(disabled && "opacity-50", className)}>
         {children}

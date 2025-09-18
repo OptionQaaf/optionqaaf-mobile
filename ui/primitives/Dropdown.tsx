@@ -1,5 +1,6 @@
 import { hapticOnce, haptics } from "@/ui/feedback/useHaptics"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
+import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { cn } from "@/ui/utils/cva"
 import { Check, ChevronDown, X } from "lucide-react-native"
 import { useEffect, useMemo, useState } from "react"
@@ -119,12 +120,11 @@ export function Dropdown({
 
             {/* Options list */}
             <FlatList
+              {...verticalScrollProps}
               data={options}
               keyExtractor={(o) => o.id}
               renderItem={renderItem}
               ItemSeparatorComponent={() => <View className="h-px bg-border" />}
-              bounces={false}
-              overScrollMode="never"
               // Cap height so it never pushes into the top too far
               style={{ maxHeight: Math.round(height * 0.6) - insets.bottom }}
               // <-- The important part: keep content clear of the bottom inset
@@ -134,6 +134,8 @@ export function Dropdown({
               }}
               // Also lift the scroll indicators
               scrollIndicatorInsets={{ bottom: insets.bottom + 12 }}
+              keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
+              showsVerticalScrollIndicator={false}
             />
           </View>
         </Animated.View>

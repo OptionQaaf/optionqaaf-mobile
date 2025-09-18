@@ -1,13 +1,14 @@
 import { markOnboardingDone } from "@/lib/storage/flags"
 import { usePrefs, type LanguageCode } from "@/store/prefs"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
+import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { Button } from "@/ui/primitives/Button"
 import { H3, Muted } from "@/ui/primitives/Typography"
 import { cn } from "@/ui/utils/cva"
 import { router } from "expo-router"
 import { useMemo, useState } from "react"
-import { Image, Text as RNText, ScrollView, View } from "react-native"
+import { Image, Text as RNText, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import type { CountryCode } from "@/features/locale/countries"
 import type { CurrencyCode } from "@/features/currency/config"
@@ -54,7 +55,7 @@ export default function LocaleOnboarding() {
 
       {/* SHEET that fills remaining height */}
       <View className="flex-1 -mt-6 overflow-hidden rounded-t-[32px] bg-white">
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }} bounces={false}>
+        <PageScrollView>
           <SafeAreaView className="flex-1 justify-between px-4 pt-8" edges={["bottom"]}>
             {/* FORM GROUP */}
             <View className="flex-col gap-4">
@@ -144,7 +145,7 @@ export default function LocaleOnboarding() {
               </Button>
             </View>
           </SafeAreaView>
-        </ScrollView>
+        </PageScrollView>
       </View>
     </Screen>
   )

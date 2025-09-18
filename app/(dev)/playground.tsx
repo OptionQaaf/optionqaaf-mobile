@@ -2,6 +2,7 @@ import { NumberKnob, Segment, Toggle } from "@/ui/dev/Knobs"
 import { Story, Swatch } from "@/ui/dev/Story"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { useToast } from "@/ui/feedback/Toast"
+import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { Badge } from "@/ui/primitives/Badge"
 import { Button } from "@/ui/primitives/Button"
@@ -15,8 +16,7 @@ import { VariantDropdown } from "@/ui/product/VariantDropdown"
 import { SectionHeader } from "@/ui/sections/SectionHeader"
 import { Heart, Search, ShoppingBag } from "lucide-react-native"
 import { useState } from "react"
-import { ScrollView, View } from "react-native"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { View } from "react-native"
 
 export default function Playground() {
   const toast = useToast()
@@ -34,15 +34,12 @@ export default function Playground() {
   // quantity knob
   const [qty, setQty] = useState(1)
 
-  const insets = useSafeAreaInsets()
-
   return (
     <Screen bleedBottom>
-      <ScrollView
+      <PageScrollView
         contentContainerStyle={{
           padding: 16,
           gap: 16,
-          paddingBottom: insets.bottom,
         }}
       >
         <H1>Playground</H1>
@@ -139,7 +136,7 @@ export default function Playground() {
           </View>
           <Muted className="mt-3">Tap buttons to see haptics & toasts.</Muted>
         </Story>
-      </ScrollView>
+      </PageScrollView>
     </Screen>
   )
 }

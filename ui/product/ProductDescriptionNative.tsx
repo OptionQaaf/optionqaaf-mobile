@@ -1,8 +1,7 @@
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
-import { Image as ExpoImage } from "expo-image"
 import { Skeleton } from "@/ui/feedback/Skeleton"
-import { useCallback } from "react"
-import { useEffect, useMemo, useState } from "react"
+import { Image as ExpoImage } from "expo-image"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { PixelRatio, View, useWindowDimensions } from "react-native"
 import RenderHTML from "react-native-render-html"
 
@@ -114,10 +113,10 @@ export default function ProductDescriptionNative({ html = "", onReady }: Props) 
 
   // Track img loads and keep skeleton until everything is ready (with a safety timeout)
   const imgCount = useMemo(() => (processed.match(/<img[^>]+src=/gi) || []).length, [processed])
-  const [loadedImages, setLoadedImages] = useState(0)
   const [showSkeleton, setShowSkeleton] = useState(true)
+  const loadedImagesRef = useRef(0)
   useEffect(() => {
-    setLoadedImages(0)
+    loadedImagesRef.current = 0
     setShowSkeleton(true)
     const timeout = setTimeout(
       () => {
@@ -129,12 +128,99 @@ export default function ProductDescriptionNative({ html = "", onReady }: Props) 
     return () => clearTimeout(timeout)
   }, [imgCount, processed])
   useEffect(() => {
-    if (imgCount === 0 || loadedImages >= imgCount) {
-      if (showSkeleton) setShowSkeleton(false)
+    if (imgCount === 0) {
+      setShowSkeleton(false)
       onReady?.()
     }
-  }, [loadedImages, imgCount])
-  const onImgEnd = useCallback(() => setLoadedImages((n) => n + 1), [])
+  }, [imgCount, onReady])
+
+  const onImgEnd = useCallback(() => {
+    loadedImagesRef.current += 1
+    if (loadedImagesRef.current >= imgCount) {
+      setShowSkeleton(false)
+      onReady?.()
+    }
+  }, [imgCount, onReady])
+
+  const domVisitors = useMemo(
+    () => ({
+      onElement: (element: any) => {
+        if (element.name === "img") {
+          const srcset = element.attribs?.srcset as string | undefined
+          const dataSrc =
+            (element.attribs?.["data-src"] as string | undefined) ||
+            (element.attribs?.["data-original"] as string | undefined)
+          if ((!element.attribs?.src || element.attribs?.src === "") && (dataSrc || srcset)) {
+            const fromSet = pickSrcFromSet(srcset)
+            element.attribs.src = normalizeSrc(fromSet || dataSrc || "") as any
+          } else if (element.attribs?.src) {
+            element.attribs.src = normalizeSrc(String(element.attribs.src)) as any
+          }
+          const src = (element.attribs?.src || "").trim()
+          const style = String(element.attribs?.style || "")
+          const wAttr = parseInt(String(element.attribs?.width || ""), 10)
+          const hAttr = parseInt(String(element.attribs?.height || ""), 10)
+          const wStyle = /width\s*:\s*(\d+)px/i.exec(style)?.[1]
+          const hStyle = /height\s*:\s*(\d+)px/i.exec(style)?.[1]
+          const dims = [wAttr, hAttr, Number(wStyle), Number(hStyle)].filter((v) => Number(v) > 0)
+          const tooSmall = dims.length >= 2 && dims.every((v) => Number(v) <= 2)
+          if (
+            !src ||
+            /spacer|transparent|blank|pixel|clear\.gif/i.test(src) ||
+            /^data:image\/gif;base64/i.test(src) ||
+            tooSmall
+          ) {
+            ;(element as any).parent?.children?.splice(
+              (element as any).parent.children.indexOf(element as any),
+              1,
+            )
+          }
+        }
+      },
+    }),
+    [],
+  )
+
+  const renderers = useMemo(
+    () => ({
+      img: ({ tnode }: any) => {
+        const src: string = String(tnode?.domNode?.attribs?.src || "")
+        const wAttr = parseInt(String(tnode?.domNode?.attribs?.width || ""), 10)
+        const hAttr = parseInt(String(tnode?.domNode?.attribs?.height || ""), 10)
+        return (
+          <HtmlImg
+            src={src}
+            widthHint={wAttr}
+            heightHint={hAttr}
+            contentW={contentW}
+            dpr={dpr}
+            onEnd={onImgEnd}
+          />
+        )
+      },
+    }),
+    [contentW, dpr, onImgEnd],
+  )
+
+  const tagsStyles = useMemo(
+    () => ({
+      p: { lineHeight: 22, fontSize: 15, color: "#444" },
+      img: { borderRadius: 8 },
+      ul: { paddingLeft: 18 },
+      ol: { paddingLeft: 18 },
+      table: { borderWidth: 1, borderColor: "#e6e6e6" },
+      td: { borderWidth: 1, borderColor: "#e6e6e6", paddingHorizontal: 8, paddingVertical: 6 },
+      th: { borderWidth: 1, borderColor: "#e6e6e6", paddingHorizontal: 8, paddingVertical: 6 },
+      h1: { fontSize: 22 },
+      h2: { fontSize: 18 },
+      h3: { fontSize: 16 },
+      body: { color: "#0B0B0B" },
+    }),
+    [],
+  )
+
+  const renderersProps = useMemo(() => ({ img: { enableExperimentalPercentWidth: true } }), [])
+  const renderSource = useMemo(() => ({ html: processed }), [processed])
 
   return (
     <View
@@ -146,81 +232,6 @@ export default function ProductDescriptionNative({ html = "", onReady }: Props) 
         }
       }}
     >
-      {(() => {
-        const domVisitors = useMemo(
-          () => ({
-            onElement: (element: any) => {
-              if (element.name === "img") {
-                // promote lazy attributes and normalize protocol
-                const srcset = element.attribs?.srcset as string | undefined
-                const dataSrc = (element.attribs?.["data-src"] as string | undefined) || (element.attribs?.["data-original"] as string | undefined)
-                if ((!element.attribs?.src || element.attribs?.src === "") && (dataSrc || srcset)) {
-                  const fromSet = pickSrcFromSet(srcset)
-                  element.attribs.src = normalizeSrc(fromSet || dataSrc || "") as any
-                } else if (element.attribs?.src) {
-                  element.attribs.src = normalizeSrc(String(element.attribs.src)) as any
-                }
-                const src = (element.attribs?.src || "").trim()
-                const style = String(element.attribs?.style || "")
-                const wAttr = parseInt(String(element.attribs?.width || ""), 10)
-                const hAttr = parseInt(String(element.attribs?.height || ""), 10)
-                const wStyle = /width\s*:\s*(\d+)px/i.exec(style)?.[1]
-                const hStyle = /height\s*:\s*(\d+)px/i.exec(style)?.[1]
-                const dims = [wAttr, hAttr, Number(wStyle), Number(hStyle)].filter((v) => Number(v) > 0)
-                const tooSmall = dims.length >= 2 && dims.every((v) => Number(v) <= 2)
-                if (!src || /spacer|transparent|blank|pixel|clear\.gif/i.test(src) || /^data:image\/gif;base64/i.test(src) || tooSmall) {
-                  ;(element as any).parent?.children?.splice((element as any).parent.children.indexOf(element as any), 1)
-                }
-              }
-            },
-          }),
-          [],
-        )
-
-        const renderers = useMemo(
-          () => ({
-            img: ({ tnode }: any) => {
-              const src: string = String(tnode?.domNode?.attribs?.src || "")
-              const wAttr = parseInt(String(tnode?.domNode?.attribs?.width || ""), 10)
-              const hAttr = parseInt(String(tnode?.domNode?.attribs?.height || ""), 10)
-              return <HtmlImg src={src} widthHint={wAttr} heightHint={hAttr} contentW={contentW} dpr={dpr} onEnd={onImgEnd} />
-            },
-          }),
-          [contentW, dpr, onImgEnd],
-        )
-
-        const tagsStyles = useMemo(
-          () => ({
-            p: { lineHeight: 22, fontSize: 15, color: "#444" },
-            img: { borderRadius: 8 },
-            ul: { paddingLeft: 18 },
-            ol: { paddingLeft: 18 },
-            table: { borderWidth: 1, borderColor: "#e6e6e6" },
-            td: { borderWidth: 1, borderColor: "#e6e6e6", paddingHorizontal: 8, paddingVertical: 6 },
-            th: { borderWidth: 1, borderColor: "#e6e6e6", paddingHorizontal: 8, paddingVertical: 6 },
-            h1: { fontSize: 22 },
-            h2: { fontSize: 18 },
-            h3: { fontSize: 16 },
-            body: { color: "#0B0B0B" },
-          }),
-          [],
-        )
-
-        const renderersProps = useMemo(() => ({ img: { enableExperimentalPercentWidth: true } }), [])
-
-        return (
-          <RenderHTML
-            source={{ html: processed }}
-            contentWidth={contentW}
-            enableExperimentalBRCollapsing
-            defaultTextProps={{ selectable: false }}
-            domVisitors={domVisitors as any}
-            renderers={renderers as any}
-            renderersProps={renderersProps as any}
-            tagsStyles={tagsStyles as any}
-          />
-        )
-      })()}
       {showSkeleton ? (
         <View
           pointerEvents="none"
@@ -232,7 +243,19 @@ export default function ProductDescriptionNative({ html = "", onReady }: Props) 
             <Skeleton style={{ height: 180, width: "100%", borderRadius: 12 }} />
           </View>
         </View>
-      ) : null}
+      ) : (
+        <RenderHTML
+          source={renderSource}
+          contentWidth={contentW}
+          enableExperimentalBRCollapsing
+          defaultTextProps={{ selectable: false }}
+          domVisitors={domVisitors as any}
+          renderers={renderers as any}
+          renderersProps={renderersProps as any}
+          tagsStyles={tagsStyles as any}
+          ignoredDomTags={["map"]}
+        />
+      )}
     </View>
   )
 }

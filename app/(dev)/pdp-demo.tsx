@@ -1,4 +1,7 @@
+import { AppFooter } from "@/ui/layout/AppFooter"
 import { Screen } from "@/ui/layout/Screen"
+import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
+import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { useCrossfade } from "@/ui/motion/motion"
 import { Button } from "@/ui/primitives/Button"
 import { H1, Muted, Text } from "@/ui/primitives/Typography"
@@ -8,7 +11,7 @@ import { ProductTile } from "@/ui/product/ProductTile"
 import { QuantityStepper } from "@/ui/product/QuantityStepper"
 import { VariantDropdown } from "@/ui/product/VariantDropdown"
 import { SectionHeader } from "@/ui/sections/SectionHeader"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { FlatList, Image, useWindowDimensions, View } from "react-native"
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -37,6 +40,12 @@ export default function PDPFlat() {
   const [scrollY, setScrollY] = useState(0)
   const { height, width } = useWindowDimensions()
   const insets = useSafeAreaInsets()
+  const {
+    footerVisible,
+    revealFooter,
+    onLayout: onListLayout,
+    onContentSizeChange: onListContentSize,
+  } = useDeferredFooter()
 
   // sticky-until with hysteresis + cross-fade
   const BAR_H = 64,
@@ -68,10 +77,24 @@ export default function PDPFlat() {
   const paddingH = 16
   const gap = 12
   const itemW = Math.floor((width - paddingH * 2 - gap * (columns - 1)) / columns)
+  const footerNode = useMemo(() => {
+    const spacer = BAR_H + insets.bottom + GAP + 24
+    if (footerVisible) {
+      return (
+        <View style={{ paddingTop: 32 }}>
+          <AppFooter />
+        </View>
+      )
+    }
+    return <View style={{ height: spacer }} />
+  }, [footerVisible, BAR_H, GAP, insets.bottom])
 
   return (
     <Screen bleedTop bleedBottom>
       <FlatList
+        {...verticalScrollProps}
+        onLayout={onListLayout}
+        onContentSizeChange={onListContentSize}
         data={RECS}
         keyExtractor={(_, i) => String(i)}
         numColumns={columns}
@@ -139,10 +162,15 @@ export default function PDPFlat() {
             <ProductTile {...item} width={itemW} titleLines={2} rounded="3xl" padding="md" />
           </View>
         )}
-        contentContainerStyle={{ paddingHorizontal: paddingH, paddingBottom: BAR_H + insets.bottom + GAP }}
+        contentContainerStyle={{ paddingHorizontal: paddingH }}
         onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
+        ListFooterComponent={footerNode}
+        keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
+        scrollIndicatorInsets={{ bottom: BAR_H + insets.bottom + GAP + 24 }}
+        onEndReached={revealFooter}
+        onEndReachedThreshold={0.1}
       />
 
       {/* sticky bar */}

@@ -3,6 +3,7 @@ import { useCollectionMeta, useCollectionProducts } from "@/features/plp/api"
 import { useSearch } from "@/features/search/api"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { sectionRegistry } from "@/ui/home/sections/registry"
+import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
@@ -165,7 +166,7 @@ export default function CollectionScreen() {
       <Screen bleedBottom bleedTop>
         <View className="flex-1 bg-white">
           <MenuBar variant="light" floating />
-          <ScrollView contentContainerClassName="pb-6">
+          <PageScrollView>
             <View className="pt-0">
               {/* Always lead with a composed landing to set the vibe */}
               <SpecialLanding variant={special.title as any} />
@@ -223,7 +224,7 @@ export default function CollectionScreen() {
                 />
               </View>
             </View>
-          </ScrollView>
+          </PageScrollView>
         </View>
       </Screen>
     )
@@ -234,14 +235,14 @@ export default function CollectionScreen() {
       <View className="flex-1 bg-white">
         <MenuBar variant="light" floating />
 
-        <ScrollView
-          contentContainerClassName="pb-6"
+        <PageScrollView
           scrollEventThrottle={16}
           onScroll={(e) => {
             const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
             const threshold = 400
             if (
-              hasNextPage && !reachedCap &&
+              hasNextPage &&
+              !reachedCap &&
               !isFetchingNextPage &&
               contentOffset.y + layoutMeasurement.height > contentSize.height - threshold
             ) {
@@ -544,7 +545,7 @@ export default function CollectionScreen() {
               </View>
             ) : null}
           </View>
-        </ScrollView>
+        </PageScrollView>
       </View>
     </Screen>
   )

@@ -5,6 +5,7 @@ import { routeToPath } from "@/lib/shopify/services/menus"
 import { usePrefs } from "@/store/prefs"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
+import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { Icon } from "@/ui/nav/MenuBar"
 import { router, usePathname } from "expo-router"
 import { ChevronLeft, X } from "lucide-react-native"
@@ -175,7 +176,11 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
           const level = (Array.isArray(levels) ? levels : [])[currentLevelIndex] ?? baseLevel
           return (
             <Animated.View style={[{ flex: 1 }, fadeA]}>
-              <ScrollView>
+              <ScrollView
+                {...verticalScrollProps}
+                keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
+                showsVerticalScrollIndicator={false}
+              >
                 <View className="px-4 gap-2">
                   {(Array.isArray(level.items) ? level.items : []).map((item) => (
                     <PressableOverlay

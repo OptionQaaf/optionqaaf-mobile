@@ -1,12 +1,14 @@
 import { useMobileHome } from "@/features/home/api"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { sectionRegistry } from "@/ui/home/sections/registry"
+import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { router } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useEffect, useRef } from "react"
-import { DeviceEventEmitter, Linking, ScrollView, View } from "react-native"
+import { DeviceEventEmitter, Linking, View } from "react-native"
+import type { ScrollView } from "react-native"
 
 const ABSOLUTE_RE = /^(https?:|mailto:|tel:|sms:)/i
 
@@ -35,16 +37,16 @@ export default function Home() {
         <MenuBar variant="light" floating />
 
         {isLoading ? (
-          <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 0 }}>
+          <PageScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 0 }}>
             <View className="pt-0">
               <Skeleton className="h-[360px] w-full" />
               <Skeleton className="h-[44px] w-full" />
               <Skeleton className="h-[220px] w-full" />
               <Skeleton className="h-[180px] w-full" />
             </View>
-          </ScrollView>
+          </PageScrollView>
         ) : (
-          <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 0 }}>
+          <PageScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 0 }}>
             <View className="pt-0">
               {sections.map((s) => {
                 const Cmp = (sectionRegistry as any)[s.kind]
@@ -75,7 +77,7 @@ export default function Home() {
                 }
               })}
             </View>
-          </ScrollView>
+          </PageScrollView>
         )}
       </View>
     </Screen>

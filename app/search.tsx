@@ -1,10 +1,13 @@
 import { useSearch } from "@/features/search/api"
+import { AppFooter } from "@/ui/layout/AppFooter"
 import { Screen } from "@/ui/layout/Screen"
+import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
+import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { ChevronLeft, X } from "lucide-react-native"
 import { router } from "expo-router"
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { FlatList, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native"
 import { Image as ExpoImage } from "expo-image"
 import { optimizeImageUrl } from "@/lib/images/optimize"
@@ -13,6 +16,9 @@ import { PixelRatio } from "react-native"
 export default function SearchScreen() {
   const [query, setQuery] = useState("")
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetching } = useSearch(query.trim(), 24)
+  const { footerVisible, revealFooter, resetFooter, onLayout: onListLayout, onContentSizeChange: onListContentSize } =
+    useDeferredFooter()
+  const endReachedRef = useRef(false)
 
   const nodes = useMemo(() => {
     const arr: any[] = (data?.pages?.flatMap((p) => p.nodes) ?? []) as any[]
@@ -28,17 +34,44 @@ export default function SearchScreen() {
   // Prefetch first screen of images for snappy appearance
   useEffect(() => {
     const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
-    const urls = nodes.slice(0, 8).map((n: any) =>
-      optimizeImageUrl(n?.featuredImage?.url, {
-        width: itemW,
-        height: Math.round(itemW * (3 / 4)),
-        format: "webp",
-        dpr,
-      }) || n?.featuredImage?.url,
+    const urls = nodes.slice(0, 8).map(
+      (n: any) =>
+        optimizeImageUrl(n?.featuredImage?.url, {
+          width: itemW,
+          height: Math.round(itemW * (3 / 4)),
+          format: "webp",
+          dpr,
+        }) || n?.featuredImage?.url,
     )
     const list = urls.filter(Boolean) as string[]
     if (list.length) ExpoImage.prefetch(list)
   }, [nodes, itemW])
+
+  useEffect(() => {
+    resetFooter()
+    endReachedRef.current = false
+  }, [query, resetFooter])
+
+  useEffect(() => {
+    if (!hasNextPage && endReachedRef.current) revealFooter()
+  }, [hasNextPage, revealFooter])
+
+  const renderFooter = useMemo(() => {
+    if (!isFetchingNextPage && !footerVisible) return null
+    return (
+      <View style={{ paddingTop: 24 }}>
+        {isFetchingNextPage ? (
+          <View className="mb-6">
+            <View className="flex-row gap-3">
+              <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
+              <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
+            </View>
+          </View>
+        ) : null}
+        {footerVisible ? <AppFooter /> : null}
+      </View>
+    )
+  }, [footerVisible, isFetchingNextPage])
 
   return (
     <Screen>
@@ -73,11 +106,14 @@ export default function SearchScreen() {
       </View>
 
       <FlatList
+        {...verticalScrollProps}
+        onLayout={onListLayout}
+        onContentSizeChange={onListContentSize}
         data={nodes}
         keyExtractor={(item: any, i) => item?.id ?? item?.handle ?? String(i)}
         numColumns={2}
         columnWrapperStyle={{ gap }}
-        contentContainerStyle={{ paddingHorizontal: padH, paddingBottom: 24, paddingTop: 16, rowGap: gap }}
+        contentContainerStyle={{ paddingHorizontal: padH, paddingTop: 16, rowGap: gap }}
         ListHeaderComponent={
           <View className="px-0">
             {!query.trim() ? (
@@ -117,22 +153,23 @@ export default function SearchScreen() {
         )}
         onEndReachedThreshold={0.5}
         onEndReached={() => {
-          if (query.trim() && hasNextPage && !isFetchingNextPage) fetchNextPage()
+          endReachedRef.current = true
+          if (query.trim() && hasNextPage && !isFetchingNextPage) {
+            fetchNextPage()
+            return
+          }
+          if (!hasNextPage || !query.trim()) {
+            revealFooter()
+          }
         }}
         initialNumToRender={8}
         maxToRenderPerBatch={8}
         windowSize={7}
         removeClippedSubviews
-        ListFooterComponent={
-          isFetchingNextPage ? (
-            <View className="mt-3">
-              <View className="flex-row gap-3">
-                <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
-                <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
-              </View>
-            </View>
-          ) : null
-        }
+        ListFooterComponent={renderFooter}
+        keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
+        scrollIndicatorInsets={{ bottom: 24 }}
+        showsVerticalScrollIndicator={false}
       />
     </Screen>
   )

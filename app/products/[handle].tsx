@@ -3,7 +3,10 @@ import { useProduct } from "@/features/pdp/api"
 import { useRecommendedProducts } from "@/features/recommendations/api"
 import { useSearch } from "@/features/search/api"
 import { useToast } from "@/ui/feedback/Toast"
+import { AppFooter } from "@/ui/layout/AppFooter"
 import { Screen } from "@/ui/layout/Screen"
+import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
+import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { ImageCarousel } from "@/ui/media/ImageCarousel"
 import { Animated, MOTION, useCrossfade } from "@/ui/motion/motion"
 import { MenuBar } from "@/ui/nav/MenuBar"
@@ -98,6 +101,23 @@ export default function ProductScreen() {
 
   const inlineRef = useRef<View>(null)
   const stickyRef = useRef<View>(null)
+  const {
+    footerVisible,
+    revealFooter,
+    onLayout: onListLayout,
+    onContentSizeChange: onListContentSizeChange,
+  } = useDeferredFooter()
+  const footerNode = useMemo(() => {
+    const spacer = BAR_H + insets.bottom + 12
+    if (footerVisible) {
+      return (
+        <View style={{ paddingTop: 32 }}>
+          <AppFooter />
+        </View>
+      )
+    }
+    return <View style={{ height: spacer }} />
+  }, [footerVisible, BAR_H, insets.bottom])
 
   // Common pricing + image
   const priceAmount = Number(
@@ -132,6 +152,9 @@ export default function ProductScreen() {
     <Screen bleedTop bleedBottom>
       <MenuBar variant="light" floating back />
       <Animated.FlatList
+        {...verticalScrollProps}
+        onLayout={onListLayout}
+        onContentSizeChange={onListContentSizeChange}
         data={[]}
         keyExtractor={(_, i) => String(i)}
         renderItem={() => null}
@@ -217,10 +240,15 @@ export default function ProductScreen() {
             />
           </View>
         }
-        contentContainerStyle={{ paddingBottom: BAR_H + insets.bottom + 12 }}
+        contentContainerStyle={{ paddingBottom: 0 }}
+        ListFooterComponent={footerNode}
+        keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
         showsVerticalScrollIndicator={false}
+        scrollIndicatorInsets={{ bottom: BAR_H + insets.bottom + 12 }}
         onScroll={(e: any) => setScrollY(e.nativeEvent.contentOffset?.y ?? 0)}
         scrollEventThrottle={16}
+        onEndReached={revealFooter}
+        onEndReachedThreshold={0.1}
       />
 
       {/* Sticky Add to Cart (cross-fades with inline) */}
