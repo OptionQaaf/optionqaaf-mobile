@@ -7,5 +7,7 @@
   "[typescriptreact]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "tailwindCSS.classAttributes": ["class", "className", "headerClassName"]
+  "tailwindCSS.classAttributes": ["class", "className", "headerClassName"],
+  "chatgpt.openOnStartup": true,
+  "chatgpt.commentCodeLensEnabled": true
 }

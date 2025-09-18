@@ -1,5 +1,7 @@
-import { useState } from "react"
-import { Dimensions, FlatList, Image, NativeScrollEvent, NativeSyntheticEvent, View } from "react-native"
+import { useEffect, useMemo, useState } from "react"
+import { Dimensions, FlatList, NativeScrollEvent, NativeSyntheticEvent, View, PixelRatio } from "react-native"
+import { Image } from "expo-image"
+import { optimizeImageUrl, DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
 
 const { width } = Dimensions.get("window")
 
@@ -18,12 +20,33 @@ export function ImageCarousel({
     setIndex(i)
   }
 
+  const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
+  const optimized = useMemo(
+    () =>
+      images.map((u) => optimizeImageUrl(u, { width, height: Math.round(height), format: "webp", dpr }) || u),
+    [images, height, dpr],
+  )
+
+  useEffect(() => {
+    Image.prefetch(optimized.filter(Boolean) as string[])
+  }, [optimized])
+
   return (
     <View className={className}>
       <FlatList
         data={images}
         keyExtractor={(u, i) => `${i}-${u}`}
-        renderItem={({ item }) => <Image source={{ uri: item }} style={{ width, height }} />}
+        renderItem={({ item, index: i }) => (
+          <Image
+            source={{ uri: optimized[i] || item }}
+            style={{ width, height }}
+            contentFit="cover"
+            transition={i === 0 ? 0 : 200}
+            cachePolicy="disk"
+            priority={i === 0 ? "high" : "normal"}
+            placeholder={DEFAULT_PLACEHOLDER}
+          />
+        )}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}

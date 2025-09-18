@@ -18,10 +18,20 @@ export class ShopifyError extends Error {
   }
 }
 export async function callShopify<T>(fn: () => Promise<T>): Promise<T> {
+  const start = Date.now()
   try {
-    return await fn()
+    const res = await fn()
+    const dur = Date.now() - start
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.log(`[Shopify] ${dur}ms`)
+    }
+    return res
   } catch (err: any) {
+    const dur = Date.now() - start
     const details = err?.response?.errors?.map((e: any) => e.message).join("; ")
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn(`[Shopify] failed in ${dur}ms: ${details || err?.message}`)
+    }
     throw new ShopifyError(details || err?.message || "Shopify request failed", err)
   }
 }

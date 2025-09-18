@@ -1,4 +1,6 @@
-import { ImageBackground, Pressable, Text as RNText, View, useWindowDimensions } from "react-native"
+import { Pressable, Text as RNText, View, useWindowDimensions, StyleSheet, PixelRatio } from "react-native"
+import { Image } from "expo-image"
+import { optimizeImageUrl, DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
 
 // Lazy import so it doesn't explode if not installed; we fall back to a flat tint.
 let LinearGradient: any
@@ -109,11 +111,26 @@ export function SplitBanner({
 
   return (
     <Pressable onPress={onPress}>
-      <ImageBackground
-        source={image?.url ? { uri: image.url } : undefined}
-        resizeMode="cover"
-        style={{ height, width: "100%" }}
-      >
+      <View style={{ height, width: "100%" }}>
+        {image?.url ? (
+          <Image
+            source={{
+              uri:
+                optimizeImageUrl(image.url, {
+                  width: Math.round(width),
+                  height,
+                  format: "webp",
+                  dpr: Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1)),
+                }) || image.url,
+            }}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+            transition={0}
+            cachePolicy="disk"
+            priority="high"
+            placeholder={DEFAULT_PLACEHOLDER}
+          />
+        ) : null}
         {/* scrim */}
         {LinearGradient ? (
           <LinearGradient
@@ -143,7 +160,7 @@ export function SplitBanner({
           {/* brand stripe (subtle accent) */}
           {isBrand ? <View style={{ height: 3, alignSelf: "stretch", backgroundColor: brand, marginTop: 10 }} /> : null}
         </View>
-      </ImageBackground>
+      </View>
     </Pressable>
   )
 }

@@ -1,18 +1,23 @@
 import { useAddToCart, useEnsureCart } from "@/features/cart/api"
 import { useProduct } from "@/features/pdp/api"
+import { useRecommendedProducts } from "@/features/recommendations/api"
 import { useSearch } from "@/features/search/api"
-import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
+import { flyToCartFromRef } from "@/ui/animations/FlyToCart"
+import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { ImageCarousel } from "@/ui/media/ImageCarousel"
+import { Animated, MOTION, useCrossfade } from "@/ui/motion/motion"
 import { MenuBar } from "@/ui/nav/MenuBar"
+import { Accordion } from "@/ui/primitives/Accordion"
+import { AddToCart } from "@/ui/product/AddToCart"
 import { AddToCartBar } from "@/ui/product/AddToCartBar"
-import { Price } from "@/ui/product/Price"
+import ProductDescriptionNative from "@/ui/product/ProductDescriptionNative"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { VariantDropdown } from "@/ui/product/VariantDropdown"
 import { router, useLocalSearchParams } from "expo-router"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Animated, DeviceEventEmitter, FlatList, Text, View, useWindowDimensions } from "react-native"
+import { StyleSheet, Text, View, useWindowDimensions } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function ProductScreen() {
@@ -20,11 +25,11 @@ export default function ProductScreen() {
   const h = typeof handle === "string" ? handle : ""
   const { data: product, isLoading } = useProduct(h)
   const insets = useSafeAreaInsets()
-  const { height, width } = useWindowDimensions()
+  const { width } = useWindowDimensions()
+  const ensure = useEnsureCart()
+  const add = useAddToCart()
+  const { show } = useToast()
 
-  // images: prefer selected variant image, then product media, then featured
-
-  // options + variants
   const options: { name: string; values: string[] }[] = (product as any)?.options ?? []
   const variants: any[] = (product as any)?.variants?.nodes ?? []
   const [sel, setSel] = useState<Record<string, string>>({})
@@ -36,6 +41,7 @@ export default function ProductScreen() {
       return next
     })
   }, [product])
+
   const selectedVariant = useMemo(() => {
     if (!variants?.length) return null
     return (
@@ -44,42 +50,10 @@ export default function ProductScreen() {
     )
   }, [variants, sel])
 
-  // price
-  const price = Number(selectedVariant?.price?.amount ?? 0)
-  const compareAt = Number(selectedVariant?.compareAtPrice?.amount ?? 0)
-  const currency = String(selectedVariant?.price?.currencyCode ?? "USD")
   const available = selectedVariant?.availableForSale !== false
-
-  // qty
-
-  // sticky cross-fade similar to demo
-  const BAR_H = 64,
-    GAP = 12
-  const [sentinelY, setSentinelY] = useState(0)
-  const [scrollY, setScrollY] = useState(0)
-  const viewportBottom = scrollY + height - insets.bottom
-  const engageStickyAt = Math.max(0, sentinelY - BAR_H - GAP)
-  const disengageStickyAt = Math.max(0, sentinelY - GAP)
-  const [mode, setMode] = useState<"sticky" | "inline" | null>(null)
-
-  const stickyOpacity = useRef(new Animated.Value(0)).current
-  const inlineOpacity = useRef(new Animated.Value(0)).current
-  const setModeAnimated = (next: "sticky" | "inline") => {
-    setMode(next)
-    Animated.timing(stickyOpacity, { toValue: next === "sticky" ? 1 : 0, duration: 160, useNativeDriver: true }).start()
-    Animated.timing(inlineOpacity, { toValue: next === "inline" ? 1 : 0, duration: 160, useNativeDriver: true }).start()
-  }
-
-  // Decide initial mode once sentinel is laid out, and recompute on scroll/resize
-  useEffect(() => {
-    const shouldInline = viewportBottom >= disengageStickyAt
-    const next = shouldInline ? "inline" : "sticky"
-    if (mode == null) {
-      setModeAnimated(next)
-      return
-    }
-    if (mode !== next) setModeAnimated(next)
-  }, [viewportBottom, sentinelY])
+  const loading = ensure.isPending || add.isPending
+  const [descOpen, setDescOpen] = useState<string>("")
+  const [descReady, setDescReady] = useState(false)
 
   const images = useMemo(() => {
     const urls: string[] = []
@@ -92,9 +66,8 @@ export default function ProductScreen() {
     }
     const feat = (product as any)?.featuredImage?.url as string | undefined
     if (feat) urls.push(String(feat))
-    // de-duplicate while preserving order
-    const seen = new Set<string>()
-    const list: string[] = []
+    const seen = new Set<string>(),
+      list: string[] = []
     for (const u of urls)
       if (u && !seen.has(u)) {
         seen.add(u)
@@ -103,25 +76,47 @@ export default function ProductScreen() {
     return list.length ? list : ["https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=1200"]
   }, [product, selectedVariant])
 
-  // cart actions
-  const ensureCart = useEnsureCart()
-  const addToCart = useAddToCart()
-  const inlineBtnPos = useRef<{ x: number; y: number } | null>(null)
-  const stickyStart = () => ({ x: Math.round(width / 2), y: Math.round(height - insets.bottom - 40) })
-  const onAddToCart = async ({ from }: { from?: { x: number; y: number } } = {}) => {
-    try {
-      if (!selectedVariant?.id) return
-      await ensureCart.mutateAsync()
-      await addToCart.mutateAsync({ merchandiseId: selectedVariant.id, quantity: 1 })
-      const img = (selectedVariant as any)?.image?.url ?? images[0]
-      DeviceEventEmitter.emit("cart:fly", { image: img, from: from ?? inlineBtnPos.current ?? stickyStart() })
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error(e)
-    }
-  }
+  const BAR_H = 64
+  const GAP = 12
 
-  // loading state
+  // Inline vs sticky states with hysteresis and fade crossfade
+  const [mode, setMode] = useState<"inline" | "sticky">("inline")
+  const [sentinelY, setSentinelY] = useState<number>(Number.POSITIVE_INFINITY)
+  const [scrollY, setScrollY] = useState(0)
+  const { height } = useWindowDimensions()
+  const viewportBottom = scrollY + height - insets.bottom
+  const engageStickyAt = sentinelY - BAR_H - GAP
+  const disengageStickyAt = sentinelY - GAP
+
+  useEffect(() => {
+    if (!Number.isFinite(sentinelY)) return
+    if (mode === "inline" && viewportBottom < engageStickyAt) setMode("sticky")
+    else if (mode === "sticky" && viewportBottom > disengageStickyAt) setMode("inline")
+  }, [viewportBottom, engageStickyAt, disengageStickyAt, sentinelY, mode])
+
+  const stickyStyle = useCrossfade(mode === "sticky", MOTION.dur.sm)
+  const inlineStyle = useCrossfade(mode === "inline", MOTION.dur.sm)
+
+  // Refs for fly-to-cart origin
+  const inlineRef = useRef<View>(null)
+  const stickyRef = useRef<View>(null)
+
+  // Common pricing + image
+  const priceAmount = Number(
+    (selectedVariant as any)?.price?.amount ?? (product as any)?.priceRange?.minVariantPrice?.amount ?? 0,
+  )
+  const compareAtAmount = (selectedVariant as any)?.compareAtPrice?.amount
+    ? Number((selectedVariant as any)?.compareAtPrice?.amount)
+    : undefined
+  const currencyCode = String(
+    (selectedVariant as any)?.price?.currencyCode ??
+      (product as any)?.priceRange?.minVariantPrice?.currencyCode ??
+      "USD",
+  )
+  const imageForAnim =
+    ((selectedVariant as any)?.image?.url as string | undefined) ||
+    ((product as any)?.featuredImage?.url as string | undefined)
+
   if (isLoading) {
     return (
       <Screen bleedTop bleedBottom>
@@ -135,63 +130,23 @@ export default function ProductScreen() {
     )
   }
 
-  // description: sanitize aggressively to avoid script blobs surfacing as text
-  const sanitizeDescription = (input: string | undefined | null): string | undefined => {
-    if (!input) return undefined
-    let txt = String(input)
-    // Strip common HTML containers and scripts
-    txt = txt
-      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
-      .replace(/<noscript[\s\S]*?>[\s\S]*?<\/noscript>/gi, " ")
-      .replace(/<!--([\s\S]*?)-->/g, " ")
-      .replace(/<[^>]+>/g, " ")
-    // Remove JS comments and obvious code blocks if any slipped through
-    txt = txt.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|\n)\s*\/\/.*$/gm, " ")
-    // If suspicious code-like tokens are present, cut content at first occurrence
-    const suspicious =
-      /(function\s*\(|=>|\bvar\s+|\blet\s+|\bconst\s+|window\.|document\.|navigator\.|eval\s*\(|\)\s*=>)/i
-    const idx = txt.search(suspicious)
-    if (idx >= 0) txt = txt.slice(0, Math.max(0, idx))
-    // Decode a few common entities and normalize whitespace
-    txt = txt
-      .replace(/&nbsp;/gi, " ")
-      .replace(/&amp;/gi, "&")
-      .replace(/&lt;/gi, "<")
-      .replace(/&gt;/gi, ">")
-      .replace(/&quot;/gi, '"')
-      .replace(/&#39;/gi, "'")
-      .replace(/\s+/g, " ")
-      .trim()
-    // Guard: if after sanitization it's not meaningful, drop it
-    const alnum = txt.replace(/[^a-zA-Z0-9]+/g, "")
-    if (alnum.length < 12) return undefined
-    return txt
-  }
-  const description: string | undefined = (() => {
-    const plain = sanitizeDescription((product as any)?.description)
-    const fromHtml = sanitizeDescription((product as any)?.descriptionHtml)
-    // Prefer the longer, meaningful one
-    if (plain && fromHtml) return plain.length >= fromHtml.length ? plain : fromHtml
-    return plain ?? fromHtml ?? undefined
-  })()
-
   return (
     <Screen bleedTop bleedBottom>
       <MenuBar variant="light" floating back />
-      <FlatList
-        renderItem={() => null}
-        keyExtractor={(_, i) => String(i)}
+      <Animated.FlatList
         data={[]}
+        keyExtractor={(_, i) => String(i)}
+        renderItem={() => null}
         ListHeaderComponent={
           <View>
             <ImageCarousel
               key={images[0] ?? "pimg"}
               images={images}
-              height={Math.max(360, Math.min(520, Math.round(width * 1.1)))}
+              height={Math.max(600, Math.min(720, Math.round(width * 1.1)))}
             />
+
             <View className="px-4 py-4">
-              <Text className="text-[28px] font-extrabold text-primary mb-1">{(product as any)?.title}</Text>
+              <Text className="text-[18px] font-extrabold text-primary mb-1">{(product as any)?.title}</Text>
               <Text className="text-secondary mb-1">{(product as any)?.vendor}</Text>
               {!available ? <Text className="text-brand font-geist-semibold">Out of stock</Text> : null}
             </View>
@@ -208,100 +163,142 @@ export default function ProductScreen() {
                   className="mb-3"
                 />
               ))}
-              {/* {description ? <Text className="text-primary mb-4">{description}</Text> : null} */}
-              <View className="flex-row w-full items-center justify-between mb-4">
-                {/* <PressableOverlay className="px-3 py-2 rounded-full bg-neutral-100">
-                  <Text className="text-primary font-geist-semibold">Size Guide</Text>
-                </PressableOverlay> */}
-                {/* <PressableOverlay className="px-3 py-2 rounded-full bg-neutral-100">
-                  <Text className="text-primary font-geist-semibold">Shipping & Returns</Text>
-                </PressableOverlay>
-                <PressableOverlay className="px-3 py-2 rounded-full bg-neutral-100">
-                  <Text className="text-primary font-geist-semibold">Delivery</Text>
-                </PressableOverlay> */}
-              </View>
-            </View>
 
-            {/* Inline CTA (crossfades in when scrolled) */}
-            <Animated.View
-              style={{ opacity: inlineOpacity }}
-              className="mx-4 mt-2 rounded-3xl bg-surface border border-border px-4 py-3"
-            >
-              <View className="items-center flex-row flex-wrap gap-2">
-                <View className="flex-1 min-w-0">
-                  <Price
-                    amount={price}
-                    compareAt={compareAt > price ? compareAt : undefined}
-                    currency={currency}
-                    amountClassName="text-[22px] text-black"
-                  />
-                </View>
-                <View
-                  ref={(v: any) => {
-                    if (v && v.measureInWindow) {
-                      setTimeout(
-                        () =>
-                          v.measureInWindow((x: number, y: number, w: number, h: number) => {
-                            inlineBtnPos.current = { x: x + w / 2, y: y + h / 2 }
-                          }),
-                        0,
+              {/* Description accordion: preload closed; open when ready */}
+              <View className="mt-2 px-2">
+                <Accordion value={descOpen} onValueChange={(v) => setDescOpen(String(v))}>
+                  <Accordion.Item value="desc" title="Description" appearance="inline" keepMounted>
+                    {(() => {
+                      const html = (product as any)?.descriptionHtml as string | undefined
+                      if (!html) return <Text className="text-secondary">No description available.</Text>
+                      return (
+                        <ProductDescriptionNative
+                          html={html}
+                          onReady={() => {
+                            if (!descReady) {
+                              setDescReady(true)
+                              setDescOpen("desc")
+                            }
+                          }}
+                        />
                       )
+                    })()}
+                  </Accordion.Item>
+                </Accordion>
+              </View>
+
+              {/* Inline Add to Cart (pill) */}
+              <Animated.View style={inlineStyle} className="mt-2">
+                <AddToCart
+                  ref={inlineRef}
+                  price={priceAmount}
+                  compareAt={compareAtAmount}
+                  currency={currencyCode}
+                  available={available}
+                  loading={loading}
+                  onAdd={async () => {
+                    try {
+                      if (!selectedVariant?.id) throw new Error("Please select a variant")
+                      if (!ensure.isSuccess && !ensure.isPending) await ensure.mutateAsync()
+                      await add.mutateAsync({ merchandiseId: String(selectedVariant.id), quantity: 1 })
+                      show({ title: "Added to cart", type: "success" })
+                      const originRef = mode === "inline" ? inlineRef : stickyRef
+                      flyToCartFromRef(originRef, imageForAnim)
+                    } catch (e: any) {
+                      show({ title: e?.message || "Failed to add to cart", type: "danger" })
                     }
                   }}
-                >
-                  <PressableOverlay
-                    onPress={() => onAddToCart({})}
-                    disabled={!available}
-                    className={`px-5 py-3 rounded-full items-center ${available ? "bg-brand" : "bg-neutral-300"}`}
-                  >
-                    <Text className="text-white font-bold text-[16px]">
-                      {available ? "Add to Cart" : "Out of Stock"}
-                    </Text>
-                  </PressableOverlay>
-                </View>
-              </View>
-            </Animated.View>
-            {/* removed spacer to reduce unused visual gap; paddingBottom at list keeps space for sticky bar */}
+                  className="mx-0"
+                />
+              </Animated.View>
+            </View>
 
-            {/* sentinel before related section */}
             <View onLayout={(e) => setSentinelY(e.nativeEvent.layout.y)} />
-
-            {/* Recommended products */}
-            <Recommended vendor={(product as any)?.vendor} currentHandle={(product as any)?.handle} />
+            <Recommended
+              productId={(product as any)?.id}
+              vendor={(product as any)?.vendor}
+              currentHandle={(product as any)?.handle}
+            />
           </View>
         }
         contentContainerStyle={{ paddingBottom: BAR_H + insets.bottom + 12 }}
-        onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
-        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
+        onScroll={(e: any) => setScrollY(e.nativeEvent.contentOffset?.y ?? 0)}
+        scrollEventThrottle={16}
       />
 
-      {/* sticky add-to-cart bar */}
-      <Animated.View style={{ opacity: stickyOpacity }} className="absolute left-0 right-0 bottom-0">
-        <AddToCartBar
-          price={price}
-          compareAt={compareAt > price ? compareAt : undefined}
-          currency={currency}
-          available={available}
-          onAdd={() => onAddToCart({ from: stickyStart() })}
-        />
-      </Animated.View>
+      {/* Sticky Add to Cart (cross-fades with inline) */}
+      {product ? (
+        <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFillObject, stickyStyle]} className="z-20">
+          <AddToCartBar
+            ref={stickyRef}
+            price={priceAmount}
+            compareAt={compareAtAmount}
+            currency={currencyCode}
+            available={available}
+            loading={loading}
+            onAdd={async () => {
+              try {
+                if (!selectedVariant?.id) throw new Error("Please select a variant")
+                if (!ensure.isSuccess && !ensure.isPending) await ensure.mutateAsync()
+                await add.mutateAsync({ merchandiseId: String(selectedVariant.id), quantity: 1 })
+                show({ title: "Added to cart", type: "success" })
+                const originRef = mode === "inline" ? inlineRef : stickyRef
+                flyToCartFromRef(originRef, imageForAnim)
+              } catch (e: any) {
+                show({ title: e?.message || "Failed to add to cart", type: "danger" })
+              }
+            }}
+          />
+        </Animated.View>
+      ) : null}
     </Screen>
   )
 }
 
-function Recommended({ vendor, currentHandle }: { vendor?: string; currentHandle?: string }) {
+function Recommended({
+  productId,
+  vendor,
+  currentHandle,
+}: {
+  productId?: string
+  vendor?: string
+  currentHandle?: string
+}) {
+  const { data: recos } = useRecommendedProducts(productId || "")
+  // Fallback to vendor-based search if Shopify returns nothing
   const q = vendor ? vendor : ""
-  const { data } = useSearch(q, 12)
-  const nodes = (data?.pages?.flatMap((p) => p.nodes) ?? []).filter(
-    (p: any) => p?.vendor === vendor && p?.handle !== currentHandle,
+  const { data: searchData } = useSearch(q, 12)
+
+  const nodes = (recos && recos.length ? recos : (searchData?.pages?.flatMap((p) => p.nodes) ?? [])).filter(
+    (p: any) => p?.handle !== currentHandle,
   )
-  if (!nodes.length) return null
+  // Deterministic shuffle per product (stable across re-renders)
+  const shuffled = useMemo(() => {
+    const seedStr = String(productId || currentHandle || "seed")
+    let seed = 0
+    for (let i = 0; i < seedStr.length; i++) seed = (seed * 31 + seedStr.charCodeAt(i)) >>> 0
+    const rng = (function mulberry32(a: number) {
+      return () => {
+        let t = (a += 0x6d2b79f5)
+        t = Math.imul(t ^ (t >>> 15), t | 1)
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+      }
+    })(seed)
+    const arr = [...nodes]
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1))
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    return arr
+  }, [nodes, productId, currentHandle])
+  if (!shuffled.length) return null
   return (
     <View className="px-4 mt-4">
       <Text className="text-primary font-geist-semibold text-[18px] mb-2">You might also like</Text>
       <StaticProductGrid
-        data={nodes.slice(0, 8)}
+        data={shuffled.slice(0, 8)}
         columns={2}
         gap={12}
         renderItem={(item: any, w: number) => (

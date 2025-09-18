@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -12,7 +13,7 @@ import Animated, {
 } from "react-native-reanimated"
 
 export const MOTION = {
-  dur: { xs: 120, sm: 160, md: 220, lg: 320 },
+  dur: { xs: 120, sm: 140, md: 220, lg: 320 },
   spring: () => LinearTransition.springify().damping(18).stiffness(180),
   linear: (ms = 160) => LinearTransition.duration(ms),
   // entering/exiting presets
@@ -31,9 +32,10 @@ export const MOTION = {
 // crossfade hook (returns animated style you can spread on two siblings)
 export function useCrossfade(show: boolean, duration = MOTION.dur.sm) {
   const a = useSharedValue(show ? 1 : 0)
-  a.value = withTiming(show ? 1 : 0, { duration })
-  const style = useAnimatedStyle(() => ({ opacity: a.value }))
-  return style
+  useEffect(() => {
+    a.value = withTiming(show ? 1 : 0, { duration })
+  }, [show, duration])
+  return useAnimatedStyle(() => ({ opacity: a.value }))
 }
 
 // press animation hook (scale + opacity)

@@ -1,6 +1,7 @@
 import { Button } from "@/ui/primitives/Button"
 import { Price } from "@/ui/product/Price"
 import { View } from "react-native"
+import { forwardRef } from "react"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 type Props = {
@@ -10,18 +11,20 @@ type Props = {
   onAdd?: () => void
   available?: boolean
   oosLabel?: string
+  loading?: boolean
 }
 
-export function AddToCartBar({
+export const AddToCartBar = forwardRef<View, Props>(function AddToCartBar({
   price,
   compareAt,
   currency = "USD",
   onAdd,
   available = true,
   oosLabel = "Out of stock",
-}: Props) {
+  loading = false,
+}, ref) {
   return (
-    <View pointerEvents="box-none" className="absolute left-0 right-0 bottom-0 bg-surface border-t border-border">
+    <View ref={ref} pointerEvents="box-none" className="absolute left-0 right-0 bottom-0 bg-surface border-t border-border">
       <SafeAreaView edges={["bottom"]}>
         <View className="px-4 py-3 flex-row items-center gap-3">
           <View className="flex-1">
@@ -30,14 +33,14 @@ export function AddToCartBar({
           <Button
             onPress={onAdd}
             size="lg"
-            className={`px-6 rounded-full ${!available ? "bg-neutral-300" : ""}`}
+            className={`px-6 rounded-full ${!available || loading ? "bg-neutral-300" : ""}`}
             textClassName="font-bold"
-            disabled={!available}
+            disabled={!available || loading}
           >
-            {available ? "Add to Cart" : oosLabel}
+            {!available ? oosLabel : "Add to Cart"}
           </Button>
         </View>
       </SafeAreaView>
     </View>
   )
-}
+})

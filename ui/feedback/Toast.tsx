@@ -57,15 +57,18 @@ export function ToastHost() {
               <View
                 {...a11yAlert()}
                 className={[
-                  "rounded-xl px-4 py-3 border",
+                  "rounded-2xl px-4 py-3 border shadow-lg",
                   t.type === "success"
-                    ? "bg-success/10 border-success/30"
+                    ? "bg-success border-success"
                     : t.type === "danger"
-                      ? "bg-danger/10 border-danger/30"
+                      ? "bg-danger border-danger"
                       : "bg-surface border-border",
                 ].join(" ")}
+                style={{ elevation: 6 }}
               >
-                <Text className="text-primary">{t.title}</Text>
+                <Text className={t.type === "success" || t.type === "danger" ? "text-white" : "text-primary"}>
+                  {t.title}
+                </Text>
               </View>
             </Pressable>
           </Animated.View>

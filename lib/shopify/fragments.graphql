@@ -5,7 +5,7 @@ fragment Money on MoneyV2 {
 
 fragment Image on Image {
   id
-  url
+  url(transform: { preferredContentType: WEBP })
   altText
   width
   height

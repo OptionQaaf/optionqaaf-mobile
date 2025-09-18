@@ -9,10 +9,11 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { Price } from "@/ui/product/Price"
 import { QuantityStepper } from "@/ui/product/QuantityStepper"
 import { Image } from "expo-image"
+import { optimizeImageUrl, DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
 import { router } from "expo-router"
 import { Trash2 } from "lucide-react-native"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Alert, FlatList, Text, View } from "react-native"
+import { Alert, FlatList, Text, View, PixelRatio } from "react-native"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function CartScreen() {
@@ -174,14 +175,29 @@ export default function CartScreen() {
             entering={MOTION.enter.fadeDown}
             exiting={MOTION.exit.fadeUp}
             layout={MOTION.spring()}
-            className="flex-row gap-3 p-3 justify-between mb-3 rounded-2xl bg-surface border border-border max-h-[120px]"
+            className="flex-row gap-3 py-3 px-2 justify-between mb-3 rounded-2xl bg-surface border border-border max-h-[120px]"
           >
             <PressableOverlay onPress={goToPDP} className="rounded-2xl overflow-hidden">
               <Image
-                source={imageUrl ? { uri: imageUrl } : undefined}
+                source={
+                  imageUrl
+                    ? {
+                        uri:
+                          optimizeImageUrl(imageUrl, {
+                            width: 168,
+                            height: 120,
+                            format: "webp",
+                            dpr: Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1)),
+                          }) || imageUrl,
+                      }
+                    : undefined
+                }
                 contentFit="cover"
                 className="bg-neutral-100"
                 style={{ width: 84, height: "100%" }}
+                cachePolicy="disk"
+                transition={150}
+                placeholder={DEFAULT_PLACEHOLDER}
               />
             </PressableOverlay>
             <View className="flex-1 min-w-0">

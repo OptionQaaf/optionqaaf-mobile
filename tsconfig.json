@@ -3,6 +3,7 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "nativewind",
+    "types": ["nativewind/types"],
     "strict": true,
     "baseUrl": ".",
     "paths": {

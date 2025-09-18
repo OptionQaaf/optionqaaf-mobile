@@ -58,6 +58,8 @@ export default function CollectionScreen() {
   const meta = useCollectionMeta(h || "")
   const products = (data?.pages?.flatMap((p: any) => p.nodes) ?? []) as any[]
   const loadedCount = products.length
+  const pageCount = data?.pages?.length ?? 0
+  const reachedCap = pageCount >= 5
 
   // derive hero image from first product if collection image not available
   const heroImage = (meta.data?.pages?.[0]?.image as string) || products?.[0]?.featuredImage?.url || undefined
@@ -239,7 +241,7 @@ export default function CollectionScreen() {
             const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
             const threshold = 400
             if (
-              hasNextPage &&
+              hasNextPage && !reachedCap &&
               !isFetchingNextPage &&
               contentOffset.y + layoutMeasurement.height > contentSize.height - threshold
             ) {
@@ -535,6 +537,10 @@ export default function CollectionScreen() {
                     <Skeleton className="rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
                   </View>
                 )}
+              </View>
+            ) : reachedCap ? (
+              <View className="py-6 items-center">
+                <Text className="text-gray-500">You’ve reached the end</Text>
               </View>
             ) : null}
           </View>

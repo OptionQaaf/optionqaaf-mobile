@@ -1,9 +1,10 @@
+import { useCartQuery } from "@/features/cart/api"
 import { useDrawer } from "@/features/navigation/drawerContext"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
-import { useCartQuery } from "@/features/cart/api"
 import { router, usePathname } from "expo-router"
 import { ChevronLeft, Menu, Search, ShoppingBag, User2 } from "lucide-react-native"
 import { DeviceEventEmitter, Image, Text, View } from "react-native"
+import { useEffect, useRef } from "react"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 type Props = {
@@ -103,20 +104,24 @@ export function Icon({ children, onPress }: { children: React.ReactNode; onPress
 function CartIcon({ color }: { color: string }) {
   const { data: cart } = useCartQuery()
   const qty = cart?.totalQuantity ?? 0
-  const ref = (global as any).ReactCreateRef?.() || undefined
-  // fallback: use a simple callback ref
-  let _view: View | null = null
-  const setRef = (v: any) => {
-    _view = v
-    if (v && v.measureInWindow) {
-      // measure shortly after mount
-      setTimeout(() => v.measureInWindow((x: number, y: number, w: number, h: number) => DeviceEventEmitter.emit("cart:iconLayout", { x: x + w / 2, y: y + h / 2 })), 0)
-    }
+  const ref = useRef<View>(null)
+  const onLayout = () => {
+    // measure in window coordinates for global overlay animations
+    ref.current?.measureInWindow?.((x: number, y: number, w: number, h: number) => {
+      DeviceEventEmitter.emit("cart:iconWindow", { x: x + w / 2, y: y + h / 2 })
+    })
   }
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener("cart:requestTarget", () => onLayout())
+    return () => sub.remove()
+  }, [])
 
   return (
-    <View ref={setRef as any}>
-      <PressableOverlay onPress={() => router.push("/cart" as any)} className="h-10 w-10 items-center justify-center rounded-2xl">
+    <View ref={ref} onLayout={onLayout}>
+      <PressableOverlay
+        onPress={() => router.push("/cart" as any)}
+        className="h-10 w-10 items-center justify-center rounded-2xl"
+      >
         <ShoppingBag size={22} color={color} />
         {qty > 0 ? (
           <View

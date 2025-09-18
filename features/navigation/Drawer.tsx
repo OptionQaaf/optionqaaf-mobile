@@ -11,26 +11,26 @@ import { ChevronLeft, X } from "lucide-react-native"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Dimensions, Image, Linking, ScrollView, Text, View } from "react-native"
 import { Gesture, GestureDetector } from "react-native-gesture-handler"
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { DrawerContext } from "./drawerContext"
 
 const SCREEN_W = Dimensions.get("window").width
-const WIDTH = SCREEN_W // full width
+const WIDTH = SCREEN_W
 
 export function DrawerProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const x = useSharedValue(-WIDTH)
   const startX = useSharedValue(-WIDTH)
-  const isOpenRef = useRef(false)
+  const isOpen = useSharedValue(false)
 
   const setOpen = (v: boolean) => {
-    isOpenRef.current = v
+    isOpen.value = v
     x.value = withTiming(v ? 0 : -WIDTH, { duration: 240 })
   }
   const open = () => setOpen(true)
   const close = () => setOpen(false)
-  const toggle = () => setOpen(!isOpenRef.current)
+  const toggle = () => setOpen(!isOpen.value)
 
   const pan = Gesture.Pan()
     .onBegin(() => {
@@ -46,29 +46,30 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
       "worklet"
       const startedOpen = startX.value > -WIDTH * 0.5
       const shouldOpen = startedOpen
-        ? // started open: keep open unless user swiped left far/fast
-          !(x.value < -WIDTH * 0.1 || e.velocityX < -300)
-        : // started closed: open if user swiped right a little/fast
-          x.value > -WIDTH * 0.9 || e.velocityX > 300
-      runOnJS(setOpen)(!!shouldOpen)
+        ? !(x.value < -WIDTH * 0.1 || e.velocityX < -300)
+        : x.value > -WIDTH * 0.9 || e.velocityX > 300
+      isOpen.value = !!shouldOpen
+      x.value = withTiming(shouldOpen ? 0 : -WIDTH, { duration: 240 })
     })
 
-  // Edge pan area to open the drawer when it's closed (left 20px)
   const EDGE_W = 32
   const edgePan = Gesture.Pan()
     .activeOffsetX(10)
     .onBegin(() => {
-      // Only respond if currently closed
-      if (!isOpenRef.current) startX.value = x.value
+      if (!isOpen.value) startX.value = x.value
     })
     .onUpdate((e) => {
-      if (isOpenRef.current) return
       "worklet"
+      if (isOpen.value) return
       const next = Math.min(0, Math.max(-WIDTH, startX.value + e.translationX))
       x.value = next
     })
     .onEnd((e) => {
-      if (!isOpenRef.current) runOnJS(setOpen)(x.value > -WIDTH * 0.9 || e.velocityX > 300)
+      if (!isOpen.value) {
+        const shouldOpen = x.value > -WIDTH * 0.9 || e.velocityX > 300
+        isOpen.value = !!shouldOpen
+        x.value = withTiming(shouldOpen ? 0 : -WIDTH, { duration: 240 })
+      }
     })
 
   const drawerA = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }))
