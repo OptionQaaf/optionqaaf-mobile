@@ -2,7 +2,6 @@ import { useAddToCart, useEnsureCart } from "@/features/cart/api"
 import { useProduct } from "@/features/pdp/api"
 import { useRecommendedProducts } from "@/features/recommendations/api"
 import { useSearch } from "@/features/search/api"
-import { flyToCartFromRef } from "@/ui/animations/FlyToCart"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { ImageCarousel } from "@/ui/media/ImageCarousel"
@@ -97,7 +96,6 @@ export default function ProductScreen() {
   const stickyStyle = useCrossfade(mode === "sticky", MOTION.dur.sm)
   const inlineStyle = useCrossfade(mode === "inline", MOTION.dur.sm)
 
-  // Refs for fly-to-cart origin
   const inlineRef = useRef<View>(null)
   const stickyRef = useRef<View>(null)
 
@@ -202,8 +200,6 @@ export default function ProductScreen() {
                       if (!ensure.isSuccess && !ensure.isPending) await ensure.mutateAsync()
                       await add.mutateAsync({ merchandiseId: String(selectedVariant.id), quantity: 1 })
                       show({ title: "Added to cart", type: "success" })
-                      const originRef = mode === "inline" ? inlineRef : stickyRef
-                      flyToCartFromRef(originRef, imageForAnim)
                     } catch (e: any) {
                       show({ title: e?.message || "Failed to add to cart", type: "danger" })
                     }
@@ -243,8 +239,6 @@ export default function ProductScreen() {
                 if (!ensure.isSuccess && !ensure.isPending) await ensure.mutateAsync()
                 await add.mutateAsync({ merchandiseId: String(selectedVariant.id), quantity: 1 })
                 show({ title: "Added to cart", type: "success" })
-                const originRef = mode === "inline" ? inlineRef : stickyRef
-                flyToCartFromRef(originRef, imageForAnim)
               } catch (e: any) {
                 show({ title: e?.message || "Failed to add to cart", type: "danger" })
               }

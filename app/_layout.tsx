@@ -3,7 +3,6 @@ import { getMenuByHandle } from "@/lib/shopify/services/menus"
 import { hydrateCartId } from "@/store/cartId"
 import { currentLocale } from "@/store/prefs"
 import { FontProvider } from "@/theme/FontProvider"
-import { FlyToCartHost } from "@/ui/animations/FlyToCart"
 import { ToastHost } from "@/ui/feedback/Toast"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Stack } from "expo-router"
@@ -79,7 +78,6 @@ export default function RootLayout() {
                 <Stack.Screen name="products/[handle]" options={{ gestureEnabled: true }} />
               </Stack>
               <ToastHost />
-              <FlyToCartHost />
             </DrawerProvider>
           </FontProvider>
         </SafeAreaProvider>
