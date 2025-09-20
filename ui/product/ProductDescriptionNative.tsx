@@ -1,261 +1,209 @@
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
-import { Skeleton } from "@/ui/feedback/Skeleton"
 import { Image as ExpoImage } from "expo-image"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { PixelRatio, View, useWindowDimensions } from "react-native"
 import RenderHTML from "react-native-render-html"
 
-type Props = { html?: string; onReady?: () => void }
+/** ---------- small utilities ---------- */
+const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(n, hi))
 
 function sanitizeHTML(html: string): string {
   if (!html) return html
   let out = html
-  // Remove scripts, styles, iframes, and comments
   out = out.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
   out = out.replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, "")
   out = out.replace(/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, "")
   out = out.replace(/<!--([\s\S]*?)-->/g, "")
-  // Drop empty paragraphs and multiple BRs
   out = out.replace(/<p>(?:\s|&nbsp;|<br\s*\/??>)*<\/p>/gi, "")
   out = out.replace(/(?:<br\s*\/??>\s*){3,}/gi, "<br />\n")
-  // Remove inline width/height on images
   out = out.replace(/\s(?:width|height)="\d+%?"/gi, "")
-  // Remove known spacer/blank pixels or empty src images which render as empty boxes
   out = out.replace(/<img[^>]+src=["']\s*["'][^>]*>/gi, "")
   out = out.replace(/<img[^>]+src=["'][^"']*(spacer|transparent|blank|pixel)[^"']*["'][^>]*>/gi, "")
   out = out.replace(/<img[^>]+src=["']data:image\/gif;base64,[^"']+["'][^>]*>/gi, "")
-  // Remove empty figures left behind
   out = out.replace(/<figure>(?:\s|&nbsp;)*<\/figure>/gi, "")
-  // Remove empty bordered boxes (common in pasted HTML)
-  out = out.replace(
-    /<(div|span|p)[^>]*style=\"[^\"]*(?:border[^;\"]*;)[^\"]*(?:height\s*:\s*\d+px)[^\"]*\"[^>]*>\s*<\/\1>/gi,
-    "",
-  )
-  // Remove empty anchors
-  out = out.replace(/<a[^>]*>\s*<\/a>/gi, "")
+  // Wrap tables to avoid horizontal overflow
+  out = out.replace(/<table([^>]*)>/gi, `<div style="overflow-x:auto;max-width:100%"><table$1>`)
+  out = out.replace(/<\/table>/gi, `</table></div>`)
   return out.trim()
 }
 
+const normalizeSrc = (s?: string) => (s?.startsWith("//") ? `https:${s}` : s || "")
+
 function rewriteImgSrcs(html: string, width: number, dpr: number): string {
   if (!html) return html
-  return html.replace(/<img([^>]+)src=\"([^\"]+)\"([^>]*)>/gi, (m, pre, src, post) => {
-    const norm = src.startsWith("//") ? `https:${src}` : src
+  return html.replace(/<img([^>]+)src="([^"]*)"([^>]*)>/gi, (m, pre, rawSrc, post) => {
+    const norm = normalizeSrc(rawSrc)
     const optimized = optimizeImageUrl(norm, { width, format: "webp", dpr }) || norm
-    // Ensure responsive sizing; RN RenderHTML supports percent width when enabled
     const cleanedPre = String(pre || "").replace(/\s(?:width|height)="[^"]*"/gi, "")
     const cleanedPost = String(post || "").replace(/\s(?:width|height)="[^"]*"/gi, "")
-    return `<img${cleanedPre}src=\"${optimized}\"${cleanedPost}>`
+    return `<img${cleanedPre}src="${optimized}"${cleanedPost} style="max-width:100%;height:auto;display:block" />`
   })
 }
 
-function normalizeSrc(src?: string) {
-  if (!src) return src
-  if (src.startsWith("//")) return `https:${src}`
-  return src
-}
-
-function pickSrcFromSet(srcset?: string) {
-  if (!srcset) return undefined
-  const parts = srcset
-    .split(",")
-    .map((p) => p.trim())
-    .filter(Boolean)
-  if (!parts.length) return undefined
-  const last = parts[parts.length - 1]
-  return last.split(" ")[0]
-}
-
-function HtmlImg({
+/** ---------- Per‑image skeleton (no global overlay) ---------- */
+function ImageWithSkeleton({
   src,
-  widthHint,
-  heightHint,
   contentW,
   dpr,
-  onEnd,
+  onAnyImageSettled,
 }: {
   src: string
-  widthHint?: number
-  heightHint?: number
   contentW: number
   dpr: number
-  onEnd: () => void
+  onAnyImageSettled: () => void
 }) {
-  const norm = normalizeSrc(src) || ""
-  const first = optimizeImageUrl(norm, { width: Math.round(contentW), format: "webp", dpr }) || norm
-  const candidates = [first, norm, src].filter(Boolean) as string[]
+  // 1) Build candidates: prefer optimized, then original
+  const primary = optimizeImageUrl(src, { width: Math.round(contentW), format: "webp", dpr }) || src
+  const candidates = useMemo(() => Array.from(new Set([primary, src].filter(Boolean))), [primary, src])
+
+  // 2) Show a local skeleton for THIS image only
+  const [showSkel, setShowSkel] = useState(true)
   const [idx, setIdx] = useState(0)
   const uri = candidates[Math.min(idx, candidates.length - 1)]
-  const ratio = widthHint && heightHint && widthHint > 0 && heightHint > 0 ? widthHint / heightHint : 4 / 3
+
+  // 3) Reserve stable height with aspectRatio; adjust once on first load only
+  const [ratio, _setRatio] = useState(4 / 3) // conservative default for product descriptions
+  const ratioLocked = useRef(false)
+  const setRatioOnce = (rw: number, rh: number) => {
+    if (ratioLocked.current) return
+    if (rw > 1 && rh > 1) {
+      ratioLocked.current = true
+      _setRatio(clamp(rw / rh, 0.4, 2.5))
+    }
+  }
+
+  const settle = useCallback(() => {
+    if (showSkel) {
+      setShowSkel(false)
+      onAnyImageSettled()
+    }
+  }, [showSkel, onAnyImageSettled])
+
   return (
-    <ExpoImage
-      source={{ uri }}
-      style={{ width: "100%", aspectRatio: ratio, borderRadius: 8 }}
-      contentFit="contain"
-      cachePolicy="disk"
-      transition={0}
-      placeholder={DEFAULT_PLACEHOLDER}
-      onError={() => setIdx((i) => i + 1)}
-      onLoadEnd={onEnd}
-    />
+    <View style={{ width: "100%", position: "relative" }}>
+      {/* reserved space prevents layout jump; image is always mounted */}
+      <ExpoImage
+        source={{ uri }}
+        style={{ width: "100%", aspectRatio: ratio }}
+        contentFit="contain"
+        cachePolicy="disk"
+        transition={0}
+        placeholder={DEFAULT_PLACEHOLDER}
+        onLoad={(e: any) => {
+          const w = Number(e?.source?.width || 0)
+          const h = Number(e?.source?.height || 0)
+          setRatioOnce(w, h)
+        }}
+        onLoadEnd={settle}
+        onError={() => {
+          // try next candidate; if none => settle anyway (no endless waits)
+          setIdx((i) => {
+            const nxt = i + 1
+            if (nxt >= candidates.length) settle()
+            return nxt
+          })
+        }}
+      />
+
+      {/* local skeleton (fades away by being removed) */}
+      {showSkel ? (
+        <View style={{ position: "absolute", left: 0, right: 0, top: 0 }}>
+          <View style={{ height: 12, width: "75%", marginBottom: 8, overflow: "hidden" }}>
+            {/* small line looks nicer above images */}
+            <ExpoImage source={{ uri: DEFAULT_PLACEHOLDER }} style={{ width: "100%", height: "100%" }} />
+          </View>
+          <View style={{ width: "100%", aspectRatio: ratio, overflow: "hidden" }}>
+            <ExpoImage source={{ uri: DEFAULT_PLACEHOLDER }} style={{ width: "100%", height: "100%" }} />
+          </View>
+        </View>
+      ) : null}
+    </View>
   )
 }
 
-export default function ProductDescriptionNative({ html = "", onReady }: Props) {
-  const [measured, setMeasured] = useState(false)
+/** ---------- Main (no global overlay; text first, images hydrate) ---------- */
+type Props = { html?: string; onReady?: () => void }
+
+function ProductDescriptionNativeBase({ html = "", onReady }: Props) {
   const { width: screenW } = useWindowDimensions()
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
   const contentW = Math.max(320, Math.min(screenW - 32, screenW))
 
+  // clean/rewrite once per width change
   const processed = useMemo(() => {
     const clean = sanitizeHTML(html)
     return rewriteImgSrcs(clean, Math.round(contentW), dpr)
   }, [html, contentW, dpr])
 
-  // Track img loads and keep skeleton until everything is ready (with a safety timeout)
+  // count imgs
   const imgCount = useMemo(() => (processed.match(/<img[^>]+src=/gi) || []).length, [processed])
-  const [showSkeleton, setShowSkeleton] = useState(true)
-  const loadedImagesRef = useRef(0)
-  useEffect(() => {
-    loadedImagesRef.current = 0
-    setShowSkeleton(true)
-    const timeout = setTimeout(
-      () => {
-        setShowSkeleton(false)
-        onReady?.()
-      },
-      Math.min(5000, 1200 + imgCount * 350),
-    )
-    return () => clearTimeout(timeout)
-  }, [imgCount, processed])
-  useEffect(() => {
-    if (imgCount === 0) {
-      setShowSkeleton(false)
+
+  // When first image settles OR after safety timeout, fire onReady once.
+  const firedReady = useRef(false)
+  const safeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const fireReadyOnce = useCallback(() => {
+    if (!firedReady.current) {
+      firedReady.current = true
       onReady?.()
     }
-  }, [imgCount, onReady])
+  }, [onReady])
 
-  const onImgEnd = useCallback(() => {
-    loadedImagesRef.current += 1
-    if (loadedImagesRef.current >= imgCount) {
-      setShowSkeleton(false)
-      onReady?.()
+  useEffect(() => {
+    firedReady.current = false
+    if (safeTimeoutRef.current) clearTimeout(safeTimeoutRef.current)
+    // text renders immediately; we just give images some time before calling onReady (for your accordion use)
+    const ms = Math.min(3000, 600 + imgCount * 250)
+    safeTimeoutRef.current = setTimeout(fireReadyOnce, ms)
+    return () => {
+      if (safeTimeoutRef.current) clearTimeout(safeTimeoutRef.current)
     }
-  }, [imgCount, onReady])
+  }, [processed, imgCount, fireReadyOnce])
 
-  const domVisitors = useMemo(
-    () => ({
-      onElement: (element: any) => {
-        if (element.name === "img") {
-          const srcset = element.attribs?.srcset as string | undefined
-          const dataSrc =
-            (element.attribs?.["data-src"] as string | undefined) ||
-            (element.attribs?.["data-original"] as string | undefined)
-          if ((!element.attribs?.src || element.attribs?.src === "") && (dataSrc || srcset)) {
-            const fromSet = pickSrcFromSet(srcset)
-            element.attribs.src = normalizeSrc(fromSet || dataSrc || "") as any
-          } else if (element.attribs?.src) {
-            element.attribs.src = normalizeSrc(String(element.attribs.src)) as any
-          }
-          const src = (element.attribs?.src || "").trim()
-          const style = String(element.attribs?.style || "")
-          const wAttr = parseInt(String(element.attribs?.width || ""), 10)
-          const hAttr = parseInt(String(element.attribs?.height || ""), 10)
-          const wStyle = /width\s*:\s*(\d+)px/i.exec(style)?.[1]
-          const hStyle = /height\s*:\s*(\d+)px/i.exec(style)?.[1]
-          const dims = [wAttr, hAttr, Number(wStyle), Number(hStyle)].filter((v) => Number(v) > 0)
-          const tooSmall = dims.length >= 2 && dims.every((v) => Number(v) <= 2)
-          if (
-            !src ||
-            /spacer|transparent|blank|pixel|clear\.gif/i.test(src) ||
-            /^data:image\/gif;base64/i.test(src) ||
-            tooSmall
-          ) {
-            ;(element as any).parent?.children?.splice(
-              (element as any).parent.children.indexOf(element as any),
-              1,
-            )
-          }
-        }
-      },
-    }),
-    [],
-  )
-
+  // custom image renderer using per‑image skeletons
   const renderers = useMemo(
     () => ({
       img: ({ tnode }: any) => {
-        const src: string = String(tnode?.domNode?.attribs?.src || "")
-        const wAttr = parseInt(String(tnode?.domNode?.attribs?.width || ""), 10)
-        const hAttr = parseInt(String(tnode?.domNode?.attribs?.height || ""), 10)
-        return (
-          <HtmlImg
-            src={src}
-            widthHint={wAttr}
-            heightHint={hAttr}
-            contentW={contentW}
-            dpr={dpr}
-            onEnd={onImgEnd}
-          />
-        )
+        const raw = String(tnode?.domNode?.attribs?.src || "")
+        const src = normalizeSrc(raw)
+        return <ImageWithSkeleton src={src} contentW={contentW} dpr={dpr} onAnyImageSettled={fireReadyOnce} />
       },
     }),
-    [contentW, dpr, onImgEnd],
+    [contentW, dpr, fireReadyOnce],
   )
 
   const tagsStyles = useMemo(
     () => ({
+      body: { color: "#0B0B0B" },
       p: { lineHeight: 22, fontSize: 15, color: "#444" },
-      img: { borderRadius: 8 },
       ul: { paddingLeft: 18 },
       ol: { paddingLeft: 18 },
+      h1: { fontSize: 22, marginBottom: 6 },
+      h2: { fontSize: 18, marginBottom: 6 },
+      h3: { fontSize: 16, marginBottom: 6 },
       table: { borderWidth: 1, borderColor: "#e6e6e6" },
       td: { borderWidth: 1, borderColor: "#e6e6e6", paddingHorizontal: 8, paddingVertical: 6 },
       th: { borderWidth: 1, borderColor: "#e6e6e6", paddingHorizontal: 8, paddingVertical: 6 },
-      h1: { fontSize: 22 },
-      h2: { fontSize: 18 },
-      h3: { fontSize: 16 },
-      body: { color: "#0B0B0B" },
+      a: { color: "#8E1A26", textDecorationLine: "none" },
     }),
     [],
   )
 
-  const renderersProps = useMemo(() => ({ img: { enableExperimentalPercentWidth: true } }), [])
-  const renderSource = useMemo(() => ({ html: processed }), [processed])
-
   return (
-    <View
-      style={{ width: "100%", position: "relative" }}
-      onLayout={() => {
-        if (!measured) {
-          setMeasured(true)
-          onReady?.()
-        }
-      }}
-    >
-      {showSkeleton ? (
-        <View
-          pointerEvents="none"
-          style={{ position: "absolute", left: 0, right: 0, top: 0, paddingTop: 0, backgroundColor: "#FFFFFF" }}
-        >
-          <View style={{ gap: 8, paddingBottom: 8 }}>
-            <Skeleton style={{ height: 14, width: "80%", borderRadius: 6 }} />
-            <Skeleton style={{ height: 14, width: "60%", borderRadius: 6 }} />
-            <Skeleton style={{ height: 180, width: "100%", borderRadius: 12 }} />
-          </View>
-        </View>
-      ) : (
-        <RenderHTML
-          source={renderSource}
-          contentWidth={contentW}
-          enableExperimentalBRCollapsing
-          defaultTextProps={{ selectable: false }}
-          domVisitors={domVisitors as any}
-          renderers={renderers as any}
-          renderersProps={renderersProps as any}
-          tagsStyles={tagsStyles as any}
-          ignoredDomTags={["map"]}
-        />
-      )}
+    <View style={{ width: "100%" }}>
+      <RenderHTML
+        source={{ html: processed }}
+        contentWidth={contentW}
+        enableExperimentalBRCollapsing
+        defaultTextProps={{ selectable: false }}
+        renderers={renderers as any}
+        tagsStyles={tagsStyles as any}
+        // avoid surprises; RNHTML sometimes tries to handle <map> etc.
+        ignoredDomTags={["map"]}
+      />
     </View>
   )
 }
+
+const ProductDescriptionNative = memo(ProductDescriptionNativeBase)
+export default ProductDescriptionNative

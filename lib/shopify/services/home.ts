@@ -174,7 +174,9 @@ function toSection(node: any): AppHomeSection | null {
 
     case "ribbon_marquee": {
       const text = title || subtitle || "" // use either; prefer title
-      const speed = parseInt(val(node, "speed") || "30", 10) || 30
+      const speedRaw = val(node, "speed")
+      const parsedSpeed = Number(speedRaw)
+      const speed = Number.isFinite(parsedSpeed) && parsedSpeed !== 0 ? parsedSpeed : 30
       return { kind, id: node.id, text, speed, theme, url, country, language, startAt, endAt }
     }
 

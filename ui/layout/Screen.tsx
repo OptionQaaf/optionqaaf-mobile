@@ -19,7 +19,7 @@ export function Screen({ children, bleedTop, bleedBottom, bleedHorizontal }: Pro
   }
 
   return (
-    <SafeAreaView edges={edges} className="flex-1 bg-base">
+    <SafeAreaView edges={edges} className="flex-1 bg-white">
       <View className="flex-1 w-full">{children}</View>
     </SafeAreaView>
   )

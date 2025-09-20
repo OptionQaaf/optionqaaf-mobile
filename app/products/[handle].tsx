@@ -5,8 +5,8 @@ import { useSearch } from "@/features/search/api"
 import { useToast } from "@/ui/feedback/Toast"
 import { AppFooter } from "@/ui/layout/AppFooter"
 import { Screen } from "@/ui/layout/Screen"
-import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
+import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { ImageCarousel } from "@/ui/media/ImageCarousel"
 import { Animated, MOTION, useCrossfade } from "@/ui/motion/motion"
 import { MenuBar } from "@/ui/nav/MenuBar"
@@ -187,23 +187,9 @@ export default function ProductScreen() {
 
               {/* Description accordion: preload closed; open when ready */}
               <View className="mt-2 px-2">
-                <Accordion value={descOpen} onValueChange={(v) => setDescOpen(String(v))}>
+                <Accordion defaultValue="desc" /* don’t control it unless needed */>
                   <Accordion.Item value="desc" title="Description" appearance="inline" keepMounted>
-                    {(() => {
-                      const html = (product as any)?.descriptionHtml as string | undefined
-                      if (!html) return <Text className="text-secondary">No description available.</Text>
-                      return (
-                        <ProductDescriptionNative
-                          html={html}
-                          onReady={() => {
-                            if (!descReady) {
-                              setDescReady(true)
-                              setDescOpen("desc")
-                            }
-                          }}
-                        />
-                      )
-                    })()}
+                    <ProductDescriptionNative html={(product as any)?.descriptionHtml} />
                   </Accordion.Item>
                 </Accordion>
               </View>
