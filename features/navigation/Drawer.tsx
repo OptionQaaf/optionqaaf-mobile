@@ -1,14 +1,17 @@
+// features/navigation/Drawer.tsx
 import { CURRENCIES, CURRENCIES_MAP } from "@/features/currency/config"
 import { useMenu } from "@/features/navigation/api"
 import type { AppMenuItem } from "@/lib/shopify/services/menus"
 import { routeToPath } from "@/lib/shopify/services/menus"
 import { usePrefs } from "@/store/prefs"
+import { Skeleton } from "@/ui/feedback/Skeleton"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
 import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { Icon } from "@/ui/nav/MenuBar"
+import { useQueryClient } from "@tanstack/react-query"
 import { router, usePathname } from "expo-router"
-import { ChevronLeft, X } from "lucide-react-native"
+import { ChevronLeft, RefreshCcw, X } from "lucide-react-native"
 import { useEffect, useMemo, useState } from "react"
 import { Dimensions, Image, Linking, ScrollView, Text, View } from "react-native"
 import { Gesture, GestureDetector } from "react-native-gesture-handler"
@@ -38,7 +41,6 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
       startX.value = x.value
     })
     .onUpdate((e) => {
-      // clamp(startX + translationX, -WIDTH, 0)
       "worklet"
       const next = Math.min(0, Math.max(-WIDTH, startX.value + e.translationX))
       x.value = next
@@ -74,7 +76,6 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
     })
 
   const drawerA = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }))
-
   const value = useMemo(() => ({ open, close, toggle }), [])
 
   return (
@@ -86,7 +87,6 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
         <GestureDetector gesture={edgePan}>
           <Animated.View
             style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: EDGE_W, backgroundColor: "transparent" }}
-            // Keep it non-intrusive; it's a small edge area.
             pointerEvents="box-only"
           />
         </GestureDetector>
@@ -102,24 +102,35 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
 }
 
 function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
-  const { data } = useMenu("new-menu")
+  const queryClient = useQueryClient()
   const insets = useSafeAreaInsets()
+
+  const { data, fetchStatus, isLoading, isError, error, refetch } = useMenu("new-menu")
+  const isUninitialized = data === undefined && fetchStatus === "idle"
+  const showSkeleton = isUninitialized || isLoading || fetchStatus === "fetching"
   const rootItems = Array.isArray(data) ? data : []
+  const showEmpty = !showSkeleton && rootItems.length === 0
+
+  useEffect(() => {
+    if (!isLoading && rootItems?.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn("[Drawer] Menu empty. isError:", isError, "error:", error)
+    }
+  }, [isLoading, rootItems?.length, isError, error])
 
   const [levelsStack, setLevelsStack] = useState<{ title: string; items: AppMenuItem[] }[]>([])
   const [displayDepth, setDisplayDepth] = useState(0)
 
-  const baseLevel = useMemo(() => ({ title: "Menu", items: Array.isArray(rootItems) ? rootItems : [] }), [rootItems])
-  const levels = useMemo(
-    () => [baseLevel, ...(Array.isArray(levelsStack) ? levelsStack : [])],
-    [baseLevel, levelsStack],
-  )
-  // Minimal transition: fade current level
+  const baseLevel = useMemo(() => ({ title: "Menu", items: rootItems }), [rootItems])
+  const levels = useMemo(() => [baseLevel, ...levelsStack], [baseLevel, levelsStack])
+
+  // Minimal transition: fade current level (only when depth changes)
   const fade = useSharedValue(1)
   const fadeA = useAnimatedStyle(() => ({ opacity: fade.value }))
   useEffect(() => {
     fade.value = 0
     fade.value = withTiming(1, { duration: 160 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayDepth])
 
   const LOGO_W = 64
@@ -127,11 +138,10 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
   const atRoot = displayDepth === 0
   const onHeaderPress = () => {
     if (!atRoot) {
-      setLevelsStack((prev) => (Array.isArray(prev) ? prev.slice(0, -1) : []))
+      setLevelsStack((prev) => prev.slice(0, -1))
       setDisplayDepth((d) => Math.max(0, d - 1))
       return
     }
-    // At root: close and fully reset immediately for snappier UX
     onNavigate()
     setLevelsStack([])
     setDisplayDepth(0)
@@ -149,9 +159,30 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
     closeAndReset()
   }
 
+  // UI helpers
+  const MenuSkeleton = () => (
+    <View className="px-4 gap-3">
+      {[...Array(6)].map((_, i) => (
+        <Skeleton key={i} className="h-9 rounded-2xl" />
+      ))}
+    </View>
+  )
+
+  const EmptyState = ({ onRetry }: { onRetry: () => void }) => (
+    <View className="px-4 py-6 items-center gap-3">
+      <Text className="text-[16px] text-secondary text-center">We couldn’t load the menu right now.</Text>
+      <PressableOverlay haptic="light" onPress={onRetry} className="rounded-2xl bg-black px-4 py-3">
+        <View className="flex-row items-center gap-2">
+          <RefreshCcw size={18} color="#fff" />
+          <Text className="text-white text-[16px] font-semibold">Retry</Text>
+        </View>
+      </PressableOverlay>
+    </View>
+  )
+
   return (
     <Screen>
-      {/* header: centered logo + chevron at right (back/close) */}
+      {/* header */}
       <View className="px-4 pb-6 flex-row items-center justify-between" style={{ paddingTop: insets.top ? 0 : 12 }}>
         <View className="w-6" />
         <Icon onPress={onLogoPress}>
@@ -166,53 +197,59 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
         </Icon>
       </View>
 
-      {/* big list (scrollable) with clean fade between levels */}
+      {/* body */}
       <View className="flex-1" style={{ overflow: "hidden" }}>
-        {(() => {
-          const currentLevelIndex = Math.min(
-            Math.max(0, displayDepth),
-            Math.max(0, (Array.isArray(levels) ? levels : []).length - 1),
-          )
-          const level = (Array.isArray(levels) ? levels : [])[currentLevelIndex] ?? baseLevel
-          return (
-            <Animated.View style={[{ flex: 1 }, fadeA]}>
-              <ScrollView
-                {...verticalScrollProps}
-                keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
-                showsVerticalScrollIndicator={false}
-              >
-                <View className="px-4 gap-2">
-                  {(Array.isArray(level.items) ? level.items : []).map((item) => (
-                    <PressableOverlay
-                      key={item.id}
-                      onPress={() => {
-                        if (item.children && item.children.length > 0) {
-                          setLevelsStack((prev) =>
-                            Array.isArray(prev)
-                              ? [...prev, { title: item.title, items: item.children ?? [] }]
-                              : [{ title: item.title, items: item.children ?? [] }],
-                          )
-                          setDisplayDepth((d) => d + 1)
-                          return
-                        }
-                        const path = routeToPath(item.route)
-                        if (path.startsWith("http")) {
-                          Linking.openURL(path)
-                        } else {
-                          router.push(path as any)
-                        }
-                        closeAndReset()
-                      }}
-                      className="rounded-2xl px-1 py-1"
-                    >
-                      <Text className="text-[32px] leading-[38px] font-extrabold text-primary">{item.title}</Text>
-                    </PressableOverlay>
-                  ))}
-                </View>
-              </ScrollView>
-            </Animated.View>
-          )
-        })()}
+        <Animated.View style={[{ flex: 1 }, fadeA]}>
+          {showSkeleton ? (
+            <ScrollView {...verticalScrollProps} keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}>
+              <MenuSkeleton />
+            </ScrollView>
+          ) : showEmpty ? (
+            <EmptyState
+              onRetry={() => {
+                queryClient.removeQueries({ queryKey: ["menu", "new-menu"] })
+                refetch()
+              }}
+            />
+          ) : (
+            (() => {
+              const currentLevelIndex = Math.min(Math.max(0, displayDepth), Math.max(0, levels.length - 1))
+              const level = levels[currentLevelIndex] ?? baseLevel
+              return (
+                <ScrollView
+                  {...verticalScrollProps}
+                  keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
+                  showsVerticalScrollIndicator={false}
+                >
+                  <View className="px-4 gap-2">
+                    {level.items?.map((item) => (
+                      <PressableOverlay
+                        key={item.id}
+                        onPress={() => {
+                          if (item.children && item.children.length > 0) {
+                            setLevelsStack((prev) => [...prev, { title: item.title, items: item.children ?? [] }])
+                            setDisplayDepth((d) => d + 1)
+                            return
+                          }
+                          const path = routeToPath(item.route)
+                          if (path.startsWith("http")) {
+                            Linking.openURL(path)
+                          } else {
+                            router.push(path as any)
+                          }
+                          closeAndReset()
+                        }}
+                        className="rounded-2xl px-1 py-1"
+                      >
+                        <Text className="text-[32px] leading-[38px] font-extrabold text-primary">{item.title}</Text>
+                      </PressableOverlay>
+                    ))}
+                  </View>
+                </ScrollView>
+              )
+            })()
+          )}
+        </Animated.View>
       </View>
 
       {/* footer */}

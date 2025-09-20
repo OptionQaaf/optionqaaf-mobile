@@ -1,7 +1,5 @@
 import { DrawerProvider } from "@/features/navigation/Drawer"
-import { getMenuByHandle } from "@/lib/shopify/services/menus"
 import { hydrateCartId } from "@/store/cartId"
-import { currentLocale } from "@/store/prefs"
 import { FontProvider } from "@/theme/FontProvider"
 import { ToastHost } from "@/ui/feedback/Toast"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
@@ -27,7 +25,6 @@ const client = new QueryClient({
 export default function RootLayout() {
   const [fontsReady, setFontsReady] = useState(false)
   const [cartReady, setCartReady] = useState(false)
-  const [menuReady, setMenuReady] = useState(false)
 
   useEffect(() => {
     SplashScreen.preventAutoHideAsync().catch(() => {})
@@ -38,17 +35,6 @@ export default function RootLayout() {
       } catch {
         setCartReady(true)
       }
-      try {
-        const { language } = currentLocale()
-        await client.prefetchQuery({
-          queryKey: ["menu", "new-menu", language],
-          queryFn: () => getMenuByHandle("new-menu", language).then((d) => d),
-          staleTime: 5 * 60 * 1000,
-        })
-        setMenuReady(true)
-      } catch {
-        setMenuReady(true)
-      }
     })()
   }, [])
 
@@ -58,8 +44,8 @@ export default function RootLayout() {
   })
 
   useEffect(() => {
-    if (fontsReady && cartReady && menuReady) SplashScreen.hideAsync().catch(() => {})
-  }, [fontsReady, cartReady, menuReady])
+    if (fontsReady && cartReady) SplashScreen.hideAsync().catch(() => {})
+  }, [fontsReady, cartReady])
 
   return (
     <QueryClientProvider client={client}>

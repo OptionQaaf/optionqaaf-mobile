@@ -1,6 +1,5 @@
 import { callShopify, shopifyClient } from "@/lib/shopify/client"
 import { MenuByHandleDocument, type MenuByHandleQuery } from "@/lib/shopify/gql/graphql"
-import { currentLocale } from "@/store/prefs"
 
 export type AppRoute =
   | { kind: "collection"; title: string; handle: string }
@@ -12,10 +11,9 @@ export type AppRoute =
 
 export type AppMenuItem = { id: string; title: string; route: AppRoute; children: AppMenuItem[] }
 
-export async function getMenuByHandle(handle: string, language?: string) {
-  const lang = (language as any) ?? currentLocale().language
+export async function getMenuByHandle(handle: string) {
   return callShopify<MenuByHandleQuery>(async () => {
-    return shopifyClient.request(MenuByHandleDocument, { handle, language: lang })
+    return shopifyClient.request(MenuByHandleDocument, { handle })
   })
 }
 
@@ -30,18 +28,19 @@ function toRoute(node: any): AppRoute {
   if (t === "Article" && node.resource?.blog?.handle && node.resource?.handle)
     return { kind: "article", title: node.title, blogHandle: node.resource.blog.handle, handle: node.resource.handle }
   if (node.url) return { kind: "url", title: node.title, url: node.url }
-  return { kind: "url", title: node.title, url: node.url ?? "#" }
+  return { kind: "url", title: node.title, url: "#" }
 }
 
 export function normalizeMenu(data: MenuByHandleQuery | null | undefined): AppMenuItem[] {
   const items = data?.menu?.items ?? []
-  const mapNode = (n: any): AppMenuItem => ({
-    id: n.id,
-    title: n.title,
-    route: toRoute(n),
-    children: (n.items ?? []).map(mapNode),
-  })
-  return items.map(mapNode)
+  const mapNode = (n: any): AppMenuItem | null => {
+    const route = toRoute(n)
+    const children = Array.isArray(n.items) ? (n.items.map(mapNode).filter(Boolean) as AppMenuItem[]) : []
+    const isValid = route.kind !== "url" || (route.url && route.url !== "#") || children.length > 0
+    if (!isValid) return null
+    return { id: n.id, title: n.title ?? "", route, children }
+  }
+  return items.map(mapNode).filter(Boolean) as AppMenuItem[]
 }
 
 export function routeToPath(r: AppRoute): string {

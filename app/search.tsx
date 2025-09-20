@@ -1,23 +1,27 @@
 import { useSearch } from "@/features/search/api"
+import { optimizeImageUrl } from "@/lib/images/optimize"
+import { Skeleton } from "@/ui/feedback/Skeleton"
 import { AppFooter } from "@/ui/layout/AppFooter"
 import { Screen } from "@/ui/layout/Screen"
 import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { ProductTile } from "@/ui/product/ProductTile"
-import { Skeleton } from "@/ui/feedback/Skeleton"
-import { ChevronLeft, X } from "lucide-react-native"
-import { router } from "expo-router"
-import React, { useEffect, useMemo, useRef, useState } from "react"
-import { FlatList, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native"
 import { Image as ExpoImage } from "expo-image"
-import { optimizeImageUrl } from "@/lib/images/optimize"
-import { PixelRatio } from "react-native"
+import { router } from "expo-router"
+import { ChevronLeft, X } from "lucide-react-native"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { FlatList, PixelRatio, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native"
 
 export default function SearchScreen() {
   const [query, setQuery] = useState("")
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetching } = useSearch(query.trim(), 24)
-  const { footerVisible, revealFooter, resetFooter, onLayout: onListLayout, onContentSizeChange: onListContentSize } =
-    useDeferredFooter()
+  const {
+    footerVisible,
+    revealFooter,
+    resetFooter,
+    onLayout: onListLayout,
+    onContentSizeChange: onListContentSize,
+  } = useDeferredFooter()
   const endReachedRef = useRef(false)
 
   const nodes = useMemo(() => {
@@ -166,7 +170,6 @@ export default function SearchScreen() {
         maxToRenderPerBatch={8}
         windowSize={7}
         removeClippedSubviews
-        ListFooterComponent={renderFooter}
         keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
         scrollIndicatorInsets={{ bottom: 24 }}
         showsVerticalScrollIndicator={false}

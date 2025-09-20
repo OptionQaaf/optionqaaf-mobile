@@ -1,4 +1,4 @@
-query MenuByHandle($handle: String!, $language: LanguageCode) @inContext(language: $language) {
+query MenuByHandle($handle: String!) {
   menu(handle: $handle) {
     id
     title
@@ -46,12 +46,26 @@ query MenuByHandle($handle: String!, $language: LanguageCode) @inContext(languag
           __typename
           ... on Product {
             handle
+            title
           }
           ... on Collection {
             handle
+            title
           }
           ... on Page {
             handle
+            title
+          }
+          ... on Blog {
+            handle
+            title
+          }
+          ... on Article {
+            handle
+            title
+            blog {
+              handle
+            }
           }
         }
       }
