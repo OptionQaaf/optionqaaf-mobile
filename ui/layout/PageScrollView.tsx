@@ -1,7 +1,7 @@
 import { AppFooter, type AppFooterProps } from "@/ui/layout/AppFooter"
 import { cn } from "@/ui/utils/cva"
 import { forwardRef, type ComponentType, type ReactNode } from "react"
-import { ScrollView, type ScrollViewProps, View } from "react-native"
+import { ScrollView, View, type ScrollViewProps } from "react-native"
 import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "./scrollDefaults"
 
 type FooterComponent = ComponentType<AppFooterProps>
@@ -12,6 +12,7 @@ type Props = ScrollViewProps & {
   FooterComponent?: FooterComponent
   footerClassName?: string
   footerProps?: Partial<AppFooterProps>
+  isFooterHidden?: boolean
 }
 
 export const PageScrollView = forwardRef<ScrollView, Props>(function PageScrollView(
@@ -23,6 +24,7 @@ export const PageScrollView = forwardRef<ScrollView, Props>(function PageScrollV
     FooterComponent = AppFooter,
     footerClassName,
     footerProps,
+    isFooterHidden = false,
     ...rest
   },
   ref,
@@ -37,10 +39,8 @@ export const PageScrollView = forwardRef<ScrollView, Props>(function PageScrollV
       contentContainerClassName={cn(contentContainerClassName)}
       showsVerticalScrollIndicator={rest.showsVerticalScrollIndicator ?? false}
     >
-      <View className="flex-1">
-        {children}
-      </View>
-      <FooterComponent className={footerClassName} {...footerProps} />
+      <View className="flex-1">{children}</View>
+      {!isFooterHidden && <FooterComponent className={footerClassName} {...footerProps} />}
     </ScrollView>
   )
 })

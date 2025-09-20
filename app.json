@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "OptionQaaf",
-    "slug": "optionqaaf-app",
+    "name": "OptionQaafDemo",
+    "slug": "optionqaaf-app-demo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/white-icon.png",

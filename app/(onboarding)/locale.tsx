@@ -1,3 +1,6 @@
+import type { CurrencyCode } from "@/features/currency/config"
+import type { CountryCode } from "@/features/locale/countries"
+import { COUNTRIES } from "@/features/locale/countries"
 import { markOnboardingDone } from "@/lib/storage/flags"
 import { usePrefs, type LanguageCode } from "@/store/prefs"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -10,9 +13,6 @@ import { router } from "expo-router"
 import { useMemo, useState } from "react"
 import { Image, Text as RNText, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import type { CountryCode } from "@/features/locale/countries"
-import type { CurrencyCode } from "@/features/currency/config"
-import { COUNTRIES } from "@/features/locale/countries"
 
 export default function LocaleOnboarding() {
   const { setPrefs } = usePrefs()
@@ -55,7 +55,7 @@ export default function LocaleOnboarding() {
 
       {/* SHEET that fills remaining height */}
       <View className="flex-1 -mt-6 overflow-hidden rounded-t-[32px] bg-white">
-        <PageScrollView>
+        <PageScrollView isFooterHidden>
           <SafeAreaView className="flex-1 justify-between px-4 pt-8" edges={["bottom"]}>
             {/* FORM GROUP */}
             <View className="flex-col gap-4">

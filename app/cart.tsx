@@ -107,12 +107,12 @@ export default function CartScreen() {
   const prefCurrency = String(prefCurrencyState || currency || "USD").toUpperCase()
 
   // Derived money (compact & consistent)
-  const { subtotal, discount, total, hasItems } = useMemo(() => {
-    const serverSubtotal = n(cart?.cost?.subtotalAmount?.amount, NaN)
+  // Derived money (compact & consistent)
+  const { subBefore, subAfter, discount, total, hasItems } = useMemo(() => {
     const serverTotal = n(cart?.cost?.totalAmount?.amount, NaN)
 
-    let undiscountedSubtotal = 0
-    let discountedSubtotal = 0
+    let subBeforeDiscounts = 0 // compareAt × qty
+    let subAfterDiscounts = 0 // actual line cost (or unit price) × qty
     let itemCount = 0
 
     for (const line of localLines) {
@@ -122,24 +122,17 @@ export default function CartScreen() {
       const lineCost = n(line?.cost?.subtotalAmount?.amount, NaN)
 
       itemCount += quantity
-      undiscountedSubtotal += compareAt * quantity
-      discountedSubtotal += Number.isFinite(lineCost) ? lineCost : unitPrice * quantity
+      subBeforeDiscounts += compareAt * quantity
+      subAfterDiscounts += Number.isFinite(lineCost) ? lineCost : unitPrice * quantity
     }
 
-    const resolvedSubtotal = dirty
-      ? discountedSubtotal
-      : Number.isFinite(serverSubtotal)
-        ? serverSubtotal
-        : discountedSubtotal
-    const resolvedTotal = dirty
-      ? discountedSubtotal
-      : Number.isFinite(serverTotal)
-        ? serverTotal
-        : discountedSubtotal
-    const savings = Math.max(0, undiscountedSubtotal - resolvedSubtotal)
+    const resolvedTotal = dirty ? subAfterDiscounts : Number.isFinite(serverTotal) ? serverTotal : subAfterDiscounts
+
+    const savings = Math.max(0, subBeforeDiscounts - subAfterDiscounts)
 
     return {
-      subtotal: resolvedSubtotal,
+      subBefore: subBeforeDiscounts,
+      subAfter: subAfterDiscounts,
       discount: savings,
       total: resolvedTotal,
       hasItems: itemCount > 0,
@@ -174,9 +167,7 @@ export default function CartScreen() {
       } else {
         pendingRemoves.current.delete(lineId)
         pendingUpdates.current.set(lineId, q)
-        setLocalLines((prev) =>
-          prev.map((l) => (l.id === lineId ? { ...l, quantity: q, cost: undefined } : l)),
-        )
+        setLocalLines((prev) => prev.map((l) => (l.id === lineId ? { ...l, quantity: q, cost: undefined } : l)))
       }
       setDirty(true)
       scheduleSync()
@@ -358,8 +349,8 @@ export default function CartScreen() {
                 <View className="p-3 border border-border rounded-2xl bg-surface gap-2">
                   {(() => {
                     const showUSD = prefCurrency !== "USD"
-                    const subDisp = convertAmount(subtotal, currency, prefCurrency)
-                    const subUSD = convertAmount(subtotal, currency, "USD")
+                    const subDisp = convertAmount(subBefore, currency, prefCurrency)
+                    const subUSD = convertAmount(subBefore, currency, "USD")
                     const discDisp = convertAmount(discount, currency, prefCurrency)
                     const discUSD = convertAmount(discount, currency, "USD")
                     const totDisp = convertAmount(total, currency, prefCurrency)

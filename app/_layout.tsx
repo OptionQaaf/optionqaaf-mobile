@@ -2,7 +2,6 @@ import { DrawerProvider } from "@/features/navigation/Drawer"
 import { hydrateCartId } from "@/store/cartId"
 import { FontProvider } from "@/theme/FontProvider"
 import { ToastHost } from "@/ui/feedback/Toast"
-import { LightboxProvider } from "@/ui/media/Lightbox"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { Stack } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
@@ -48,18 +47,16 @@ export default function RootLayout() {
         <SafeAreaProvider>
           <FontProvider onReady={() => setFontsReady(true)}>
             <DrawerProvider>
-              <LightboxProvider>
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    animation: "fade",
-                    animationDuration: 240,
-                    gestureEnabled: false,
-                  }}
-                >
-                  <Stack.Screen name="products/[handle]" options={{ gestureEnabled: true }} />
-                </Stack>
-              </LightboxProvider>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: "fade",
+                  animationDuration: 240,
+                  gestureEnabled: false,
+                }}
+              >
+                <Stack.Screen name="products/[handle]" options={{ gestureEnabled: true }} />
+              </Stack>
               <ToastHost />
             </DrawerProvider>
           </FontProvider>
