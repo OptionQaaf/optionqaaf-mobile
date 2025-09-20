@@ -8,7 +8,6 @@ import { Stack } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
 import { useEffect, useState } from "react"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
-import { configureReanimatedLogger, ReanimatedLogLevel } from "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 
 const client = new QueryClient({
@@ -38,11 +37,6 @@ export default function RootLayout() {
       }
     })()
   }, [])
-
-  configureReanimatedLogger({
-    level: ReanimatedLogLevel.warn,
-    strict: false,
-  })
 
   useEffect(() => {
     if (fontsReady && cartReady) SplashScreen.hideAsync().catch(() => {})
