@@ -183,6 +183,15 @@ export function useUpdateDiscountCodes() {
   })
 }
 
+const SHOPIFY_CART_MUTATION_LIMIT = 10
+
+function chunk<T>(items: T[], size: number): T[][] {
+  if (items.length <= size) return items.length ? [items] : []
+  const batches: T[][] = []
+  for (let i = 0; i < items.length; i += size) batches.push(items.slice(i, i + size))
+  return batches
+}
+
 // Batch-sync cart changes to reduce API calls.
 // Accepts arrays of updates and removals and applies them in a single mutation cycle.
 export function useSyncCartChanges() {
@@ -193,14 +202,14 @@ export function useSyncCartChanges() {
   return useMutation({
     mutationFn: async (payload: { updates: { id: string; quantity: number }[]; removes: string[] }) => {
       if (!cartId) throw new Error("Cart not initialized")
-      // Apply removes first to avoid conflicts
-      if (payload.removes.length) {
-        await removeLines(cartId, payload.removes, locale)
+      // Apply removes first to avoid conflicts (Shopify caps mutations at 10 lines/request)
+      for (const batch of chunk(payload.removes, SHOPIFY_CART_MUTATION_LIMIT)) {
+        await removeLines(cartId, batch, locale)
       }
-      if (payload.updates.length) {
+      for (const batch of chunk(payload.updates, SHOPIFY_CART_MUTATION_LIMIT)) {
         await updateLines(
           cartId,
-          payload.updates.map((u) => ({ id: u.id, quantity: u.quantity })),
+          batch.map((u) => ({ id: u.id, quantity: u.quantity })),
           locale,
         )
       }

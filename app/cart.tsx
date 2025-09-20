@@ -107,28 +107,42 @@ export default function CartScreen() {
   const prefCurrency = String(prefCurrencyState || currency || "USD").toUpperCase()
 
   // Derived money (compact & consistent)
-  const { subtotal, afterDiscountSubtotal, discount, total, hasItems } = useMemo(() => {
-    const lines = localLines
-    const derivedPost = lines.reduce((sum, l) => sum + n(l?.merchandise?.price?.amount) * n(l?.quantity, 1), 0)
-    const derivedPre = lines.reduce(
-      (sum, l) => sum + n(l?.merchandise?.compareAtPrice?.amount ?? l?.merchandise?.price?.amount) * n(l?.quantity, 1),
-      0,
-    )
+  const { subtotal, discount, total, hasItems } = useMemo(() => {
     const serverSubtotal = n(cart?.cost?.subtotalAmount?.amount, NaN)
     const serverTotal = n(cart?.cost?.totalAmount?.amount, NaN)
 
-    const _subtotal = derivedPre
-    const _afterDisc = dirty ? derivedPost : Number.isFinite(serverSubtotal) ? serverSubtotal : derivedPost
-    const _total = dirty ? derivedPost : Number.isFinite(serverTotal) ? serverTotal : derivedPost
-    const _discount = Math.max(0, _subtotal - _afterDisc)
-    const _hasItems = lines.reduce((acc, l) => acc + n(l?.quantity), 0) > 0
+    let undiscountedSubtotal = 0
+    let discountedSubtotal = 0
+    let itemCount = 0
+
+    for (const line of localLines) {
+      const quantity = n(line?.quantity, 0)
+      const unitPrice = n(line?.merchandise?.price?.amount)
+      const compareAt = n(line?.merchandise?.compareAtPrice?.amount ?? unitPrice)
+      const lineCost = n(line?.cost?.subtotalAmount?.amount, NaN)
+
+      itemCount += quantity
+      undiscountedSubtotal += compareAt * quantity
+      discountedSubtotal += Number.isFinite(lineCost) ? lineCost : unitPrice * quantity
+    }
+
+    const resolvedSubtotal = dirty
+      ? discountedSubtotal
+      : Number.isFinite(serverSubtotal)
+        ? serverSubtotal
+        : discountedSubtotal
+    const resolvedTotal = dirty
+      ? discountedSubtotal
+      : Number.isFinite(serverTotal)
+        ? serverTotal
+        : discountedSubtotal
+    const savings = Math.max(0, undiscountedSubtotal - resolvedSubtotal)
 
     return {
-      subtotal: _subtotal,
-      afterDiscountSubtotal: _afterDisc,
-      discount: _discount,
-      total: _total,
-      hasItems: _hasItems,
+      subtotal: resolvedSubtotal,
+      discount: savings,
+      total: resolvedTotal,
+      hasItems: itemCount > 0,
     }
   }, [cart, dirty, localLines])
 
@@ -160,7 +174,9 @@ export default function CartScreen() {
       } else {
         pendingRemoves.current.delete(lineId)
         pendingUpdates.current.set(lineId, q)
-        setLocalLines((prev) => prev.map((l) => (l.id === lineId ? { ...l, quantity: q } : l)))
+        setLocalLines((prev) =>
+          prev.map((l) => (l.id === lineId ? { ...l, quantity: q, cost: undefined } : l)),
+        )
       }
       setDirty(true)
       scheduleSync()
@@ -555,6 +571,9 @@ type LineNode = {
       handle?: string
       featuredImage?: { url?: string }
     }
+  }
+  cost?: {
+    subtotalAmount?: { amount?: number | string; currencyCode?: string }
   }
 }
 
