@@ -155,6 +155,15 @@ export default function CollectionScreen() {
   // If special men-1 / women-1: render aesthetic sections + PLP-like grid
   if (special) {
     const sections = specialHome?.sections ?? []
+    const capsuleHandles = useMemo(() => {
+      const handles: string[] = []
+      for (const section of sections) {
+        if (section?.kind === "product_rail" && section.collectionHandle) {
+          if (!handles.includes(section.collectionHandle)) handles.push(section.collectionHandle)
+        }
+      }
+      return handles.slice(0, 3)
+    }, [sections])
     const products = (specialSearch?.pages?.flatMap((p) => p.nodes) ?? []).slice(0, 24)
     const go = (url?: string) => {
       if (!url) return
@@ -165,11 +174,11 @@ export default function CollectionScreen() {
     return (
       <Screen bleedBottom bleedTop>
         <View className="flex-1 bg-white">
-          <MenuBar variant="light" floating />
+          <MenuBar variant="dark" floating />
           <PageScrollView>
             <View className="pt-0">
               {/* Always lead with a composed landing to set the vibe */}
-              <SpecialLanding variant={special.title as any} />
+              <SpecialLanding variant={special.title as any} collectionHandles={capsuleHandles} />
 
               {/* If metaobject sections exist, render them next */}
               {sections.map((s: any) => {

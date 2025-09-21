@@ -16,7 +16,7 @@ type Props = {
 
 export function MenuBar({ variant = "light", floating = false, scrim = 0, back = false }: Props) {
   const { toggle } = useDrawer()
-  const color = "#1e1e1e"
+  const color = variant === "dark" ? "#f8f8f8" : "#1e1e1e"
   const pathname = usePathname()
 
   const LOGO_W = 32

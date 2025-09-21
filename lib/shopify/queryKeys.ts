@@ -5,4 +5,10 @@ export const qk = {
   brandIndex: () => ["brands", "index"] as const,
   brandDetail: (vendor: string) => ["brands", vendor] as const,
   cart: (cartId: string | null) => ["cart", cartId] as const,
+  collectionsSummary: (handles: string | string[], params?: object) => [
+    "collections",
+    "summary",
+    handles,
+    params,
+  ] as const,
 }
