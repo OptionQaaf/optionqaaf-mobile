@@ -1,6 +1,6 @@
 import { useMobileHome } from "@/features/home/api"
 import { useSearch } from "@/features/search/api"
-import { sectionRegistry } from "@/ui/home/sections/registry"
+import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
@@ -41,39 +41,7 @@ export default function CustomPage() {
         <PageScrollView contentContainerStyle={{ paddingBottom: 16 }} contentContainerClassName="bg-white">
           <View className="pt-0">
             {/* Aesthetic sections (reuse home metaobject) */}
-            {sections.map((s) => {
-              const Cmp = (sectionRegistry as any)[s.kind]
-              if (!Cmp) return null
-              switch (s.kind) {
-                case "poster_triptych":
-                  return <Cmp key={s.id} {...(s as any)} onPressItem={(url: string | undefined) => go(url)} />
-                case "poster_quilt":
-                  return <Cmp key={s.id} {...(s as any)} onPressItem={(url: string | undefined) => go(url)} />
-                case "brand_cloud":
-                  return <Cmp key={s.id} {...(s as any)} />
-                case "duo_poster":
-                  return (
-                    <Cmp
-                      key={s.id}
-                      {...(s as any)}
-                      onPressLeft={() => go(s.left?.url)}
-                      onPressRight={() => go(s.right?.url)}
-                    />
-                  )
-                case "trio_grid":
-                  return (
-                    <Cmp
-                      key={s.id}
-                      {...(s as any)}
-                      onPressA={() => go(s.a?.url)}
-                      onPressB={() => go(s.b?.url)}
-                      onPressC={() => go(s.c?.url)}
-                    />
-                  )
-                default:
-                  return <Cmp key={s.id} {...(s as any)} onPress={() => go((s as any).url)} />
-              }
-            })}
+            <MetaobjectSectionList sections={sections} onNavigate={go} />
 
             {/* PLP grid vibe */}
             <View className="px-3 mt-4">

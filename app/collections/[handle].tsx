@@ -2,7 +2,7 @@ import { useMobileHome } from "@/features/home/api"
 import { useCollectionMeta, useCollectionProducts } from "@/features/plp/api"
 import { useSearch } from "@/features/search/api"
 import { Skeleton } from "@/ui/feedback/Skeleton"
-import { sectionRegistry } from "@/ui/home/sections/registry"
+import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
@@ -168,39 +168,7 @@ export default function CollectionScreen() {
           <PageScrollView contentContainerStyle={{ paddingBottom: 16 }} contentContainerClassName="bg-white">
             <View className="pt-0">
               {/* Metaobject sections drive the composed landing */}
-              {sections.map((s: any) => {
-                const Cmp = (sectionRegistry as any)[s.kind]
-                if (!Cmp) return null
-                switch (s.kind) {
-                  case "poster_triptych":
-                    return <Cmp key={s.id} {...s} onPressItem={(url: string | undefined) => go(url)} />
-                  case "poster_quilt":
-                    return <Cmp key={s.id} {...s} onPressItem={(url: string | undefined) => go(url)} />
-                  case "brand_cloud":
-                    return <Cmp key={s.id} {...s} />
-                  case "duo_poster":
-                    return (
-                      <Cmp
-                        key={s.id}
-                        {...s}
-                        onPressLeft={() => go(s.left?.url)}
-                        onPressRight={() => go(s.right?.url)}
-                      />
-                    )
-                  case "trio_grid":
-                    return (
-                      <Cmp
-                        key={s.id}
-                        {...s}
-                        onPressA={() => go(s.a?.url)}
-                        onPressB={() => go(s.b?.url)}
-                        onPressC={() => go(s.c?.url)}
-                      />
-                    )
-                  default:
-                    return <Cmp key={s.id} {...s} onPress={() => go((s as any).url)} />
-                }
-              })}
+              <MetaobjectSectionList sections={sections} onNavigate={go} />
 
               <View className="px-3 mt-4">
                 <Text className="text-[26px] font-extrabold text-primary mb-2">{special.title}</Text>

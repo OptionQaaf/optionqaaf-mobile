@@ -1,6 +1,6 @@
 import { useMobileHome } from "@/features/home/api"
 import { Skeleton } from "@/ui/feedback/Skeleton"
-import { sectionRegistry } from "@/ui/home/sections/registry"
+import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
@@ -48,34 +48,7 @@ export default function Home() {
         ) : (
           <PageScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 0 }}>
             <View className="pt-0">
-              {sections.map((s) => {
-                const Cmp = (sectionRegistry as any)[s.kind]
-                if (!Cmp) return null
-
-                switch (s.kind) {
-                  case "duo_poster":
-                    return (
-                      <Cmp
-                        key={s.id}
-                        {...(s as any)}
-                        onPressLeft={() => go(s.left?.url)}
-                        onPressRight={() => go(s.right?.url)}
-                      />
-                    )
-                  case "trio_grid":
-                    return (
-                      <Cmp
-                        key={s.id}
-                        {...(s as any)}
-                        onPressA={() => go(s.a?.url)}
-                        onPressB={() => go(s.b?.url)}
-                        onPressC={() => go(s.c?.url)}
-                      />
-                    )
-                  default:
-                    return <Cmp key={s.id} {...(s as any)} onPress={() => go((s as any).url)} />
-                }
-              })}
+              <MetaobjectSectionList sections={sections} onNavigate={go} />
             </View>
           </PageScrollView>
         )}
