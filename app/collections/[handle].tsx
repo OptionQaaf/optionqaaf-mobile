@@ -8,7 +8,6 @@ import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
-import { SpecialLanding } from "@/ui/special/SpecialLanding"
 import { router, useLocalSearchParams } from "expo-router"
 import { Filter, LayoutGrid, Square } from "lucide-react-native"
 import React, { useEffect, useMemo, useState } from "react"
@@ -155,15 +154,6 @@ export default function CollectionScreen() {
   // If special men-1 / women-1: render aesthetic sections + PLP-like grid
   if (special) {
     const sections = specialHome?.sections ?? []
-    const capsuleHandles = useMemo(() => {
-      const handles: string[] = []
-      for (const section of sections) {
-        if (section?.kind === "product_rail" && section.collectionHandle) {
-          if (!handles.includes(section.collectionHandle)) handles.push(section.collectionHandle)
-        }
-      }
-      return handles.slice(0, 3)
-    }, [sections])
     const products = (specialSearch?.pages?.flatMap((p) => p.nodes) ?? []).slice(0, 24)
     const go = (url?: string) => {
       if (!url) return
@@ -175,16 +165,19 @@ export default function CollectionScreen() {
       <Screen bleedBottom bleedTop>
         <View className="flex-1 bg-white">
           <MenuBar variant="dark" floating />
-          <PageScrollView>
+          <PageScrollView contentContainerStyle={{ paddingBottom: 16 }} contentContainerClassName="bg-white">
             <View className="pt-0">
-              {/* Always lead with a composed landing to set the vibe */}
-              <SpecialLanding variant={special.title as any} collectionHandles={capsuleHandles} />
-
-              {/* If metaobject sections exist, render them next */}
+              {/* Metaobject sections drive the composed landing */}
               {sections.map((s: any) => {
                 const Cmp = (sectionRegistry as any)[s.kind]
                 if (!Cmp) return null
                 switch (s.kind) {
+                  case "poster_triptych":
+                    return <Cmp key={s.id} {...s} onPressItem={(url: string | undefined) => go(url)} />
+                  case "poster_quilt":
+                    return <Cmp key={s.id} {...s} onPressItem={(url: string | undefined) => go(url)} />
+                  case "brand_cloud":
+                    return <Cmp key={s.id} {...s} />
                   case "duo_poster":
                     return (
                       <Cmp
@@ -209,12 +202,12 @@ export default function CollectionScreen() {
                 }
               })}
 
-              <View className="px-4 mt-2">
-                <Text className="text-[28px] font-extrabold text-primary mb-3">{special.title}</Text>
+              <View className="px-3 mt-4">
+                <Text className="text-[26px] font-extrabold text-primary mb-2">{special.title}</Text>
                 <StaticProductGrid
                   data={products}
                   columns={2}
-                  gap={12}
+                  gap={10}
                   renderItem={(item: any, w: number) => (
                     <ProductTile
                       image={item?.featuredImage?.url ?? ""}

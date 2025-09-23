@@ -38,13 +38,19 @@ export default function CustomPage() {
       <View className="flex-1">
         <MenuBar variant="light" floating back />
 
-        <PageScrollView contentContainerStyle={{ paddingBottom: 12 }}>
+        <PageScrollView contentContainerStyle={{ paddingBottom: 16 }} contentContainerClassName="bg-white">
           <View className="pt-0">
             {/* Aesthetic sections (reuse home metaobject) */}
             {sections.map((s) => {
               const Cmp = (sectionRegistry as any)[s.kind]
               if (!Cmp) return null
               switch (s.kind) {
+                case "poster_triptych":
+                  return <Cmp key={s.id} {...(s as any)} onPressItem={(url: string | undefined) => go(url)} />
+                case "poster_quilt":
+                  return <Cmp key={s.id} {...(s as any)} onPressItem={(url: string | undefined) => go(url)} />
+                case "brand_cloud":
+                  return <Cmp key={s.id} {...(s as any)} />
                 case "duo_poster":
                   return (
                     <Cmp
@@ -70,12 +76,12 @@ export default function CustomPage() {
             })}
 
             {/* PLP grid vibe */}
-            <View className="px-4 mt-2">
-              <Text className="text-[22px] font-extrabold text-primary mb-3">{cfg.title}</Text>
+            <View className="px-3 mt-4">
+              <Text className="text-[22px] font-extrabold text-primary mb-2">{cfg.title}</Text>
               <StaticProductGrid
                 data={products}
                 columns={2}
-                gap={12}
+                gap={10}
                 renderItem={(item: any, w: number) => (
                   <ProductTile
                     image={item?.featuredImage?.url ?? ""}
