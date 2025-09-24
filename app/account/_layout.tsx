@@ -5,8 +5,9 @@ export default function AccountLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        animation: "slide_from_right",
-        gestureEnabled: true,
+        animation: "fade",
+        animationDuration: 240,
+        gestureEnabled: false,
       }}
     >
       <Stack.Screen name="index" />

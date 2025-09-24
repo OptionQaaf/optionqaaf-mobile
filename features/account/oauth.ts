@@ -1,16 +1,11 @@
 import { useCustomerSession } from "@/features/account/session"
 import { ShopifyError } from "@/lib/shopify/client"
-import {
-  SHOPIFY_CUSTOMER_CLIENT_ID,
-  SHOPIFY_CUSTOMER_REDIRECT_PATH,
-  SHOPIFY_CUSTOMER_SCOPES,
-  SHOPIFY_DOMAIN,
-} from "@/lib/shopify/env"
+import { SHOPIFY_CUSTOMER_CLIENT_ID, SHOPIFY_CUSTOMER_REDIRECT_PATH, SHOPIFY_CUSTOMER_SCOPES } from "@/lib/shopify/env"
 import { generateHexStringAsync, makeRedirectUri } from "expo-auth-session"
 import * as Crypto from "expo-crypto"
 import { Platform } from "react-native"
 
-const AUTH_BASE = `https://${SHOPIFY_DOMAIN}/auth/oauth`
+const AUTH_BASE = `https://shopify.com/auth/oauth`
 const AUTHORIZATION_ENDPOINT = `${AUTH_BASE}/authorize`
 const TOKEN_ENDPOINT = `${AUTH_BASE}/token`
 const REVOCATION_ENDPOINT = `${AUTH_BASE}/revoke`
@@ -94,6 +89,8 @@ export async function createCustomerOAuthSession(): Promise<CustomerOAuthSession
     params.set("locale", locale)
   }
 
+  console.log(`${AUTHORIZATION_ENDPOINT}?${params.toString()}`)
+
   return {
     authorizeUrl: `${AUTHORIZATION_ENDPOINT}?${params.toString()}`,
     redirectUri,
@@ -103,10 +100,13 @@ export async function createCustomerOAuthSession(): Promise<CustomerOAuthSession
 }
 
 async function exchangeToken(body: Record<string, string>) {
-  if (!SHOPIFY_CUSTOMER_CLIENT_ID) throw new ShopifyError("Missing EXPO_PUBLIC_SHOPIFY_CUSTOMER_CLIENT_ID")
-
   const redirectUri = resolveRedirectUri()
-  const form = new URLSearchParams({ client_id: SHOPIFY_CUSTOMER_CLIENT_ID, redirect_uri: redirectUri, ...body })
+
+  const form = new URLSearchParams({
+    client_id: SHOPIFY_CUSTOMER_CLIENT_ID!,
+    redirect_uri: redirectUri,
+    ...body,
+  })
 
   const response = await fetch(TOKEN_ENDPOINT, {
     method: "POST",
@@ -144,7 +144,6 @@ export async function completeCustomerOAuthSession({
   const tokenPayload = await exchangeToken({
     grant_type: "authorization_code",
     code,
-    redirect_uri: resolveRedirectUri(),
     code_verifier: codeVerifier,
   })
 
@@ -165,13 +164,16 @@ let refreshPromise: Promise<TokenResponse | null> | null = null
 export async function refreshCustomerAccessToken(force = false) {
   const state = useCustomerSession.getState()
   if (!state.refreshToken) return null
-
   if (refreshPromise && !force) return refreshPromise
 
   useCustomerSession.getState().markRefreshing(true)
   refreshPromise = (async () => {
     try {
-      const payload = await exchangeToken({ grant_type: "refresh_token", refresh_token: state.refreshToken! })
+      const payload = await exchangeToken({
+        grant_type: "refresh_token",
+        refresh_token: state.refreshToken!,
+      })
+
       const expiresAt = computeExpiry(payload.expires_in)
       useCustomerSession.getState().setSession({
         accessToken: payload.access_token,
@@ -198,10 +200,7 @@ export async function ensureCustomerAccessToken() {
   if (!state.accessToken) return null
 
   if (!state.expiresAt) return state.accessToken
-
-  if (state.expiresAt - Date.now() > 60 * 1000) {
-    return state.accessToken
-  }
+  if (state.expiresAt - Date.now() > 60 * 1000) return state.accessToken
 
   const payload = await refreshCustomerAccessToken()
   return payload?.access_token ?? useCustomerSession.getState().accessToken ?? null
@@ -224,8 +223,6 @@ export async function signOutCustomer({ revoke = false }: { revoke?: boolean } =
       body: form.toString(),
     })
   } catch (err) {
-    if (__DEV__) {
-      console.warn("[auth] failed to revoke token", err)
-    }
+    if (__DEV__) console.warn("[auth] failed to revoke token", err)
   }
 }
