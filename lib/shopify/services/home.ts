@@ -15,8 +15,6 @@ export type PosterCell = {
   layout?: string
 }
 
-export type WeightedWord = { text: string; weight?: number }
-
 export type AppHome = { sections: AppHomeSection[] }
 
 export type AppHomeSection =
@@ -103,7 +101,6 @@ export type AppHomeSection =
       id: string
       title?: string
       theme?: string
-      words: WeightedWord[]
       country?: string
       language?: string
       startAt?: string
@@ -195,25 +192,6 @@ function imgFrom(r: any): ImageRef | undefined {
   const img = r?.image
   if (!img?.url) return
   return { url: img.url, w: img.width, h: img.height, alt: img.altText }
-}
-
-function parseWordList(raw?: string | null): WeightedWord[] {
-  if (!raw) return []
-  return raw
-    .split(/[\n,]+/)
-    .map((token) => token.trim())
-    .filter(Boolean)
-    .map((token) => {
-      const byPipe = token.split(/\s*[:|•]\s*/)
-      if (byPipe.length === 2) {
-        const weight = Number(byPipe[1])
-        return { text: byPipe[0], weight: Number.isFinite(weight) ? weight : undefined }
-      }
-      const match = token.match(/^(.*?)(?:\s+(\d+))?$/)
-      const text = match?.[1]?.trim() ?? token
-      const weight = match?.[2] ? Number(match[2]) : undefined
-      return { text, weight: Number.isFinite(weight ?? NaN) ? weight : undefined }
-    })
 }
 
 function toSection(node: any): AppHomeSection | null {
@@ -362,14 +340,8 @@ function toSection(node: any): AppHomeSection | null {
     case "editorial_quote":
       return { kind, id: node.id, title, theme, url, country, language, startAt, endAt }
 
-    case "brand_cloud": {
-      const primary = val(node, "words") ?? val(node, "body")
-      const fallback = val(node, "subtitle") ?? val(node, "copy")
-      const wordsPrimary = parseWordList(primary)
-      const wordsFallback = parseWordList(fallback)
-      const words = wordsPrimary.length > 0 ? wordsPrimary : wordsFallback
-      return { kind, id: node.id, title, theme, words, country, language, startAt, endAt }
-    }
+    case "brand_cloud":
+      return { kind, id: node.id, title, theme, country, language, startAt, endAt }
 
     default:
       return null
