@@ -168,6 +168,8 @@ function appendFormattedAddress(address: AddressNode): AddressNode {
   }
 }
 
+// Keep the Customer Account API document strings in sync with
+// lib/shopify/queries/customerAccount.graphql so tooling and codegen remain accurate.
 const CUSTOMER_DASHBOARD_QUERY = /* GraphQL */ `
   query CustomerDashboard($ordersFirst: Int = 20, $ordersAfter: String) {
     customer {
@@ -186,7 +188,9 @@ const CUSTOMER_DASHBOARD_QUERY = /* GraphQL */ `
         address1
         address2
         city
+        province
         provinceCode
+        country
         countryCode
         zip
         phone
@@ -264,7 +268,9 @@ const CUSTOMER_ADDRESSES_QUERY = /* GraphQL */ `
         address1
         address2
         city
+        province
         provinceCode
+        country
         countryCode
         zip
         phone
@@ -304,7 +310,9 @@ const CUSTOMER_ADDRESS_CREATE_MUTATION = /* GraphQL */ `
         address1
         address2
         city
+        province
         provinceCode
+        country
         countryCode
         zip
         phone
@@ -327,7 +335,9 @@ const CUSTOMER_ADDRESS_UPDATE_MUTATION = /* GraphQL */ `
         address1
         address2
         city
+        province
         provinceCode
+        country
         countryCode
         zip
         phone
