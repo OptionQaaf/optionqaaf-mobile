@@ -1,7 +1,7 @@
 // ui/product/ProductTile.tsx
 import { Price } from "@/ui/product/Price"
 import { cn } from "@/ui/utils/cva"
-import { Pressable, Text, View, PixelRatio, StyleSheet } from "react-native"
+import { Pressable, Text, View, PixelRatio } from "react-native"
 import { Image } from "expo-image"
 import { optimizeImageUrl, DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
 
@@ -34,7 +34,7 @@ export function ProductTile({
   onPress,
   className,
   width,
-  rounded = "md",
+  rounded = "none",
   padding = "md",
   imageRatio = 1,
   variant = "card",
@@ -49,18 +49,14 @@ export function ProductTile({
     "2xl": "rounded-2xl",
     "3xl": "rounded-3xl",
   }
-  const radius = radiusMap[rounded] ?? radiusMap.md
+  const radius = radiusMap[rounded] ?? radiusMap.none
   const pad = padding === "lg" ? "p-4" : padding === "sm" ? "p-2.5" : "p-3"
-  const cardChrome = variant === "card" ? "bg-surface border border-border" : ""
+  const cardChrome = variant === "card" ? "bg-surface" : ""
   const targetW = width ? Math.round(width) : undefined
   const targetH = targetW ? Math.round(targetW * imageRatio) : undefined
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
   const src = optimizeImageUrl(image, { width: targetW, height: targetH, format: "webp", dpr }) || image
   const titleLineHeight = 20
-  const infoBorder =
-    variant === "card"
-      ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(229, 231, 235, 0.85)" }
-      : undefined
 
   return (
     <Pressable
@@ -69,7 +65,7 @@ export function ProductTile({
       style={width ? { width } : undefined}
     >
       <View className={cn(cardChrome, "overflow-hidden", radius)}>
-        <View style={{ aspectRatio: imageRatio, backgroundColor: "#F2F2F5", overflow: "hidden" }}>
+        <View style={{ aspectRatio: imageRatio, backgroundColor: "#F5F5F7", overflow: "hidden" }}>
           <Image
             source={{ uri: src }}
             style={{ width: "100%", height: "100%" }}
@@ -81,7 +77,7 @@ export function ProductTile({
           />
         </View>
 
-        <View className={cn(pad, "gap-2 bg-surface")} style={infoBorder}>
+        <View className={cn(pad, "gap-2")}> 
           <Text className="text-secondary text-[11px] uppercase tracking-[0.08em] font-medium" numberOfLines={1}>
             {brand}
           </Text>
