@@ -11,4 +11,7 @@ export const qk = {
     handles,
     params,
   ] as const,
+  customerOverview: () => ["customer", "overview"] as const,
+  customerOrders: (params?: object) => ["customer", "orders", params] as const,
+  customerAddresses: () => ["customer", "addresses"] as const,
 }
