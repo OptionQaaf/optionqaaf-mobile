@@ -1,44 +1,42 @@
+// features/account/oauth.ts
 import { useCustomerSession } from "@/features/account/session"
 import { ShopifyError } from "@/lib/shopify/client"
-import { SHOPIFY_CUSTOMER_CLIENT_ID, SHOPIFY_CUSTOMER_REDIRECT_PATH, SHOPIFY_CUSTOMER_SCOPES } from "@/lib/shopify/env"
-import { generateHexStringAsync, makeRedirectUri } from "expo-auth-session"
+import { SHOPIFY_CUSTOMER_CLIENT_ID, SHOPIFY_CUSTOMER_SCOPES } from "@/lib/shopify/env"
+import { generateHexStringAsync } from "expo-auth-session"
 import * as Crypto from "expo-crypto"
-import { Platform } from "react-native"
 
-const AUTH_BASE = `https://shopify.com/auth/oauth`
+// ---------- CONFIG ----------
+const STORE_ID = "85072904499" // your store's numeric id
+const AUTH_BASE = `https://shopify.com/authentication/${STORE_ID}/oauth`
 const AUTHORIZATION_ENDPOINT = `${AUTH_BASE}/authorize`
 const TOKEN_ENDPOINT = `${AUTH_BASE}/token`
-const REVOCATION_ENDPOINT = `${AUTH_BASE}/revoke`
+const REVOCATION_ENDPOINT = `https://shopify.com/authentication/${STORE_ID}/logout`
 
+// Headless Customer Account API requires this scheme redirect
 function resolveRedirectUri() {
-  return makeRedirectUri({
-    scheme: Platform.select({ web: undefined, default: "optionqaafmobile" }),
-    path: SHOPIFY_CUSTOMER_REDIRECT_PATH,
-  })
+  return `shop.${STORE_ID}.app://callback`
 }
 
-function base64UrlEncode(value: string) {
-  return value.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+// ---------- PKCE ----------
+function b64url(v: string) {
+  return v.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 }
-
 async function createCodeChallenge(verifier: string) {
   const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier, {
     encoding: Crypto.CryptoEncoding.BASE64,
   })
-  return base64UrlEncode(digest)
+  return b64url(digest)
 }
-
 function resolveLocale() {
   try {
-    const locale = Intl.DateTimeFormat().resolvedOptions().locale
-    if (!locale) return undefined
-    const [language] = locale.split("-")
-    return language
+    const loc = Intl.DateTimeFormat().resolvedOptions().locale
+    return loc ? loc.split("-")[0] : undefined
   } catch {
     return undefined
   }
 }
 
+// ---------- TYPES ----------
 export type TokenResponse = {
   access_token: string
   expires_in?: number
@@ -47,14 +45,12 @@ export type TokenResponse = {
   id_token?: string
   token_type?: string
 }
-
 function computeExpiry(expiresIn?: number) {
-  const seconds = typeof expiresIn === "number" && Number.isFinite(expiresIn) ? expiresIn : 0
-  if (seconds <= 0) return undefined
-  const buffer = Math.min(60, Math.floor(seconds * 0.1))
-  return Date.now() + Math.max(0, seconds - buffer) * 1000
+  const s = typeof expiresIn === "number" && Number.isFinite(expiresIn) ? expiresIn : 0
+  if (s <= 0) return undefined
+  const buffer = Math.min(60, Math.floor(s * 0.1))
+  return Date.now() + Math.max(0, s - buffer) * 1000
 }
-
 export type CustomerOAuthSession = {
   authorizeUrl: string
   redirectUri: string
@@ -62,14 +58,15 @@ export type CustomerOAuthSession = {
   codeVerifier: string
 }
 
+// ---------- AUTHORIZE ----------
 export async function createCustomerOAuthSession(): Promise<CustomerOAuthSession> {
-  if (!SHOPIFY_CUSTOMER_CLIENT_ID) {
-    throw new ShopifyError("Missing EXPO_PUBLIC_SHOPIFY_CUSTOMER_CLIENT_ID")
-  }
+  if (!SHOPIFY_CUSTOMER_CLIENT_ID) throw new ShopifyError("Missing EXPO_PUBLIC_SHOPIFY_CUSTOMER_CLIENT_ID")
 
   const redirectUri = resolveRedirectUri()
-  const scopes = SHOPIFY_CUSTOMER_SCOPES.split(/[\s,]+/).filter(Boolean)
-
+  const scopes = (SHOPIFY_CUSTOMER_SCOPES || "openid email profile")
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .join(" ")
   const state = await generateHexStringAsync(16)
   const codeVerifier = await generateHexStringAsync(32)
   const codeChallenge = await createCodeChallenge(codeVerifier)
@@ -77,19 +74,14 @@ export async function createCustomerOAuthSession(): Promise<CustomerOAuthSession
 
   const params = new URLSearchParams({
     client_id: SHOPIFY_CUSTOMER_CLIENT_ID,
-    redirect_uri: redirectUri,
+    redirect_uri: redirectUri, // MUST be scheme: shop.<id>.app://callback
     response_type: "code",
-    scope: scopes.join(" "),
+    scope: scopes,
     state,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
   })
-
-  if (locale) {
-    params.set("locale", locale)
-  }
-
-  console.log(`${AUTHORIZATION_ENDPOINT}?${params.toString()}`)
+  if (locale) params.set("locale", locale)
 
   return {
     authorizeUrl: `${AUTHORIZATION_ENDPOINT}?${params.toString()}`,
@@ -99,30 +91,23 @@ export async function createCustomerOAuthSession(): Promise<CustomerOAuthSession
   }
 }
 
+// ---------- TOKEN / REFRESH / REVOKE ----------
 async function exchangeToken(body: Record<string, string>) {
   const redirectUri = resolveRedirectUri()
-
   const form = new URLSearchParams({
     client_id: SHOPIFY_CUSTOMER_CLIENT_ID!,
-    redirect_uri: redirectUri,
+    redirect_uri: redirectUri, // IDENTICAL to authorize
     ...body,
   })
 
-  const response = await fetch(TOKEN_ENDPOINT, {
+  const res = await fetch(TOKEN_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: form.toString(),
   })
-
-  const payload = (await response.json()) as TokenResponse & { error?: string; error_description?: string }
-  if (!response.ok) {
-    throw new ShopifyError(payload.error_description || payload.error || "Failed to authenticate")
-  }
-
-  if (!payload.access_token) {
-    throw new ShopifyError("Authentication payload missing access token")
-  }
-
+  const payload = (await res.json()) as TokenResponse & { error?: string; error_description?: string }
+  if (!res.ok) throw new ShopifyError(payload.error_description || payload.error || "Failed to authenticate")
+  if (!payload.access_token) throw new ShopifyError("Authentication payload missing access token")
   return payload
 }
 
@@ -137,9 +122,7 @@ export async function completeCustomerOAuthSession({
   expectedState: string
   codeVerifier: string
 }) {
-  if (state !== expectedState) {
-    throw new ShopifyError("Authentication response invalid")
-  }
+  if (state !== expectedState) throw new ShopifyError("Authentication response invalid")
 
   const tokenPayload = await exchangeToken({
     grant_type: "authorization_code",
@@ -155,61 +138,52 @@ export async function completeCustomerOAuthSession({
     idToken: tokenPayload.id_token,
     scope: tokenPayload.scope,
   })
-
   return tokenPayload
 }
 
 let refreshPromise: Promise<TokenResponse | null> | null = null
 
 export async function refreshCustomerAccessToken(force = false) {
-  const state = useCustomerSession.getState()
-  if (!state.refreshToken) return null
+  const st = useCustomerSession.getState()
+  if (!st.refreshToken) return null
   if (refreshPromise && !force) return refreshPromise
 
   useCustomerSession.getState().markRefreshing(true)
   refreshPromise = (async () => {
     try {
-      const payload = await exchangeToken({
-        grant_type: "refresh_token",
-        refresh_token: state.refreshToken!,
-      })
-
-      const expiresAt = computeExpiry(payload.expires_in)
+      const p = await exchangeToken({ grant_type: "refresh_token", refresh_token: st.refreshToken! })
+      const expiresAt = computeExpiry(p.expires_in)
       useCustomerSession.getState().setSession({
-        accessToken: payload.access_token,
-        refreshToken: payload.refresh_token ?? state.refreshToken,
+        accessToken: p.access_token,
+        refreshToken: p.refresh_token ?? st.refreshToken,
         expiresAt,
-        idToken: payload.id_token ?? state.idToken,
-        scope: payload.scope ?? state.scope,
+        idToken: p.id_token ?? st.idToken,
+        scope: p.scope ?? st.scope,
       })
-      return payload
-    } catch (err) {
+      return p
+    } catch (e) {
       useCustomerSession.getState().clear()
-      throw err
+      throw e
     } finally {
       useCustomerSession.getState().markRefreshing(false)
       refreshPromise = null
     }
   })()
-
   return refreshPromise
 }
 
 export async function ensureCustomerAccessToken() {
-  const state = useCustomerSession.getState()
-  if (!state.accessToken) return null
-
-  if (!state.expiresAt) return state.accessToken
-  if (state.expiresAt - Date.now() > 60 * 1000) return state.accessToken
-
-  const payload = await refreshCustomerAccessToken()
-  return payload?.access_token ?? useCustomerSession.getState().accessToken ?? null
+  const st = useCustomerSession.getState()
+  if (!st.accessToken) return null
+  if (!st.expiresAt) return st.accessToken
+  if (st.expiresAt - Date.now() > 60 * 1000) return st.accessToken
+  const p = await refreshCustomerAccessToken()
+  return p?.access_token ?? useCustomerSession.getState().accessToken ?? null
 }
 
 export async function signOutCustomer({ revoke = false }: { revoke?: boolean } = {}) {
   const { accessToken, refreshToken } = useCustomerSession.getState()
   useCustomerSession.getState().clear()
-
   if (!revoke || (!accessToken && !refreshToken)) return
 
   try {

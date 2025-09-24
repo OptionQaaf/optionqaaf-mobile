@@ -1,38 +1,44 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react"
-import { ActivityIndicator, View } from "react-native"
+import { useRouter } from "expo-router"
+import { StatusBar } from "expo-status-bar"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { ActivityIndicator, Linking, View } from "react-native"
 import { WebView } from "react-native-webview"
+
+import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
-import { StatusBar } from "expo-status-bar"
-import { useToast } from "@/ui/feedback/Toast"
 import { Button } from "@/ui/primitives/Button"
 import { H3, Muted, Text } from "@/ui/primitives/Typography"
-import { useRouter } from "expo-router"
+
 import {
   completeCustomerOAuthSession,
   createCustomerOAuthSession,
   type CustomerOAuthSession,
 } from "@/features/account/oauth"
 
-type WebViewRequest = {
-  url: string
-}
+type WebViewRequest = { url: string }
+
+const STORE_ID = "85072904499"
+// MUST match your Headless → Customer Account API → Application setup → Callback URI
+const REDIRECT_SCHEME = `shop.${STORE_ID}.app://callback`
 
 export default function AccountSignIn() {
   const toast = useToast()
   const router = useRouter()
   const webViewRef = useRef<WebView>(null)
+
   const [session, setSession] = useState<CustomerOAuthSession | null>(null)
   const [initializing, setInitializing] = useState(true)
   const [completing, setCompleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const authorizeUrl = useMemo(() => session?.authorizeUrl ?? "", [session?.authorizeUrl])
+  const redirectUri = useMemo(() => session?.redirectUri ?? REDIRECT_SCHEME, [session?.redirectUri])
 
+  // Prepare OAuth session (PKCE etc.)
   useEffect(() => {
     let cancelled = false
-
-    const prepare = async () => {
+    ;(async () => {
       try {
         setInitializing(true)
         const prepared = await createCustomerOAuthSession()
@@ -41,27 +47,41 @@ export default function AccountSignIn() {
           setError(null)
         }
       } catch (err: any) {
-        if (!cancelled) {
-          setError(err?.message || "We couldn’t load the sign in page. Please try again.")
-        }
+        if (!cancelled) setError(err?.message || "We couldn’t load the sign in page. Please try again.")
       } finally {
-        if (!cancelled) {
-          setInitializing(false)
-        }
+        if (!cancelled) setInitializing(false)
       }
-    }
-
-    prepare()
-
+    })()
     return () => {
       cancelled = true
     }
   }, [])
 
-  const handleComplete = useCallback(
-    async (code: string, state: string | null | undefined) => {
+  // Parse shop.<id>.app://callback?code=...&state=...
+  const parseAndComplete = useCallback(
+    async (url: string) => {
       if (!session) return
       try {
+        const u = new URL(url)
+        const params = u.searchParams
+        const errCode = params.get("error")
+        const errDesc = params.get("error_description") || params.get("message")
+        if (errCode) {
+          const msg = errDesc || errCode || "Authentication was cancelled"
+          setError(msg)
+          toast.show({ title: msg, type: "danger" })
+          return
+        }
+
+        const code = params.get("code")
+        const state = params.get("state")
+        if (!code) {
+          const msg = "Authentication response missing authorization code"
+          setError(msg)
+          toast.show({ title: msg, type: "danger" })
+          return
+        }
+
         setCompleting(true)
         await completeCustomerOAuthSession({
           code,
@@ -72,9 +92,9 @@ export default function AccountSignIn() {
         toast.show({ title: "Signed in", type: "success" })
         router.replace("/account")
       } catch (err: any) {
-        const message = err?.message || "We couldn’t finish signing you in. Please try again."
-        setError(message)
-        toast.show({ title: message, type: "danger" })
+        const msg = err?.message || "Something went wrong while processing the sign in response."
+        setError(msg)
+        toast.show({ title: msg, type: "danger" })
       } finally {
         setCompleting(false)
       }
@@ -82,54 +102,38 @@ export default function AccountSignIn() {
     [router, session, toast],
   )
 
-  const handleAuthRedirect = useCallback(
-    (url: string) => {
-      if (!session) return
+  // Handle scheme deep-link in case it escapes WebView (Expo Go safety net)
+  useEffect(() => {
+    const sub = Linking.addEventListener("url", ({ url }) => {
+      if (url?.startsWith(redirectUri)) parseAndComplete(url)
+    })
+    return () => sub.remove()
+  }, [parseAndComplete, redirectUri])
 
-      try {
-        const next = new URL(url)
-        const params = next.searchParams
-        const errorParam = params.get("error")
-        const errorDescription = params.get("error_description") || params.get("message")
-
-        if (errorParam) {
-          const message = errorDescription || errorParam || "Authentication was cancelled"
-          setError(message)
-          toast.show({ title: message, type: "danger" })
-          return
-        }
-
-        const code = params.get("code")
-        const state = params.get("state")
-        if (!code) {
-          setError("Authentication response missing authorization code")
-          toast.show({ title: "Authentication failed", type: "danger" })
-          return
-        }
-
-        void handleComplete(code, state)
-      } catch (err: any) {
-        const message = err?.message || "Something went wrong while processing the sign in response."
-        setError(message)
-        toast.show({ title: message, type: "danger" })
-      }
-    },
-    [handleComplete, session, toast],
-  )
-
+  // Block navigation to the custom scheme before the OS sees it
   const handleShouldStart = useCallback(
     (request: WebViewRequest) => {
-      if (!session) return true
-      if (request.url.startsWith(session.redirectUri)) {
-        handleAuthRedirect(request.url)
-        return false
+      const url = request?.url ?? ""
+      if (!url) return true
+      if (url.startsWith(redirectUri)) {
+        parseAndComplete(url)
+        return false // prevent external open
       }
       return true
     },
-    [handleAuthRedirect, session],
+    [parseAndComplete, redirectUri],
   )
 
-  const handleReload = () => {
+  // iOS sometimes doesn’t fire shouldStart on every hop; double-check here
+  const handleNavChange = useCallback(
+    (nav: any) => {
+      const url = nav?.url ?? ""
+      if (url.startsWith(redirectUri)) parseAndComplete(url)
+    },
+    [parseAndComplete, redirectUri],
+  )
+
+  const handleReload = useCallback(() => {
     setError(null)
     setSession(null)
     setInitializing(true)
@@ -142,7 +146,7 @@ export default function AccountSignIn() {
         setError(err?.message || "We couldn’t load the sign in page. Please try again.")
       })
       .finally(() => setInitializing(false))
-  }
+  }, [])
 
   const showWebView = !!authorizeUrl && !error
 
@@ -155,16 +159,22 @@ export default function AccountSignIn() {
           <WebView
             ref={webViewRef}
             source={{ uri: authorizeUrl }}
+            // Keep everything inside the WebView (critical for Expo Go)
             onShouldStartLoadWithRequest={handleShouldStart}
-            startInLoadingState
+            onNavigationStateChange={handleNavChange}
+            // Prevent external windows / target=_blank
+            setSupportMultipleWindows={false}
+            javaScriptEnabled
+            domStorageEnabled
+            originWhitelist={["*"]}
             sharedCookiesEnabled
             incognito
+            startInLoadingState
             style={{ flex: 1 }}
-            onError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent
-              const message = nativeEvent?.description || "We couldn’t load the sign in page."
-              setError(message)
-              toast.show({ title: message, type: "danger" })
+            onError={(e) => {
+              const msg = e?.nativeEvent?.description || "We couldn’t load the sign in page."
+              setError(msg)
+              toast.show({ title: msg, type: "danger" })
             }}
           />
         ) : (

@@ -1,12 +1,12 @@
 import { useCustomerOverview, useUpdateCustomerProfile } from "@/features/account/api"
 import { useCustomerSession } from "@/features/account/session"
-import { Screen } from "@/ui/layout/Screen"
+import { useToast } from "@/ui/feedback/Toast"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
+import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Input } from "@/ui/primitives/Input"
 import { Muted, Text } from "@/ui/primitives/Typography"
-import { useToast } from "@/ui/feedback/Toast"
 import { router } from "expo-router"
 import { useEffect, useState } from "react"
 import { ActivityIndicator, View } from "react-native"
@@ -91,18 +91,8 @@ export default function AccountProfile() {
           ) : (
             <View className="gap-4">
               <View className="flex-row gap-3">
-                <Input
-                  label="First name"
-                  value={form.firstName}
-                  onChangeText={(text) => setField("firstName", text)}
-                  className="flex-1"
-                />
-                <Input
-                  label="Last name"
-                  value={form.lastName}
-                  onChangeText={(text) => setField("lastName", text)}
-                  className="flex-1"
-                />
+                <Input label="First name" value={form.firstName} onChangeText={(text) => setField("firstName", text)} />
+                <Input label="Last name" value={form.lastName} onChangeText={(text) => setField("lastName", text)} />
               </View>
               <Input
                 label="Email"

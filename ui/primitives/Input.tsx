@@ -56,7 +56,7 @@ export function Input({
         : "default"
 
   return (
-    <View className="w-full">
+    <View className="w-full flex-1">
       {!!label && <Text className="mb-2">{label}</Text>}
 
       <View className={cn(wrapper({ size, state }), className)}>
