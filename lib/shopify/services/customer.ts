@@ -1,4 +1,5 @@
 import { ShopifyError, callShopify } from "@/lib/shopify/client"
+import { SHOPIFY_API_VERSION, SHOPIFY_DOMAIN } from "@/lib/shopify/env"
 import type {
   AddressNode,
   CustomerAddressInput,
@@ -13,6 +14,20 @@ import type {
 
 const WELL_KNOWN_URL = "https://optionqaaf.com/.well-known/customer-account-api"
 
+type ShopifyHttpError = ShopifyError & {
+  status?: number
+  endpoint?: string
+  body?: string
+}
+
+function sanitizeDomain(domain: string) {
+  return domain.replace(/^https?:\/\//, "").replace(/\/$/, "")
+}
+
+const FALLBACK_GRAPHQL_ENDPOINT = `https://${sanitizeDomain(
+  SHOPIFY_DOMAIN,
+)}/customer-account/api/${SHOPIFY_API_VERSION}/graphql`
+
 type WellKnownResponse = {
   graphql_api?: string
   account_url?: string | null
@@ -26,6 +41,11 @@ type GraphQLResponse<T> = {
 
 let wellKnownCache: WellKnownResponse | null = null
 let wellKnownPromise: Promise<WellKnownResponse> | null = null
+
+function resetWellKnownCache() {
+  wellKnownCache = null
+  wellKnownPromise = null
+}
 
 async function ensureWellKnown(): Promise<WellKnownResponse> {
   if (wellKnownCache) return wellKnownCache
@@ -57,10 +77,25 @@ async function ensureWellKnown(): Promise<WellKnownResponse> {
   return wellKnownPromise
 }
 
-async function getCustomerGraphqlEndpoint() {
-  const data = await ensureWellKnown()
-  if (!data.graphql_api) throw new ShopifyError("Customer Account API metadata missing graphql_api endpoint")
-  return data.graphql_api
+async function getCustomerGraphqlEndpoint(options?: { forceRefresh?: boolean; skipWellKnown?: boolean }) {
+  if (options?.forceRefresh) {
+    resetWellKnownCache()
+  }
+
+  if (!options?.skipWellKnown) {
+    try {
+      const data = await ensureWellKnown()
+      if (data.graphql_api) {
+        return data.graphql_api
+      }
+    } catch (err) {
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn("[Shopify] Unable to load Customer Account API metadata", err)
+      }
+    }
+  }
+
+  return FALLBACK_GRAPHQL_ENDPOINT
 }
 
 export async function getCustomerAccountPortalUrl() {
@@ -82,8 +117,12 @@ function sanitizeVariables<T extends Record<string, unknown> | undefined>(variab
   return variables
 }
 
-async function customerAccountRequest<T>(accessToken: string, query: string, variables?: Record<string, unknown>) {
-  const endpoint = await getCustomerGraphqlEndpoint()
+async function executeCustomerAccountRequest<T>(
+  endpoint: string,
+  accessToken: string,
+  query: string,
+  variables?: Record<string, unknown>,
+) {
   let response: Response
   try {
     response = await fetch(endpoint, {
@@ -116,11 +155,47 @@ async function customerAccountRequest<T>(accessToken: string, query: string, var
   const graphQLErrors = payload.errors?.map((err) => err?.message).filter(Boolean) as string[] | undefined
   if (!response.ok || (graphQLErrors && graphQLErrors.length)) {
     const fallbackMessage = `Customer Account API request failed${response.status ? ` (${response.status})` : ""}`
-    throw new ShopifyError(graphQLErrors?.join("; ") || fallbackMessage)
+    const error = new ShopifyError(graphQLErrors?.join("; ") || fallbackMessage) as ShopifyHttpError
+    error.status = response.status
+    error.endpoint = endpoint
+    error.body = bodyText
+    throw error
   }
 
   if (!payload.data) throw new ShopifyError("Customer Account API response missing data")
   return payload.data
+}
+
+async function customerAccountRequest<T>(accessToken: string, query: string, variables?: Record<string, unknown>) {
+  const attempts: Array<{ forceRefresh?: boolean; skipWellKnown?: boolean }> = [
+    {},
+    { forceRefresh: true },
+    { skipWellKnown: true },
+  ]
+
+  const triedEndpoints = new Set<string>()
+  let lastNotFoundError: ShopifyHttpError | null = null
+
+  for (const attempt of attempts) {
+    const endpoint = await getCustomerGraphqlEndpoint(attempt)
+    if (!endpoint || triedEndpoints.has(endpoint)) continue
+    triedEndpoints.add(endpoint)
+
+    try {
+      return await executeCustomerAccountRequest<T>(endpoint, accessToken, query, variables)
+    } catch (err) {
+      const status = (err as ShopifyHttpError | undefined)?.status
+      if (status === 404) {
+        resetWellKnownCache()
+        lastNotFoundError = err as ShopifyHttpError
+        continue
+      }
+      throw err
+    }
+  }
+
+  if (lastNotFoundError) throw lastNotFoundError
+  throw new ShopifyError("Customer Account API request failed")
 }
 
 function handleUserErrors(errors?: GraphQLUserError[] | null) {
