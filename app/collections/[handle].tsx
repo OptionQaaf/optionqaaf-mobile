@@ -77,14 +77,19 @@ export default function CollectionScreen() {
   const sheetProgress = React.useRef(new Animated.Value(0)).current
   const openFilters = () => {
     setShowFilters(true)
-    sheetProgress.setValue(0)
-    Animated.timing(sheetProgress, { toValue: 1, duration: 220, useNativeDriver: true }).start()
   }
   const closeFilters = () => {
     Animated.timing(sheetProgress, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => {
       setShowFilters(false)
     })
   }
+
+  useEffect(() => {
+    if (!showFilters) return
+    sheetProgress.stopAnimation()
+    sheetProgress.setValue(0)
+    Animated.timing(sheetProgress, { toValue: 1, duration: 220, useNativeDriver: true }).start()
+  }, [showFilters, sheetProgress])
 
   // removed eager fetch here; see targeted fetch below based on zero results
 
