@@ -13,6 +13,7 @@ export default function AccountLayout() {
       <Stack.Screen name="addresses" />
       <Stack.Screen name="address/[id]" />
       <Stack.Screen name="profile" />
+      <Stack.Screen name="sign-in" />
     </Stack>
   )
 }

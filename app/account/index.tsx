@@ -1,5 +1,4 @@
 import { useCustomerOverview, signOutCustomer } from "@/features/account/api"
-import { startCustomerSignIn } from "@/features/account/oauth"
 import { useCustomerSession } from "@/features/account/session"
 import { formatMoney } from "@/lib/shopify/money"
 import type { AddressNode, OrderEdge } from "@/lib/shopify/types/customer"
@@ -54,7 +53,6 @@ export default function AccountHome() {
   const isAuthenticated = !!useCustomerSession((s) => s.accessToken)
   const toast = useToast()
   const { data, isLoading, refetch, isRefetching, error } = useCustomerOverview({ enabled: isAuthenticated })
-  const [authenticating, setAuthenticating] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
 
   const orders = useMemo(
@@ -68,21 +66,7 @@ export default function AccountHome() {
   const defaultAddressId = data?.customer?.defaultAddress?.id
   const accountPortal = data?.shop?.customerAccountUrl
 
-  const handleSignIn = async () => {
-    try {
-      setAuthenticating(true)
-      const result = await startCustomerSignIn()
-      if (result) {
-        await refetch()
-        toast.show({ title: "Signed in", type: "success" })
-      }
-    } catch (err: any) {
-      const message = err?.message || "We couldn’t sign you in. Please try again."
-      toast.show({ title: message, type: "danger" })
-    } finally {
-      setAuthenticating(false)
-    }
-  }
+  const handleSignIn = () => router.push("/account/sign-in")
 
   const handleLogout = async () => {
     try {
@@ -117,7 +101,7 @@ export default function AccountHome() {
     <Screen>
       <StatusBar style="dark" />
       <MenuBar variant="light" />
-      <PageScrollView contentContainerClassName="pb-8">
+      <PageScrollView contentContainerClassName="pb-8" isFooterHidden>
         <View className="px-5 pt-6 pb-12 gap-6">
           <View className="gap-4">
             <H2 className="font-geist-bold">Account</H2>
@@ -139,7 +123,7 @@ export default function AccountHome() {
                   Access your saved information, track orders, and manage your preferences.
                 </Muted>
               </View>
-              <Button onPress={handleSignIn} isLoading={authenticating} className="px-6">
+              <Button onPress={handleSignIn} className="px-6">
                 Sign in with Shopify
               </Button>
             </View>

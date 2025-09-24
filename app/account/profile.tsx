@@ -77,7 +77,7 @@ export default function AccountProfile() {
   return (
     <Screen>
       <MenuBar variant="light" back />
-      <PageScrollView contentContainerClassName="pb-12">
+      <PageScrollView contentContainerClassName="pb-12" isFooterHidden>
         <View className="px-5 pt-6 pb-10 gap-6">
           <View className="gap-1">
             <Text className="text-[22px] font-geist-semibold">Account details</Text>

@@ -79,7 +79,7 @@ export default function AccountAddresses() {
   return (
     <Screen>
       <MenuBar variant="light" back />
-      <PageScrollView contentContainerClassName="pb-12">
+      <PageScrollView contentContainerClassName="pb-12" isFooterHidden>
         <View className="px-5 pt-6 pb-10 gap-5">
           <View className="flex-row items-center justify-between">
             <Text className="text-[22px] font-geist-semibold">Saved addresses</Text>

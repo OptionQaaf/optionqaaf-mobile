@@ -62,6 +62,9 @@ importers:
       expo-constants:
         specifier: ~18.0.9
         version: 18.0.9(expo@54.0.7)(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))
+      expo-crypto:
+        specifier: ~15.0.7
+        version: 15.0.7(expo@54.0.7)
       expo-font:
         specifier: ~14.0.8
         version: 14.0.8(expo@54.0.7)(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0)
@@ -2982,6 +2985,11 @@ packages:
 
   expo-crypto@13.0.2:
     resolution: {integrity: sha512-7f/IMPYJZkBM21LNEMXGrNo/0uXSVfZTwufUdpNKedJR0fm5fH4DCSN79ZddlV26nF90PuXjK2inIbI6lb0qRA==}
+    peerDependencies:
+      expo: '*'
+
+  expo-crypto@15.0.7:
+    resolution: {integrity: sha512-FUo41TwwGT2e5rA45PsjezI868Ch3M6wbCZsmqTWdF/hr+HyPcrp1L//dsh/hsrsyrQdpY/U96Lu71/wXePJeg==}
     peerDependencies:
       expo: '*'
 
@@ -9498,6 +9506,11 @@ snapshots:
       - supports-color
 
   expo-crypto@13.0.2(expo@54.0.7):
+    dependencies:
+      base64-js: 1.5.1
+      expo: 54.0.7(@babel/core@7.28.4)(@expo/metro-runtime@6.1.2)(expo-router@6.0.7)(graphql@16.11.0)(react-native-webview@13.15.0(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0)
+
+  expo-crypto@15.0.7(expo@54.0.7):
     dependencies:
       base64-js: 1.5.1
       expo: 54.0.7(@babel/core@7.28.4)(@expo/metro-runtime@6.1.2)(expo-router@6.0.7)(graphql@16.11.0)(react-native-webview@13.15.0(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0))(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0)
