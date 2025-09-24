@@ -32,7 +32,7 @@ export default function AccountProfile() {
     setForm({
       firstName: customer.firstName ?? "",
       lastName: customer.lastName ?? "",
-      email: customer.email ?? "",
+      email: customer.emailAddress?.emailAddress ?? "",
       phone: customer.phone ?? "",
     })
   }, [data?.customer])

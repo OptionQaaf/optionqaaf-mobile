@@ -30,20 +30,19 @@ export function useCustomerOverview(options?: { enabled?: boolean }) {
     enabled: !!rawToken && (options?.enabled ?? true),
     queryFn: async () => {
       const token = await requireAccessToken()
-      return getCustomerAccountOverview(token, {})
+      return getCustomerAccountOverview(token)
     },
   })
 }
 
 export function useCustomerAddresses(options?: { enabled?: boolean; pageSize?: number }) {
   const rawToken = useCustomerSession((s) => s.accessToken)
-  const first = options?.pageSize ?? 20
   return useQuery({
     queryKey: qk.customerAddresses(),
     enabled: !!rawToken && (options?.enabled ?? true),
     queryFn: async () => {
       const token = await requireAccessToken()
-      return getCustomerAddresses(token, { first })
+      return getCustomerAddresses(token)
     },
   })
 }

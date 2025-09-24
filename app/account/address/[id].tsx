@@ -37,11 +37,8 @@ export default function AddressEditor() {
   const updateMutation = useUpdateAddress()
   const defaultMutation = useSetDefaultAddress()
 
-  const addresses = useMemo<AddressNode[]>(() => {
-    const edges = data?.customer?.addresses?.edges ?? []
-    return edges.map((edge) => edge?.node).filter(Boolean) as AddressNode[]
-  }, [data?.customer?.addresses?.edges])
-  const defaultId = data?.customer?.defaultAddress?.id
+  const addresses = useMemo<AddressNode[]>(() => data?.customer?.addresses ?? [], [data?.customer?.addresses])
+  const defaultId = useMemo(() => addresses.find((addr) => addr.isDefault)?.id, [addresses])
 
   const existing = useMemo(() => addresses.find((node) => node.id === addressId), [addresses, addressId])
 
@@ -61,12 +58,12 @@ export default function AddressEditor() {
         address1: existing.address1 ?? "",
         address2: existing.address2 ?? "",
         city: existing.city ?? "",
-        province: existing.province ?? "",
+        province: existing.provinceCode ?? existing.province ?? "",
         zip: existing.zip ?? "",
-        country: existing.country ?? "",
+        country: existing.countryCode ?? existing.country ?? "",
         phone: existing.phone ?? "",
       })
-      setMakeDefault(existing.id === defaultId)
+      setMakeDefault(!!existing.isDefault)
     }
   }, [isNew, existing, defaultId])
 

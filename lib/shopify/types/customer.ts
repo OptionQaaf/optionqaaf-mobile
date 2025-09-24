@@ -1,3 +1,10 @@
+import type { MoneyV2 } from "@/lib/shopify/money"
+
+export type GraphQLUserError = {
+  field?: (string | null)[] | null
+  message?: string | null
+}
+
 export type AddressNode = {
   id: string
   firstName?: string | null
@@ -6,23 +13,18 @@ export type AddressNode = {
   address2?: string | null
   city?: string | null
   province?: string | null
+  provinceCode?: string | null
   zip?: string | null
   country?: string | null
+  countryCode?: string | null
   phone?: string | null
-  formatted?: (string | null)[] | null
+  isDefault?: boolean | null
+  formatted?: string[]
 }
 
 export type OrderLineItemNode = {
-  id: string
-  quantity?: number | null
   title?: string | null
-  variant?: {
-    id?: string | null
-    image?: {
-      url?: string | null
-      altText?: string | null
-    } | null
-  } | null
+  quantity?: number | null
 }
 
 export type OrderNode = {
@@ -31,84 +33,69 @@ export type OrderNode = {
   orderNumber?: number | null
   processedAt?: string | null
   fulfillmentStatus?: string | null
-  financialStatus?: string | null
-  statusUrl?: string | null
-  currentTotalPrice?: {
-    amount?: string | null
-    currencyCode?: string | null
+  currentTotalPriceSet?: {
+    presentmentMoney?: MoneyV2 | null
   } | null
   lineItems?: {
     nodes: OrderLineItemNode[]
   } | null
 }
 
-export type OrderEdge = {
-  cursor?: string | null
-  node: OrderNode
+export type OrdersConnection = {
+  pageInfo?: {
+    hasNextPage?: boolean | null
+    endCursor?: string | null
+  } | null
+  nodes: OrderNode[]
 }
 
-export type CustomerAccountOverviewResult = {
+export type CustomerEmailAddress = {
+  emailAddress?: string | null
+}
+
+export type CustomerDashboardQuery = {
   customer?: {
     id: string
+    displayName?: string | null
     firstName?: string | null
     lastName?: string | null
-    displayName?: string | null
-    email?: string | null
+    emailAddress?: CustomerEmailAddress | null
     phone?: string | null
-    createdAt?: string | null
-    defaultAddress?: AddressNode | null
-    addresses?: {
-      nodes: AddressNode[]
-    } | null
-    orders?: {
-      edges: OrderEdge[]
-      pageInfo?: {
-        hasNextPage?: boolean | null
-        endCursor?: string | null
-      } | null
-    } | null
+    addresses: AddressNode[]
+    orders: OrdersConnection
   } | null
-  shop?: {
-    customerAccountUrl?: string | null
-  } | null
+}
+
+export type CustomerDashboardResult = CustomerDashboardQuery & {
+  customerAccountUrl?: string | null
 }
 
 export type CustomerOrdersResult = {
   customer?: {
-    orders?: {
-      edges: OrderEdge[]
-      pageInfo?: {
-        hasNextPage?: boolean | null
-        endCursor?: string | null
-      } | null
-    } | null
+    orders?: OrdersConnection | null
   } | null
 }
 
 export type CustomerAddressesResult = {
   customer?: {
     id: string
-    defaultAddress?: AddressNode | null
-    addresses?: {
-      edges: { cursor?: string | null; node: AddressNode }[]
-      pageInfo?: {
-        hasNextPage?: boolean | null
-        endCursor?: string | null
-      } | null
-    } | null
+    addresses: AddressNode[]
   } | null
 }
 
 export type MailingAddressInput = {
   firstName?: string | null
   lastName?: string | null
-  address1: string
+  address1?: string | null
   address2?: string | null
   city?: string | null
   province?: string | null
+  provinceCode?: string | null
   zip?: string | null
-  country: string
+  country?: string | null
+  countryCode?: string | null
   phone?: string | null
+  isDefault?: boolean | null
 }
 
 export type CustomerUpdateInput = {
@@ -116,4 +103,17 @@ export type CustomerUpdateInput = {
   firstName?: string | null
   lastName?: string | null
   phone?: string | null
+}
+
+export type CustomerAddressInput = {
+  firstName?: string | null
+  lastName?: string | null
+  address1?: string | null
+  address2?: string | null
+  city?: string | null
+  provinceCode?: string | null
+  countryCode?: string | null
+  zip?: string | null
+  phone?: string | null
+  isDefault?: boolean | null
 }

@@ -19,9 +19,8 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "autoVerify": false,
-          "data": [{ "scheme": "shop.85072904499.app", "host": "", "path": "/callback" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": ["BROWSABLE", "DEFAULT"],
+          "data": [{ "scheme": "shop.85072904499.app", "host": "", "path": "/callback" }]
         }
       ],
       "adaptiveIcon": {

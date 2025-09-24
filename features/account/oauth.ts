@@ -63,7 +63,7 @@ export async function createCustomerOAuthSession(): Promise<CustomerOAuthSession
   if (!SHOPIFY_CUSTOMER_CLIENT_ID) throw new ShopifyError("Missing EXPO_PUBLIC_SHOPIFY_CUSTOMER_CLIENT_ID")
 
   const redirectUri = resolveRedirectUri()
-  const scopes = (SHOPIFY_CUSTOMER_SCOPES || "openid email profile")
+  const scopes = (SHOPIFY_CUSTOMER_SCOPES || "openid email customer-account-api:full")
     .split(/[\s,]+/)
     .filter(Boolean)
     .join(" ")
