@@ -1,9 +1,9 @@
 // ui/product/ProductTile.tsx
+import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { Price } from "@/ui/product/Price"
 import { cn } from "@/ui/utils/cva"
-import { Pressable, Text, View, PixelRatio } from "react-native"
 import { Image } from "expo-image"
-import { optimizeImageUrl, DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
+import { PixelRatio, Pressable, Text, View } from "react-native"
 
 type Props = {
   image: string
@@ -16,7 +16,6 @@ type Props = {
   onPress?: () => void
   className?: string
   width?: number
-  rounded?: "none" | "sm" | "md" | "lg" | "xl" | "2xl" | "3xl"
   padding?: "sm" | "md" | "lg"
   imageRatio?: number
   variant?: "card" | "plain"
@@ -34,22 +33,11 @@ export function ProductTile({
   onPress,
   className,
   width,
-  rounded = "none",
   padding = "md",
   imageRatio = 1,
   variant = "card",
   priority,
 }: Props) {
-  const radiusMap: Record<NonNullable<Props["rounded"]>, string> = {
-    none: "rounded-none",
-    sm: "rounded-sm",
-    md: "rounded-md",
-    lg: "rounded-lg",
-    xl: "rounded-xl",
-    "2xl": "rounded-2xl",
-    "3xl": "rounded-3xl",
-  }
-  const radius = radiusMap[rounded] ?? radiusMap.none
   const pad = padding === "lg" ? "p-4" : padding === "sm" ? "p-2.5" : "p-3"
   const cardChrome = variant === "card" ? "bg-surface" : ""
   const targetW = width ? Math.round(width) : undefined
@@ -59,12 +47,8 @@ export function ProductTile({
   const titleLineHeight = 20
 
   return (
-    <Pressable
-      onPress={onPress}
-      className={cn("active:opacity-95", className)}
-      style={width ? { width } : undefined}
-    >
-      <View className={cn(cardChrome, "overflow-hidden", radius)}>
+    <Pressable onPress={onPress} className={cn("active:opacity-95", className)} style={width ? { width } : undefined}>
+      <View className={cn(cardChrome, "overflow-hidden")}>
         <View style={{ aspectRatio: imageRatio, backgroundColor: "#F5F5F7", overflow: "hidden" }}>
           <Image
             source={{ uri: src }}
@@ -77,7 +61,7 @@ export function ProductTile({
           />
         </View>
 
-        <View className={cn(pad, "gap-2")}> 
+        <View className={cn(pad, "gap-2")}>
           <Text className="text-secondary text-[11px] uppercase tracking-[0.08em] font-medium" numberOfLines={1}>
             {brand}
           </Text>

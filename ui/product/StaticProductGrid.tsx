@@ -5,7 +5,7 @@ import { LayoutChangeEvent, View } from "react-native"
 export function StaticProductGrid<T>({
   data,
   columns = 2,
-  gap = 12,
+  gap = 0,
   onLayoutWidth, // optional callback if you want to inspect width
   renderItem,
 }: {

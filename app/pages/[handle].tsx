@@ -75,7 +75,6 @@ export default function CustomPage() {
               <StaticProductGrid
                 data={products}
                 columns={2}
-                gap={12}
                 renderItem={(item: any, w: number) => (
                   <ProductTile
                     image={item?.featuredImage?.url ?? ""}
