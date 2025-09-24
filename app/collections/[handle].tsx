@@ -209,12 +209,11 @@ export default function CollectionScreen() {
                 }
               })}
 
-              <View className="px-4 mt-2">
-                <Text className="text-[28px] font-extrabold text-primary mb-3">{special.title}</Text>
+              <View className="mt-2">
+                <Text className="px-4 text-[28px] font-extrabold text-primary mb-3">{special.title}</Text>
                 <StaticProductGrid
                   data={products}
                   columns={2}
-                  gap={12}
                   renderItem={(item: any, w: number) => (
                     <ProductTile
                       image={item?.featuredImage?.url ?? ""}
@@ -225,8 +224,7 @@ export default function CollectionScreen() {
                       currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
                       width={w}
                       imageRatio={3 / 4}
-                      rounded="3xl"
-                      padding="md"
+                      padding="sm"
                       onPress={() => item?.handle && router.push(`/products/${item.handle}` as any)}
                     />
                   )}
@@ -499,7 +497,7 @@ export default function CollectionScreen() {
           </View>
 
           {/* Products */}
-          <View className="px-4 mt-4">
+          <View className="mt-4">
             {filtered.length === 0 ? (
               <View className="items-center py-10">
                 <Text className="text-black font-bold text-lg mb-1.5">No products found</Text>
@@ -509,7 +507,6 @@ export default function CollectionScreen() {
             <StaticProductGrid
               data={filtered}
               columns={view}
-              gap={view === 2 ? 14 : 16}
               renderItem={(item: any, itemW: number) => (
                 <ProductTile
                   image={item?.featuredImage?.url ?? ""}
@@ -524,8 +521,7 @@ export default function CollectionScreen() {
                   currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
                   width={itemW}
                   imageRatio={3 / 4}
-                  rounded="3xl"
-                  padding={view === 2 ? "md" : "lg"}
+                  padding={view === 2 ? "sm" : "md"}
                   onPress={() => {
                     const h = item?.handle
                     if (h) router.push(`/products/${h}` as any)
@@ -538,13 +534,13 @@ export default function CollectionScreen() {
             {isFetchingNextPage ? (
               <View className="mt-3">
                 {view === 2 ? (
-                  <View className="flex-row gap-3">
-                    <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
-                    <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
+                  <View className="flex-row">
+                    <Skeleton className="flex-1 " style={{ aspectRatio: 3 / 4 }} />
+                    <Skeleton className="flex-1 " style={{ aspectRatio: 3 / 4 }} />
                   </View>
                 ) : (
                   <View>
-                    <Skeleton className="rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
+                    <Skeleton className="" style={{ aspectRatio: 3 / 4 }} />
                   </View>
                 )}
               </View>
