@@ -50,11 +50,14 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
    npx expo start
    ```
 
-4. **Environment Setup:**  
+4. **Environment Setup:**
    Create a `.env` file with the following:
    ```env
    SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
    SHOPIFY_STOREFRONT_TOKEN=your_token
+   EXPO_PUBLIC_SHOPIFY_CUSTOMER_CLIENT_ID=your_customer_app_client_id
+   EXPO_PUBLIC_SHOPIFY_CUSTOMER_SCOPES="openid email profile customer.read customer.write"
+   EXPO_PUBLIC_SHOPIFY_CUSTOMER_REDIRECT_PATH=auth/shopify
    ```
 
 ---

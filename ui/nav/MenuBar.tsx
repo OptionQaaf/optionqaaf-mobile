@@ -83,7 +83,11 @@ export function MenuBar({ variant = "light", floating = false, scrim = 0, back =
 
         {/* right group */}
         <View className="flex-row items-center gap-4">
-          <Icon onPress={() => {}}>
+          <Icon
+            onPress={() => {
+              router.push("/account" as any)
+            }}
+          >
             <User2 size={22} color={color} />
           </Icon>
           <CartIcon color={color} />
