@@ -1,21 +1,21 @@
-import { useCustomerOverview, signOutCustomer } from "@/features/account/api"
+import { signOutCustomer, useCustomerOverview } from "@/features/account/api"
 import { useCustomerSession } from "@/features/account/session"
 import { formatMoney } from "@/lib/shopify/money"
 import type { AddressNode, OrderEdge } from "@/lib/shopify/types/customer"
-import { Screen } from "@/ui/layout/Screen"
-import { PageScrollView } from "@/ui/layout/PageScrollView"
-import { MenuBar } from "@/ui/nav/MenuBar"
-import { Button } from "@/ui/primitives/Button"
-import { Badge } from "@/ui/primitives/Badge"
-import { Muted, Text, H2 } from "@/ui/primitives/Typography"
-import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { useToast } from "@/ui/feedback/Toast"
+import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
+import { PageScrollView } from "@/ui/layout/PageScrollView"
+import { Screen } from "@/ui/layout/Screen"
+import { MenuBar } from "@/ui/nav/MenuBar"
+import { Badge } from "@/ui/primitives/Badge"
+import { Button } from "@/ui/primitives/Button"
+import { H2, Muted, Text } from "@/ui/primitives/Typography"
 import { Image } from "expo-image"
 import { router } from "expo-router"
 import { StatusBar } from "expo-status-bar"
+import { ChevronRight, CreditCard, Edit3, LogOut, MapPin, PlusCircle, User2 } from "lucide-react-native"
 import { useMemo, useState } from "react"
 import { ActivityIndicator, Linking, View } from "react-native"
-import { ChevronRight, CreditCard, Edit3, LogOut, MapPin, PlusCircle, User2 } from "lucide-react-native"
 
 function formatDate(value?: string | null) {
   if (!value) return ""
@@ -159,12 +159,6 @@ export default function AccountHome() {
                   onPress={showProfile}
                 />
               </View>
-
-              <AddressesPreview
-                addresses={addresses}
-                defaultAddressId={defaultAddressId}
-                onPressManage={showAddresses}
-              />
 
               <OrdersSection
                 orders={orders}
