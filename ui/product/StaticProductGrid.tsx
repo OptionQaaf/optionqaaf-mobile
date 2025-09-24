@@ -29,12 +29,26 @@ export function StaticProductGrid<T>({
     <View onLayout={onLayout}>
       {w != null &&
         Array.from({ length: rows }).map((_, r) => (
-          <View key={r} style={{ flexDirection: "row", marginBottom: gap }}>
+          <View
+            key={r}
+            style={{
+              flexDirection: "row",
+              alignItems: "stretch",
+              marginBottom: r < rows - 1 ? gap : 0,
+            }}
+          >
             {Array.from({ length: columns }).map((__, c) => {
               const i = r * columns + c
               const item = data[i]
               return item ? (
-                <View key={i} style={{ width: itemWidth, marginRight: c < columns - 1 ? gap : 0 }}>
+                <View
+                  key={i}
+                  style={{
+                    width: itemWidth,
+                    marginRight: c < columns - 1 ? gap : 0,
+                    alignSelf: "stretch",
+                  }}
+                >
                   {renderItem(item, itemWidth, i)}
                 </View>
               ) : (
