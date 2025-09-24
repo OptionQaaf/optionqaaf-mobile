@@ -65,7 +65,6 @@ export function useCustomerOrders(params?: CustomerOrdersParams) {
       const res = await getCustomerOrders(token, {
         first: pageSize,
         after: pageParam,
-        lineItemsFirst: 4,
       })
       return res
     },

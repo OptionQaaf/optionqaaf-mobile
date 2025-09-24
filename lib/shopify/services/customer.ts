@@ -90,6 +90,7 @@ async function customerAccountRequest<T>(accessToken: string, query: string, var
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({ query, variables: sanitizeVariables(variables) }),
@@ -98,17 +99,24 @@ async function customerAccountRequest<T>(accessToken: string, query: string, var
     throw new ShopifyError("Unable to reach Shopify Customer Account API", err)
   }
 
+  let bodyText = ""
+  try {
+    bodyText = await response.text()
+  } catch (err) {
+    throw new ShopifyError("Unable to read Customer Account API response", err)
+  }
+
   let payload: GraphQLResponse<T>
   try {
-    payload = (await response.json()) as GraphQLResponse<T>
+    payload = bodyText ? (JSON.parse(bodyText) as GraphQLResponse<T>) : ({} as GraphQLResponse<T>)
   } catch (err) {
-    const text = await response.text().catch(() => null)
-    throw new ShopifyError(text || "Customer Account API response malformed", err)
+    throw new ShopifyError(bodyText || "Customer Account API response malformed", err)
   }
 
   const graphQLErrors = payload.errors?.map((err) => err?.message).filter(Boolean) as string[] | undefined
   if (!response.ok || (graphQLErrors && graphQLErrors.length)) {
-    throw new ShopifyError(graphQLErrors?.join("; ") || "Customer Account API request failed")
+    const fallbackMessage = `Customer Account API request failed${response.status ? ` (${response.status})` : ""}`
+    throw new ShopifyError(graphQLErrors?.join("; ") || fallbackMessage)
   }
 
   if (!payload.data) throw new ShopifyError("Customer Account API response missing data")
