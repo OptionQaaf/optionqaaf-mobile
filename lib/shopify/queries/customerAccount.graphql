@@ -1,18 +1,13 @@
-query CustomerAccountOverview(
-  $customerAccessToken: String!
-  $ordersFirst: Int = 5
-  $orderLineItemsFirst: Int = 4
-  $addressesFirst: Int = 6
-) {
-  customer(customerAccessToken: $customerAccessToken) {
+# Customer Account API operations
+
+query CustomerDashboard($ordersFirst: Int = 20, $ordersAfter: String) {
+  customer {
     id
-    firstName
-    lastName
     displayName
-    email
-    phone
-    createdAt
-    defaultAddress {
+    emailAddress {
+      emailAddress
+    }
+    addresses {
       id
       firstName
       lastName
@@ -20,122 +15,75 @@ query CustomerAccountOverview(
       address2
       city
       province
-      zip
+      provinceCode
       country
+      countryCode
+      zip
       phone
-      formatted
+      isDefault
     }
-    addresses(first: $addressesFirst) {
+    orders(first: $ordersFirst, after: $ordersAfter) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
       nodes {
         id
-        firstName
-        lastName
-        address1
-        address2
-        city
-        province
-        zip
-        country
-        phone
-        formatted
-      }
-    }
-    orders(first: $ordersFirst, reverse: true) {
-      edges {
-        cursor
-        node {
-          id
-          name
-          orderNumber
-          processedAt
-          fulfillmentStatus
-          financialStatus
-          statusUrl
-          currentTotalPrice {
+        name
+        orderNumber
+        processedAt
+        fulfillmentStatus
+        currentTotalPriceSet {
+          presentmentMoney {
             amount
             currencyCode
           }
-          lineItems(first: $orderLineItemsFirst) {
-            nodes {
-              id
-              quantity
-              title
-              variant {
-                id
-                image {
-                  url
-                  altText
-                }
-              }
-            }
+        }
+        lineItems(first: 10) {
+          nodes {
+            title
+            quantity
           }
         }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-    }
-  }
-  shop {
-    customerAccountUrl
-  }
-}
-
-query CustomerOrders(
-  $customerAccessToken: String!
-  $first: Int!
-  $after: String
-  $lineItemsFirst: Int = 4
-) {
-  customer(customerAccessToken: $customerAccessToken) {
-    orders(first: $first, after: $after, reverse: true) {
-      edges {
-        cursor
-        node {
-          id
-          name
-          orderNumber
-          processedAt
-          fulfillmentStatus
-          financialStatus
-          statusUrl
-          currentTotalPrice {
-            amount
-            currencyCode
-          }
-          lineItems(first: $lineItemsFirst) {
-            nodes {
-              id
-              quantity
-              title
-              variant {
-                id
-                image {
-                  url
-                  altText
-                }
-              }
-            }
-          }
-        }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
       }
     }
   }
 }
 
-query CustomerAddresses(
-  $customerAccessToken: String!
-  $first: Int!
-  $after: String
-) {
-  customer(customerAccessToken: $customerAccessToken) {
+query CustomerOrders($first: Int!, $after: String) {
+  customer {
+    orders(first: $first, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        name
+        orderNumber
+        processedAt
+        fulfillmentStatus
+        currentTotalPriceSet {
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+        lineItems(first: 10) {
+          nodes {
+            title
+            quantity
+          }
+        }
+      }
+    }
+  }
+}
+
+query CustomerAddresses {
+  customer {
     id
-    defaultAddress {
+    addresses {
       id
       firstName
       lastName
@@ -143,105 +91,81 @@ query CustomerAddresses(
       address2
       city
       province
-      zip
+      provinceCode
       country
+      countryCode
+      zip
       phone
-      formatted
-    }
-    addresses(first: $first, after: $after) {
-      edges {
-        cursor
-        node {
-          id
-          firstName
-          lastName
-          address1
-          address2
-          city
-          province
-          zip
-          country
-          phone
-          formatted
-        }
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
+      isDefault
     }
   }
 }
 
-mutation CustomerUpdateProfile($customerAccessToken: String!, $customer: CustomerUpdateInput!) {
-  customerUpdate(customerAccessToken: $customerAccessToken, customer: $customer) {
+mutation UpdateCustomer($input: CustomerUpdateInput!) {
+  customerUpdate(input: $input) {
     customer {
+      id
+      displayName
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+
+mutation CreateAddress($input: CustomerAddressInput!) {
+  customerAddressCreate(input: $input) {
+    customerAddress {
       id
       firstName
       lastName
-      displayName
-      email
+      address1
+      address2
+      city
+      province
+      provinceCode
+      country
+      countryCode
+      zip
       phone
+      isDefault
     }
-    customerUserErrors {
-      code
+    userErrors {
       field
       message
     }
   }
 }
 
-mutation CustomerAddressCreate($customerAccessToken: String!, $address: MailingAddressInput!) {
-  customerAddressCreate(customerAccessToken: $customerAccessToken, address: $address) {
+mutation UpdateAddress($id: ID!, $input: CustomerAddressInput!) {
+  customerAddressUpdate(id: $id, input: $input) {
     customerAddress {
       id
+      firstName
+      lastName
+      address1
+      address2
+      city
+      province
+      provinceCode
+      country
+      countryCode
+      zip
+      phone
+      isDefault
     }
-    customerUserErrors {
-      code
+    userErrors {
       field
       message
     }
   }
 }
 
-mutation CustomerAddressUpdate(
-  $customerAccessToken: String!
-  $id: ID!
-  $address: MailingAddressInput!
-) {
-  customerAddressUpdate(customerAccessToken: $customerAccessToken, id: $id, address: $address) {
-    customerAddress {
-      id
-    }
-    customerUserErrors {
-      code
-      field
-      message
-    }
-  }
-}
-
-mutation CustomerAddressDelete($customerAccessToken: String!, $id: ID!) {
-  customerAddressDelete(customerAccessToken: $customerAccessToken, id: $id) {
+mutation DeleteAddress($id: ID!) {
+  customerAddressDelete(id: $id) {
     deletedCustomerAddressId
-    customerUserErrors {
-      code
-      field
-      message
-    }
-  }
-}
-
-mutation CustomerDefaultAddressUpdate($customerAccessToken: String!, $addressId: ID!) {
-  customerDefaultAddressUpdate(customerAccessToken: $customerAccessToken, addressId: $addressId) {
-    customer {
-      id
-      defaultAddress {
-        id
-      }
-    }
-    customerUserErrors {
-      code
+    userErrors {
       field
       message
     }

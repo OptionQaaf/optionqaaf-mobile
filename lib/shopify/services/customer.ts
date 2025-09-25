@@ -1,49 +1,262 @@
-import { callShopify, ShopifyError, shopifyClient } from "@/lib/shopify/client"
-import {
-  type AddressNode,
-  type CustomerAccountOverviewResult,
-  type CustomerAddressesResult,
-  type CustomerOrdersResult,
-  type CustomerUpdateInput,
-  type MailingAddressInput,
+import { ShopifyError, callShopify } from "@/lib/shopify/client"
+import { SHOPIFY_API_VERSION, SHOPIFY_DOMAIN } from "@/lib/shopify/env"
+import type {
+  AddressNode,
+  CustomerAddressInput,
+  CustomerAddressesResult,
+  CustomerDashboardQuery,
+  CustomerOrdersResult,
+  CustomerUpdateInput,
+  GraphQLUserError,
+  MailingAddressInput,
+  OrderNode,
 } from "@/lib/shopify/types/customer"
-import { gql } from "graphql-tag"
 
-type CustomerMutationPayload = { customerUserErrors?: { message?: string | null }[] | null }
+const WELL_KNOWN_URL = "https://optionqaaf.com/.well-known/customer-account-api"
 
-type CustomerUpdateResponse = CustomerMutationPayload & {
-  customer?: {
-    id: string
-    firstName?: string | null
-    lastName?: string | null
-    displayName?: string | null
-    email?: string | null
-    phone?: string | null
-  } | null
+type ShopifyHttpError = ShopifyError & {
+  status?: number
+  endpoint?: string
+  body?: string
 }
 
-type CustomerAddressResponse = CustomerMutationPayload & {
-  customerAddress?: AddressNode | null
-  deletedCustomerAddressId?: string | null
-  customer?: { defaultAddress?: { id?: string | null } | null } | null
+function sanitizeDomain(domain: string) {
+  return domain.replace(/^https?:\/\//, "").replace(/\/$/, "")
 }
 
-const CUSTOMER_ACCOUNT_OVERVIEW = gql`
-  query CustomerAccountOverview(
-    $customerAccessToken: String!
-    $ordersFirst: Int = 5
-    $orderLineItemsFirst: Int = 4
-    $addressesFirst: Int = 6
-  ) {
-    customer(customerAccessToken: $customerAccessToken) {
+const FALLBACK_GRAPHQL_ENDPOINT = `https://${sanitizeDomain(
+  SHOPIFY_DOMAIN,
+)}/customer-account/api/${SHOPIFY_API_VERSION}/graphql`
+
+type WellKnownResponse = {
+  graphql_api?: string
+  account_url?: string | null
+  account_management_url?: string | null
+}
+
+type GraphQLResponse<T> = {
+  data?: T
+  errors?: { message?: string | null }[]
+}
+
+let wellKnownCache: WellKnownResponse | null = null
+let wellKnownPromise: Promise<WellKnownResponse> | null = null
+
+function resetWellKnownCache() {
+  wellKnownCache = null
+  wellKnownPromise = null
+}
+
+async function ensureWellKnown(): Promise<WellKnownResponse> {
+  if (wellKnownCache) return wellKnownCache
+  if (!wellKnownPromise) {
+    wellKnownPromise = (async () => {
+      let response: Response
+      try {
+        response = await fetch(WELL_KNOWN_URL)
+      } catch (err) {
+        throw new ShopifyError("Unable to load Customer Account API metadata", err)
+      }
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => null)
+        throw new ShopifyError(text || `Unable to load Customer Account API metadata (${response.status})`)
+      }
+
+      const data = (await response.json()) as WellKnownResponse
+      if (!data?.graphql_api) {
+        throw new ShopifyError("Customer Account API metadata missing graphql_api endpoint")
+      }
+      wellKnownCache = data
+      return data
+    })().finally(() => {
+      wellKnownPromise = null
+    })
+  }
+
+  return wellKnownPromise
+}
+
+async function getCustomerGraphqlEndpoint(options?: { forceRefresh?: boolean; skipWellKnown?: boolean }) {
+  if (options?.forceRefresh) {
+    resetWellKnownCache()
+  }
+
+  if (!options?.skipWellKnown) {
+    try {
+      const data = await ensureWellKnown()
+      if (data.graphql_api) {
+        return data.graphql_api
+      }
+    } catch (err) {
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn("[Shopify] Unable to load Customer Account API metadata", err)
+      }
+    }
+  }
+
+  return FALLBACK_GRAPHQL_ENDPOINT
+}
+
+export async function getCustomerAccountPortalUrl() {
+  try {
+    const data = await ensureWellKnown()
+    return data.account_management_url ?? data.account_url ?? null
+  } catch {
+    return null
+  }
+}
+
+function sanitizeVariables<T extends Record<string, unknown> | undefined>(variables: T): T {
+  if (!variables) return variables
+  for (const key of Object.keys(variables)) {
+    if ((variables as Record<string, unknown>)[key] === undefined) {
+      delete (variables as Record<string, unknown>)[key]
+    }
+  }
+  return variables
+}
+
+async function executeCustomerAccountRequest<T>(
+  endpoint: string,
+  accessToken: string,
+  query: string,
+  variables?: Record<string, unknown>,
+) {
+  let response: Response
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ query, variables: sanitizeVariables(variables) }),
+    })
+  } catch (err) {
+    throw new ShopifyError("Unable to reach Shopify Customer Account API", err)
+  }
+
+  let bodyText = ""
+  try {
+    bodyText = await response.text()
+  } catch (err) {
+    throw new ShopifyError("Unable to read Customer Account API response", err)
+  }
+
+  let payload: GraphQLResponse<T>
+  try {
+    payload = bodyText ? (JSON.parse(bodyText) as GraphQLResponse<T>) : ({} as GraphQLResponse<T>)
+  } catch (err) {
+    throw new ShopifyError(bodyText || "Customer Account API response malformed", err)
+  }
+
+  const graphQLErrors = payload.errors?.map((err) => err?.message).filter(Boolean) as string[] | undefined
+  if (!response.ok || (graphQLErrors && graphQLErrors.length)) {
+    const fallbackMessage = `Customer Account API request failed${response.status ? ` (${response.status})` : ""}`
+    const error = new ShopifyError(graphQLErrors?.join("; ") || fallbackMessage) as ShopifyHttpError
+    error.status = response.status
+    error.endpoint = endpoint
+    error.body = bodyText
+    throw error
+  }
+
+  if (!payload.data) throw new ShopifyError("Customer Account API response missing data")
+  return payload.data
+}
+
+async function customerAccountRequest<T>(accessToken: string, query: string, variables?: Record<string, unknown>) {
+  const attempts: Array<{ forceRefresh?: boolean; skipWellKnown?: boolean }> = [
+    {},
+    { forceRefresh: true },
+    { skipWellKnown: true },
+  ]
+
+  const triedEndpoints = new Set<string>()
+  let lastNotFoundError: ShopifyHttpError | null = null
+
+  for (const attempt of attempts) {
+    const endpoint = await getCustomerGraphqlEndpoint(attempt)
+    if (!endpoint || triedEndpoints.has(endpoint)) continue
+    triedEndpoints.add(endpoint)
+
+    try {
+      return await executeCustomerAccountRequest<T>(endpoint, accessToken, query, variables)
+    } catch (err) {
+      const status = (err as ShopifyHttpError | undefined)?.status
+      if (status === 404) {
+        resetWellKnownCache()
+        lastNotFoundError = err as ShopifyHttpError
+        continue
+      }
+      throw err
+    }
+  }
+
+  if (lastNotFoundError) throw lastNotFoundError
+  throw new ShopifyError("Customer Account API request failed")
+}
+
+function handleUserErrors(errors?: GraphQLUserError[] | null) {
+  const messages = (errors || [])
+    .map((err) => err?.message)
+    .filter((message): message is string => Boolean(message))
+  if (messages.length) {
+    throw new ShopifyError(messages.join("; "))
+  }
+}
+
+function toCustomerAddressInput(address: MailingAddressInput): CustomerAddressInput {
+  return {
+    firstName: address.firstName ?? undefined,
+    lastName: address.lastName ?? undefined,
+    address1: address.address1 ?? undefined,
+    address2: address.address2 ?? undefined,
+    city: address.city ?? undefined,
+    provinceCode: address.provinceCode ?? address.province ?? undefined,
+    countryCode: address.countryCode ?? address.country ?? undefined,
+    zip: address.zip ?? undefined,
+    phone: address.phone ?? undefined,
+    isDefault: address.isDefault ?? undefined,
+  }
+}
+
+function appendFormattedAddress(address: AddressNode): AddressNode {
+  const lines: string[] = []
+  const name = [address.firstName, address.lastName].filter(Boolean).join(" ")
+  if (name) lines.push(name)
+  if (address.address1) lines.push(address.address1)
+  if (address.address2) lines.push(address.address2)
+
+  const cityLine = [address.city, address.provinceCode ?? address.province, address.zip].filter(Boolean).join(", ")
+  if (cityLine) lines.push(cityLine)
+
+  const country = address.countryCode ?? address.country
+  if (country) {
+    lines.push(country)
+  }
+
+  return {
+    ...address,
+    formatted: lines,
+  }
+}
+
+// Keep the Customer Account API document strings in sync with
+// lib/shopify/queries/customerAccount.graphql so tooling and codegen remain accurate.
+const CUSTOMER_DASHBOARD_QUERY = /* GraphQL */ `
+  query CustomerDashboard($ordersFirst: Int = 20, $ordersAfter: String) {
+    customer {
       id
+      displayName
       firstName
       lastName
-      displayName
-      email
+      emailAddress {
+        emailAddress
+      }
       phone
-      createdAt
-      defaultAddress {
+      addresses {
         id
         firstName
         lastName
@@ -51,378 +264,327 @@ const CUSTOMER_ACCOUNT_OVERVIEW = gql`
         address2
         city
         province
-        zip
+        provinceCode
         country
+        countryCode
+        zip
         phone
-        formatted
+        isDefault
       }
-      addresses(first: $addressesFirst) {
+      orders(first: $ordersFirst, after: $ordersAfter) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
         nodes {
           id
-          firstName
-          lastName
-          address1
-          address2
-          city
-          province
-          zip
-          country
-          phone
-          formatted
-        }
-      }
-      orders(first: $ordersFirst, reverse: true) {
-        edges {
-          cursor
-          node {
-            id
-            name
-            orderNumber
-            processedAt
-            fulfillmentStatus
-            financialStatus
-            statusUrl
-            currentTotalPrice {
+          name
+          orderNumber
+          processedAt
+          fulfillmentStatus
+          currentTotalPriceSet {
+            presentmentMoney {
               amount
               currencyCode
             }
-            lineItems(first: $orderLineItemsFirst) {
-              nodes {
-                id
-                quantity
-                title
-                variant {
-                  id
-                  image {
-                    url
-                    altText
-                  }
-                }
-              }
+          }
+          lineItems(first: 10) {
+            nodes {
+              title
+              quantity
             }
           }
         }
+      }
+    }
+  }
+`
+
+const CUSTOMER_ORDERS_QUERY = /* GraphQL */ `
+  query CustomerOrders($first: Int!, $after: String) {
+    customer {
+      orders(first: $first, after: $after) {
         pageInfo {
           hasNextPage
           endCursor
         }
-      }
-    }
-    shop {
-      customerAccountUrl
-    }
-  }
-`
-
-const CUSTOMER_ORDERS = gql`
-  query CustomerOrders($customerAccessToken: String!, $first: Int!, $after: String, $lineItemsFirst: Int = 4) {
-    customer(customerAccessToken: $customerAccessToken) {
-      orders(first: $first, after: $after, reverse: true) {
-        edges {
-          cursor
-          node {
-            id
-            name
-            orderNumber
-            processedAt
-            fulfillmentStatus
-            financialStatus
-            statusUrl
-            currentTotalPrice {
-              amount
-              currencyCode
-            }
-            lineItems(first: $lineItemsFirst) {
-              nodes {
-                id
-                quantity
-                title
-                variant {
-                  id
-                  image {
-                    url
-                    altText
-                  }
-                }
-              }
-            }
-          }
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
-      }
-    }
-  }
-`
-
-const CUSTOMER_ADDRESSES = gql`
-  query CustomerAddresses($customerAccessToken: String!, $first: Int!, $after: String) {
-    customer(customerAccessToken: $customerAccessToken) {
-      id
-      defaultAddress {
-        id
-        firstName
-        lastName
-        address1
-        address2
-        city
-        province
-        zip
-        country
-        phone
-        formatted
-      }
-      addresses(first: $first, after: $after) {
-        edges {
-          cursor
-          node {
-            id
-            firstName
-            lastName
-            address1
-            address2
-            city
-            province
-            zip
-            country
-            phone
-            formatted
-          }
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
-      }
-    }
-  }
-`
-
-const CUSTOMER_UPDATE_PROFILE = gql`
-  mutation CustomerUpdateProfile($customerAccessToken: String!, $customer: CustomerUpdateInput!) {
-    customerUpdate(customerAccessToken: $customerAccessToken, customer: $customer) {
-      customer {
-        id
-        firstName
-        lastName
-        displayName
-        email
-        phone
-      }
-      customerUserErrors {
-        message
-      }
-    }
-  }
-`
-
-const CUSTOMER_ADDRESS_CREATE = gql`
-  mutation CustomerAddressCreate($customerAccessToken: String!, $address: MailingAddressInput!) {
-    customerAddressCreate(customerAccessToken: $customerAccessToken, address: $address) {
-      customerAddress {
-        id
-        firstName
-        lastName
-        address1
-        address2
-        city
-        province
-        zip
-        country
-        phone
-        formatted
-      }
-      customerUserErrors {
-        message
-      }
-    }
-  }
-`
-
-const CUSTOMER_ADDRESS_UPDATE = gql`
-  mutation CustomerAddressUpdate($customerAccessToken: String!, $id: ID!, $address: MailingAddressInput!) {
-    customerAddressUpdate(customerAccessToken: $customerAccessToken, id: $id, address: $address) {
-      customerAddress {
-        id
-        firstName
-        lastName
-        address1
-        address2
-        city
-        province
-        zip
-        country
-        phone
-        formatted
-      }
-      customerUserErrors {
-        message
-      }
-    }
-  }
-`
-
-const CUSTOMER_ADDRESS_DELETE = gql`
-  mutation CustomerAddressDelete($customerAccessToken: String!, $id: ID!) {
-    customerAddressDelete(customerAccessToken: $customerAccessToken, id: $id) {
-      deletedCustomerAddressId
-      customerUserErrors {
-        message
-      }
-    }
-  }
-`
-
-const CUSTOMER_DEFAULT_ADDRESS = gql`
-  mutation CustomerDefaultAddressUpdate($customerAccessToken: String!, $addressId: ID!) {
-    customerDefaultAddressUpdate(customerAccessToken: $customerAccessToken, addressId: $addressId) {
-      customer {
-        defaultAddress {
+        nodes {
           id
+          name
+          orderNumber
+          processedAt
+          fulfillmentStatus
+          currentTotalPriceSet {
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          lineItems(first: 10) {
+            nodes {
+              title
+              quantity
+            }
+          }
         }
       }
-      customerUserErrors {
+    }
+  }
+`
+
+const CUSTOMER_ADDRESSES_QUERY = /* GraphQL */ `
+  query CustomerAddresses {
+    customer {
+      id
+      addresses {
+        id
+        firstName
+        lastName
+        address1
+        address2
+        city
+        province
+        provinceCode
+        country
+        countryCode
+        zip
+        phone
+        isDefault
+      }
+    }
+  }
+`
+
+const CUSTOMER_UPDATE_MUTATION = /* GraphQL */ `
+  mutation UpdateCustomer($input: CustomerUpdateInput!) {
+    customerUpdate(input: $input) {
+      customer {
+        id
+        displayName
+        firstName
+        lastName
+        emailAddress {
+          emailAddress
+        }
+        phone
+      }
+      userErrors {
         message
       }
     }
   }
 `
 
-function assertNoCustomerErrors(payload: CustomerMutationPayload) {
-  const errs = (payload.customerUserErrors || []).map((e) => e?.message).filter(Boolean) as string[]
-  if (errs.length) throw new ShopifyError(errs.join("; "))
-}
+const CUSTOMER_ADDRESS_CREATE_MUTATION = /* GraphQL */ `
+  mutation CreateAddress($input: CustomerAddressInput!) {
+    customerAddressCreate(input: $input) {
+      customerAddress {
+        id
+        firstName
+        lastName
+        address1
+        address2
+        city
+        province
+        provinceCode
+        country
+        countryCode
+        zip
+        phone
+        isDefault
+      }
+      userErrors {
+        message
+      }
+    }
+  }
+`
+
+const CUSTOMER_ADDRESS_UPDATE_MUTATION = /* GraphQL */ `
+  mutation UpdateAddress($id: ID!, $input: CustomerAddressInput!) {
+    customerAddressUpdate(id: $id, input: $input) {
+      customerAddress {
+        id
+        firstName
+        lastName
+        address1
+        address2
+        city
+        province
+        provinceCode
+        country
+        countryCode
+        zip
+        phone
+        isDefault
+      }
+      userErrors {
+        message
+      }
+    }
+  }
+`
+
+const CUSTOMER_ADDRESS_DELETE_MUTATION = /* GraphQL */ `
+  mutation DeleteAddress($id: ID!) {
+    customerAddressDelete(id: $id) {
+      deletedCustomerAddressId
+      userErrors {
+        message
+      }
+    }
+  }
+`
 
 export async function getCustomerAccountOverview(
-  customerAccessToken: string,
-  options?: {
-    ordersFirst?: number
-    addressesFirst?: number
-    orderLineItemsFirst?: number
-  },
+  accessToken: string,
+  options?: { ordersFirst?: number; ordersAfter?: string | null },
 ) {
-  return callShopify<CustomerAccountOverviewResult>(async () => {
-    const res = await shopifyClient.request<CustomerAccountOverviewResult>(CUSTOMER_ACCOUNT_OVERVIEW, {
-      customerAccessToken,
-      ordersFirst: options?.ordersFirst ?? 5,
-      addressesFirst: options?.addressesFirst ?? 6,
-      orderLineItemsFirst: options?.orderLineItemsFirst ?? 4,
-    })
-    if (!res.customer) throw new ShopifyError("Customer not found")
-    return res
-  })
+  const result = await callShopify(() =>
+    customerAccountRequest<CustomerDashboardQuery>(accessToken, CUSTOMER_DASHBOARD_QUERY, {
+      ordersFirst: options?.ordersFirst ?? 20,
+      ordersAfter: options?.ordersAfter ?? undefined,
+    }),
+  )
+
+  if (!result.customer) throw new ShopifyError("Customer not found")
+
+  const addresses = (result.customer.addresses || []).map(appendFormattedAddress)
+  const ordersConnection = result.customer.orders
+  const normalizedOrders = ordersConnection
+    ? { ...ordersConnection, nodes: ordersConnection.nodes ?? [] }
+    : {
+        nodes: [] as OrderNode[],
+        pageInfo: undefined,
+      }
+  const portal = await getCustomerAccountPortalUrl()
+
+  return {
+    customer: {
+      ...result.customer,
+      addresses,
+      orders: normalizedOrders,
+    },
+    customerAccountUrl: portal,
+  }
 }
 
-export async function getCustomerOrders(
-  customerAccessToken: string,
-  variables: { first: number; after?: string | null; lineItemsFirst?: number },
-) {
-  return callShopify<CustomerOrdersResult>(async () => {
-    const res = await shopifyClient.request<CustomerOrdersResult>(CUSTOMER_ORDERS, {
-      customerAccessToken,
+export async function getCustomerOrders(accessToken: string, variables: { first: number; after?: string | null }) {
+  const result = await callShopify(() =>
+    customerAccountRequest<CustomerOrdersResult>(accessToken, CUSTOMER_ORDERS_QUERY, {
       first: variables.first,
       after: variables.after ?? undefined,
-      lineItemsFirst: variables.lineItemsFirst ?? 4,
-    })
-    if (!res.customer) throw new ShopifyError("Customer not found")
-    return res
-  })
-}
+    }),
+  )
 
-export async function getCustomerAddresses(
-  customerAccessToken: string,
-  variables: { first: number; after?: string | null },
-) {
-  return callShopify<CustomerAddressesResult>(async () => {
-    const res = await shopifyClient.request<CustomerAddressesResult>(CUSTOMER_ADDRESSES, {
-      customerAccessToken,
-      first: variables.first,
-      after: variables.after ?? undefined,
-    })
-    if (!res.customer) throw new ShopifyError("Customer not found")
-    return res
-  })
-}
+  if (!result.customer) throw new ShopifyError("Customer not found")
 
-export async function updateCustomerProfile(customerAccessToken: string, customer: CustomerUpdateInput) {
-  return callShopify<CustomerUpdateResponse>(async () => {
-    const res = await shopifyClient.request<{ customerUpdate?: CustomerUpdateResponse | null }>(
-      CUSTOMER_UPDATE_PROFILE,
-      {
-        customerAccessToken,
-        customer,
+  const ordersConnection = result.customer.orders
+  const nodes = ordersConnection?.nodes ?? []
+
+  return {
+    customer: {
+      ...result.customer,
+      orders: {
+        nodes,
+        pageInfo: ordersConnection?.pageInfo,
       },
-    )
-    const payload = res.customerUpdate
-    if (!payload) throw new ShopifyError("Unable to update profile")
-    assertNoCustomerErrors(payload)
-    return payload.customer
-  })
+    },
+  }
 }
 
-export async function createCustomerAddress(customerAccessToken: string, address: MailingAddressInput) {
-  return callShopify<AddressNode | null>(async () => {
-    const res = await shopifyClient.request<{ customerAddressCreate?: CustomerAddressResponse | null }>(
-      CUSTOMER_ADDRESS_CREATE,
-      {
-        customerAccessToken,
-        address,
-      },
-    )
-    const payload = res.customerAddressCreate
-    if (!payload) throw new ShopifyError("Unable to create address")
-    assertNoCustomerErrors(payload)
-    return payload.customerAddress ?? null
-  })
+export async function getCustomerAddresses(accessToken: string) {
+  const result = await callShopify(() =>
+    customerAccountRequest<CustomerAddressesResult>(accessToken, CUSTOMER_ADDRESSES_QUERY),
+  )
+
+  if (!result.customer) throw new ShopifyError("Customer not found")
+
+  return {
+    customer: {
+      ...result.customer,
+      addresses: (result.customer.addresses || []).map(appendFormattedAddress),
+    },
+  }
 }
 
-export async function updateCustomerAddress(customerAccessToken: string, id: string, address: MailingAddressInput) {
-  return callShopify<AddressNode | null>(async () => {
-    const res = await shopifyClient.request<{ customerAddressUpdate?: CustomerAddressResponse | null }>(
-      CUSTOMER_ADDRESS_UPDATE,
-      {
-        customerAccessToken,
-        id,
-        address,
-      },
-    )
-    const payload = res.customerAddressUpdate
-    if (!payload) throw new ShopifyError("Unable to update address")
-    assertNoCustomerErrors(payload)
-    return payload.customerAddress ?? null
-  })
+export async function updateCustomerProfile(accessToken: string, input: CustomerUpdateInput) {
+  const payloadInput: Record<string, unknown> = {}
+  if (input.email) payloadInput.email = input.email
+  if (input.firstName) payloadInput.firstName = input.firstName
+  if (input.lastName) payloadInput.lastName = input.lastName
+  if (input.phone) payloadInput.phone = input.phone
+
+  const result = await callShopify(() =>
+    customerAccountRequest<{ customerUpdate?: { customer?: CustomerDashboardQuery["customer"]; userErrors?: GraphQLUserError[] | null } }>(
+      accessToken,
+      CUSTOMER_UPDATE_MUTATION,
+      { input: payloadInput },
+    ),
+  )
+
+  const payload = result.customerUpdate
+  if (!payload) throw new ShopifyError("Unable to update profile")
+  handleUserErrors(payload.userErrors)
+  return payload.customer ?? null
 }
 
-export async function deleteCustomerAddress(customerAccessToken: string, id: string) {
-  return callShopify<string | null>(async () => {
-    const res = await shopifyClient.request<{ customerAddressDelete?: CustomerAddressResponse | null }>(
-      CUSTOMER_ADDRESS_DELETE,
-      {
-        customerAccessToken,
-        id,
-      },
-    )
-    const payload = res.customerAddressDelete
-    if (!payload) throw new ShopifyError("Unable to delete address")
-    assertNoCustomerErrors(payload)
-    return payload.deletedCustomerAddressId ?? null
-  })
+export async function createCustomerAddress(accessToken: string, address: MailingAddressInput) {
+  const result = await callShopify(() =>
+    customerAccountRequest<{ customerAddressCreate?: { customerAddress?: AddressNode | null; userErrors?: GraphQLUserError[] | null } }>(
+      accessToken,
+      CUSTOMER_ADDRESS_CREATE_MUTATION,
+      { input: toCustomerAddressInput(address) },
+    ),
+  )
+
+  const payload = result.customerAddressCreate
+  if (!payload) throw new ShopifyError("Unable to create address")
+  handleUserErrors(payload.userErrors)
+  return payload.customerAddress ? appendFormattedAddress(payload.customerAddress) : null
 }
 
-export async function setDefaultCustomerAddress(customerAccessToken: string, addressId: string) {
-  return callShopify<string | null>(async () => {
-    const res = await shopifyClient.request<{ customerDefaultAddressUpdate?: CustomerAddressResponse | null }>(
-      CUSTOMER_DEFAULT_ADDRESS,
-      {
-        customerAccessToken,
-        addressId,
-      },
-    )
-    const payload = res.customerDefaultAddressUpdate
-    if (!payload) throw new ShopifyError("Unable to update default address")
-    assertNoCustomerErrors(payload)
-    return payload.customer?.defaultAddress?.id ?? null
-  })
+export async function updateCustomerAddress(accessToken: string, id: string, address: MailingAddressInput) {
+  const result = await callShopify(() =>
+    customerAccountRequest<{ customerAddressUpdate?: { customerAddress?: AddressNode | null; userErrors?: GraphQLUserError[] | null } }>(
+      accessToken,
+      CUSTOMER_ADDRESS_UPDATE_MUTATION,
+      { id, input: toCustomerAddressInput(address) },
+    ),
+  )
+
+  const payload = result.customerAddressUpdate
+  if (!payload) throw new ShopifyError("Unable to update address")
+  handleUserErrors(payload.userErrors)
+  return payload.customerAddress ? appendFormattedAddress(payload.customerAddress) : null
+}
+
+export async function deleteCustomerAddress(accessToken: string, id: string) {
+  const result = await callShopify(() =>
+    customerAccountRequest<{ customerAddressDelete?: { deletedCustomerAddressId?: string | null; userErrors?: GraphQLUserError[] | null } }>(
+      accessToken,
+      CUSTOMER_ADDRESS_DELETE_MUTATION,
+      { id },
+    ),
+  )
+
+  const payload = result.customerAddressDelete
+  if (!payload) throw new ShopifyError("Unable to delete address")
+  handleUserErrors(payload.userErrors)
+  return payload.deletedCustomerAddressId ?? null
+}
+
+export async function setDefaultCustomerAddress(accessToken: string, addressId: string) {
+  const result = await callShopify(() =>
+    customerAccountRequest<{ customerAddressUpdate?: { customerAddress?: AddressNode | null; userErrors?: GraphQLUserError[] | null } }>(
+      accessToken,
+      CUSTOMER_ADDRESS_UPDATE_MUTATION,
+      { id: addressId, input: { isDefault: true } },
+    ),
+  )
+
+  const payload = result.customerAddressUpdate
+  if (!payload) throw new ShopifyError("Unable to update default address")
+  handleUserErrors(payload.userErrors)
+  return payload.customerAddress ? appendFormattedAddress(payload.customerAddress) : null
 }

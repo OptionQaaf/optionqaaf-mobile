@@ -1,7 +1,7 @@
 import { signOutCustomer, useCustomerOverview } from "@/features/account/api"
 import { useCustomerSession } from "@/features/account/session"
 import { formatMoney } from "@/lib/shopify/money"
-import type { AddressNode, OrderEdge } from "@/lib/shopify/types/customer"
+import type { AddressNode, OrderNode } from "@/lib/shopify/types/customer"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
@@ -10,7 +10,6 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { Badge } from "@/ui/primitives/Badge"
 import { Button } from "@/ui/primitives/Button"
 import { H2, Muted, Text } from "@/ui/primitives/Typography"
-import { Image } from "expo-image"
 import { router } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { ChevronRight, CreditCard, Edit3, LogOut, MapPin, PlusCircle, User2 } from "lucide-react-native"
@@ -55,16 +54,15 @@ export default function AccountHome() {
   const { data, isLoading, refetch, isRefetching, error } = useCustomerOverview({ enabled: isAuthenticated })
   const [loggingOut, setLoggingOut] = useState(false)
 
-  const orders = useMemo(
-    () => (data?.customer?.orders?.edges as OrderEdge[] | undefined) ?? [],
-    [data?.customer?.orders?.edges],
-  )
-  const addresses = useMemo(
-    () => (data?.customer?.addresses?.nodes as AddressNode[] | undefined) ?? [],
-    [data?.customer?.addresses?.nodes],
-  )
-  const defaultAddressId = data?.customer?.defaultAddress?.id
-  const accountPortal = data?.shop?.customerAccountUrl
+  const orders = useMemo(() => data?.customer?.orders?.nodes ?? [], [data?.customer?.orders?.nodes])
+  const addresses = useMemo(() => data?.customer?.addresses ?? [], [data?.customer?.addresses])
+  const customerName = useMemo(() => {
+    const fallback = `${data?.customer?.firstName ?? ""} ${data?.customer?.lastName ?? ""}`.trim()
+    return data?.customer?.displayName || (fallback.length ? fallback : undefined)
+  }, [data?.customer?.displayName, data?.customer?.firstName, data?.customer?.lastName])
+  const defaultAddressId = useMemo(() => addresses.find((address) => address.isDefault)?.id, [addresses])
+  const accountPortal = data?.customerAccountUrl
+  const customerEmail = data?.customer?.emailAddress?.emailAddress ?? undefined
 
   const handleSignIn = () => router.push("/account/sign-in")
 
@@ -92,6 +90,10 @@ export default function AccountHome() {
     } catch {
       toast.show({ title: "Couldn’t open saved cards", type: "danger" })
     }
+  }
+
+  const handleShopNow = () => {
+    router.push("/" as const)
   }
 
   const showAddresses = () => router.push("/account/addresses" as const)
@@ -130,11 +132,8 @@ export default function AccountHome() {
           ) : (
             <>
               <ProfileCard
-                name={
-                  data?.customer?.displayName ||
-                  `${data?.customer?.firstName ?? ""} ${data?.customer?.lastName ?? ""}`.trim()
-                }
-                email={data?.customer?.email ?? undefined}
+                name={customerName}
+                email={customerEmail}
                 phone={data?.customer?.phone ?? undefined}
                 onEdit={showProfile}
                 loading={isLoading || isRefetching}
@@ -167,6 +166,7 @@ export default function AccountHome() {
                   refetch()
                 }}
                 error={error instanceof Error ? error : null}
+                onShopNow={handleShopNow}
               />
 
               <Button
@@ -195,25 +195,30 @@ type ProfileCardProps = {
 }
 
 function ProfileCard({ name, email, phone, onEdit, loading }: ProfileCardProps) {
+  const hasEmail = !!(email && email.trim().length)
+  const hasPhone = !!(phone && phone.trim().length)
+  const nameDisplay = name?.trim().length ? name : "Add your name"
+  const emailDisplay = hasEmail ? email!.trim() : "Add your email address"
+  const phoneDisplay = hasPhone ? phone!.trim() : "Add your phone number"
+
   return (
     <View className="rounded-3xl border border-[#F0F0F0] bg-white px-5 py-6 flex-row items-center gap-5">
       <View className="h-16 w-16 rounded-full bg-[#EFEFEF] items-center justify-center">
         <User2 size={28} color="#0B0B0B" />
       </View>
       <View className="flex-1 gap-1">
-        <Text className="text-[18px] font-geist-semibold" numberOfLines={1}>
-          {name || "Your account"}
+        <Text
+          className={`text-[18px] font-geist-semibold ${name?.trim().length ? "" : "text-[#6F6F6F]"}`}
+          numberOfLines={1}
+        >
+          {nameDisplay}
         </Text>
-        {!!email && (
-          <Muted numberOfLines={1} className="text-[15px]">
-            {email}
-          </Muted>
-        )}
-        {!!phone && (
-          <Muted numberOfLines={1} className="text-[15px]">
-            {phone}
-          </Muted>
-        )}
+        <Muted numberOfLines={1} className={`text-[15px] ${hasEmail ? "" : "text-[#9A9A9A]"}`}>
+          {emailDisplay}
+        </Muted>
+        <Muted numberOfLines={1} className={`text-[15px] ${hasPhone ? "" : "text-[#9A9A9A]"}`}>
+          {phoneDisplay}
+        </Muted>
       </View>
       <PressableOverlay onPress={onEdit} className="rounded-2xl bg-black px-4 py-2">
         <Text className="text-white font-geist-medium">Edit</Text>
@@ -313,13 +318,14 @@ function AddressCard({ address, highlight }: AddressCardProps) {
 }
 
 type OrdersSectionProps = {
-  orders: OrderEdge[]
+  orders: OrderNode[]
   loading: boolean
   onRefresh: () => void
   error: Error | null
+  onShopNow: () => void
 }
 
-function OrdersSection({ orders, loading, onRefresh, error }: OrdersSectionProps) {
+function OrdersSection({ orders, loading, onRefresh, error, onShopNow }: OrdersSectionProps) {
   return (
     <View className="rounded-3xl border border-[#F0F0F0] bg-white p-5 gap-4">
       <View className="flex-row items-center justify-between">
@@ -332,34 +338,30 @@ function OrdersSection({ orders, loading, onRefresh, error }: OrdersSectionProps
       {error ? (
         <Muted className="text-danger text-[14px]">{error.message}</Muted>
       ) : orders.length === 0 ? (
-        <Muted className="text-[14px]">No orders yet. Your purchases will appear here.</Muted>
+        <View className="gap-3">
+          <Muted className="text-[14px]">No orders yet. Your purchases will appear here.</Muted>
+          <Button size="sm" onPress={onShopNow} className="self-start">
+            Shop now
+          </Button>
+        </View>
       ) : (
-        orders.slice(0, 5).map((edge: any) => <OrderCard key={edge?.node?.id || edge?.cursor} order={edge?.node} />)
+        orders.slice(0, 5).map((order) => <OrderCard key={order?.id} order={order} />)
       )}
     </View>
   )
 }
 
 type OrderCardProps = {
-  order: any
+  order: OrderNode | null | undefined
 }
 
 function OrderCard({ order }: OrderCardProps) {
   if (!order) return null
   const status = resolveStatusVariant(order.fulfillmentStatus)
-  const total = formatMoney(order.currentTotalPrice)
+  const total = formatMoney(order.currentTotalPriceSet?.presentmentMoney ?? null)
   const date = formatDate(order.processedAt)
 
   const previewItems = order?.lineItems?.nodes ?? []
-
-  const openStatus = async () => {
-    if (!order.statusUrl) return
-    try {
-      await Linking.openURL(order.statusUrl)
-    } catch {
-      // ignore
-    }
-  }
 
   return (
     <View className="rounded-3xl border border-[#F0F0F0] bg-[#FCFCFC] p-4 gap-4">
@@ -373,25 +375,20 @@ function OrderCard({ order }: OrderCardProps) {
         </Badge>
       </View>
 
-      <View className="flex-row gap-3">
-        {previewItems.slice(0, 3).map((item: any) => (
-          <View key={item?.id} className="h-16 w-16 rounded-2xl bg-white border border-[#F0F0F0] overflow-hidden">
-            {item?.variant?.image?.url ? (
-              <Image source={item.variant.image.url} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-            ) : (
-              <View className="flex-1 items-center justify-center bg-[#F5F5F5]">
-                <Muted className="text-[12px]">x{item?.quantity}</Muted>
-              </View>
-            )}
-          </View>
+      <View className="gap-2">
+        {previewItems.slice(0, 3).map((item, index) => (
+          <Muted key={index} className="text-[13px]">
+            {item?.title || "Item"} × {item?.quantity ?? 1}
+          </Muted>
         ))}
+        {previewItems.length === 0 ? (
+          <Muted className="text-[13px]">Items will appear here once available.</Muted>
+        ) : null}
       </View>
 
       <View className="flex-row items-center justify-between">
         <Text className="text-[17px] font-geist-semibold">{total}</Text>
-        <PressableOverlay onPress={openStatus} className="flex-row items-center gap-2 px-3 py-1 rounded-xl bg-black">
-          <Text className="text-white text-[14px]">Track order</Text>
-        </PressableOverlay>
+        <Muted className="text-[13px]">Status: {status.label}</Muted>
       </View>
     </View>
   )

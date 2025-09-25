@@ -53,11 +53,11 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
 4. **Environment Setup:**
    Create a `.env` file with the following:
    ```env
-   SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
-   SHOPIFY_STOREFRONT_TOKEN=your_token
-   EXPO_PUBLIC_SHOPIFY_CUSTOMER_CLIENT_ID=your_customer_app_client_id
-   EXPO_PUBLIC_SHOPIFY_CUSTOMER_SCOPES="openid email profile customer.read customer.write"
-   EXPO_PUBLIC_SHOPIFY_CUSTOMER_REDIRECT_PATH=auth/shopify
+   EXPO_PUBLIC_SHOPIFY_DOMAIN=optionqaaf.myshopify.com
+   EXPO_PUBLIC_SHOPIFY_STOREFRONT_TOKEN=your_token
+   EXPO_PUBLIC_SHOPIFY_API_VERSION=2025-07
+   EXPO_PUBLIC_SHOPIFY_CUSTOMER_CLIENT_ID=55f5b958-3344-457c-8fc7-0d1cadee09da
+   EXPO_PUBLIC_SHOPIFY_CUSTOMER_SCOPES="openid email customer-account-api:full"
    ```
 
 ---

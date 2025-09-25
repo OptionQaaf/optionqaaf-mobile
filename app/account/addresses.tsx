@@ -20,11 +20,8 @@ export default function AccountAddresses() {
   const deleteMutation = useDeleteAddress()
   const defaultMutation = useSetDefaultAddress()
 
-  const addresses = useMemo<AddressNode[]>(() => {
-    const edges = data?.customer?.addresses?.edges ?? []
-    return edges.map((edge) => edge?.node).filter(Boolean) as AddressNode[]
-  }, [data?.customer?.addresses?.edges])
-  const defaultId = data?.customer?.defaultAddress?.id
+  const addresses = useMemo<AddressNode[]>(() => data?.customer?.addresses ?? [], [data?.customer?.addresses])
+  const defaultId = useMemo(() => addresses.find((addr) => addr.isDefault)?.id, [addresses])
 
   const isBusy = isLoading || isRefetching || deleteMutation.isPending || defaultMutation.isPending
 
@@ -106,7 +103,7 @@ export default function AccountAddresses() {
                 <AddressItem
                   key={address.id}
                   address={address}
-                  isDefault={address.id === defaultId}
+                  isDefault={address.isDefault ?? address.id === defaultId}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onMakeDefault={handleMakeDefault}
