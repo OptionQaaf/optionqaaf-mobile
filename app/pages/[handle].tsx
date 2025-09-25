@@ -1,6 +1,6 @@
 import { useMobileHome } from "@/features/home/api"
 import { useSearch } from "@/features/search/api"
-import { sectionRegistry } from "@/ui/home/sections/registry"
+import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
@@ -38,40 +38,14 @@ export default function CustomPage() {
       <View className="flex-1">
         <MenuBar variant="light" floating back />
 
-        <PageScrollView contentContainerStyle={{ paddingBottom: 12 }}>
+        <PageScrollView contentContainerStyle={{ paddingBottom: 16 }} contentContainerClassName="bg-white">
           <View className="pt-0">
             {/* Aesthetic sections (reuse home metaobject) */}
-            {sections.map((s) => {
-              const Cmp = (sectionRegistry as any)[s.kind]
-              if (!Cmp) return null
-              switch (s.kind) {
-                case "duo_poster":
-                  return (
-                    <Cmp
-                      key={s.id}
-                      {...(s as any)}
-                      onPressLeft={() => go(s.left?.url)}
-                      onPressRight={() => go(s.right?.url)}
-                    />
-                  )
-                case "trio_grid":
-                  return (
-                    <Cmp
-                      key={s.id}
-                      {...(s as any)}
-                      onPressA={() => go(s.a?.url)}
-                      onPressB={() => go(s.b?.url)}
-                      onPressC={() => go(s.c?.url)}
-                    />
-                  )
-                default:
-                  return <Cmp key={s.id} {...(s as any)} onPress={() => go((s as any).url)} />
-              }
-            })}
+            <MetaobjectSectionList sections={sections} onNavigate={go} />
 
             {/* PLP grid vibe */}
-            <View className="px-4 mt-2">
-              <Text className="text-[22px] font-extrabold text-primary mb-3">{cfg.title}</Text>
+            <View className="px-3 mt-4">
+              <Text className="text-[22px] font-extrabold text-primary mb-2">{cfg.title}</Text>
               <StaticProductGrid
                 data={products}
                 columns={2}
