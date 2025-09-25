@@ -5,6 +5,10 @@ export type GraphQLUserError = {
   message?: string | null
 }
 
+export type CustomerEmailAddress = {
+  emailAddress?: string | null
+}
+
 export type AddressNode = {
   id: string
   firstName?: string | null
@@ -49,24 +53,19 @@ export type OrdersConnection = {
   nodes: OrderNode[]
 }
 
-export type CustomerEmailAddress = {
-  emailAddress?: string | null
+export type CustomerNode = {
+  id: string
+  displayName?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  emailAddress?: CustomerEmailAddress | null
+  phone?: string | null
+  addresses?: AddressNode[] | null
+  orders?: OrdersConnection | null
 }
 
-export type CustomerDashboardQuery = {
-  customer?: {
-    id: string
-    displayName?: string | null
-    firstName?: string | null
-    lastName?: string | null
-    emailAddress?: CustomerEmailAddress | null
-    phone?: string | null
-    addresses: AddressNode[]
-    orders: OrdersConnection
-  } | null
-}
-
-export type CustomerDashboardResult = CustomerDashboardQuery & {
+export type CustomerOverviewResult = {
+  customer?: CustomerNode | null
   customerAccountUrl?: string | null
 }
 
@@ -79,7 +78,7 @@ export type CustomerOrdersResult = {
 export type CustomerAddressesResult = {
   customer?: {
     id: string
-    addresses: AddressNode[]
+    addresses?: AddressNode[] | null
   } | null
 }
 

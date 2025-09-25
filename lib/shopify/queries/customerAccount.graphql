@@ -1,26 +1,53 @@
 # Customer Account API operations
 
-query CustomerDashboard($ordersFirst: Int = 20, $ordersAfter: String) {
+fragment CustomerAccountAddress on MailingAddress {
+  id
+  firstName
+  lastName
+  address1
+  address2
+  city
+  province
+  provinceCode
+  country
+  countryCode
+  zip
+  phone
+  isDefault
+}
+
+fragment CustomerAccountOrder on Order {
+  id
+  name
+  orderNumber
+  processedAt
+  fulfillmentStatus
+  currentTotalPriceSet {
+    presentmentMoney {
+      amount
+      currencyCode
+    }
+  }
+  lineItems(first: 10) {
+    nodes {
+      title
+      quantity
+    }
+  }
+}
+
+query CustomerAccountOverview($ordersFirst: Int = 20, $ordersAfter: String) {
   customer {
     id
     displayName
+    firstName
+    lastName
     emailAddress {
       emailAddress
     }
+    phone
     addresses {
-      id
-      firstName
-      lastName
-      address1
-      address2
-      city
-      province
-      provinceCode
-      country
-      countryCode
-      zip
-      phone
-      isDefault
+      ...CustomerAccountAddress
     }
     orders(first: $ordersFirst, after: $ordersAfter) {
       pageInfo {
@@ -28,29 +55,13 @@ query CustomerDashboard($ordersFirst: Int = 20, $ordersAfter: String) {
         endCursor
       }
       nodes {
-        id
-        name
-        orderNumber
-        processedAt
-        fulfillmentStatus
-        currentTotalPriceSet {
-          presentmentMoney {
-            amount
-            currencyCode
-          }
-        }
-        lineItems(first: 10) {
-          nodes {
-            title
-            quantity
-          }
-        }
+        ...CustomerAccountOrder
       }
     }
   }
 }
 
-query CustomerOrders($first: Int!, $after: String) {
+query CustomerAccountOrders($first: Int!, $after: String) {
   customer {
     orders(first: $first, after: $after) {
       pageInfo {
@@ -58,54 +69,32 @@ query CustomerOrders($first: Int!, $after: String) {
         endCursor
       }
       nodes {
-        id
-        name
-        orderNumber
-        processedAt
-        fulfillmentStatus
-        currentTotalPriceSet {
-          presentmentMoney {
-            amount
-            currencyCode
-          }
-        }
-        lineItems(first: 10) {
-          nodes {
-            title
-            quantity
-          }
-        }
+        ...CustomerAccountOrder
       }
     }
   }
 }
 
-query CustomerAddresses {
+query CustomerAccountAddresses {
   customer {
     id
     addresses {
-      id
-      firstName
-      lastName
-      address1
-      address2
-      city
-      province
-      provinceCode
-      country
-      countryCode
-      zip
-      phone
-      isDefault
+      ...CustomerAccountAddress
     }
   }
 }
 
-mutation UpdateCustomer($input: CustomerUpdateInput!) {
+mutation CustomerAccountUpdate($input: CustomerUpdateInput!) {
   customerUpdate(input: $input) {
     customer {
       id
       displayName
+      firstName
+      lastName
+      emailAddress {
+        emailAddress
+      }
+      phone
     }
     userErrors {
       field
@@ -114,22 +103,10 @@ mutation UpdateCustomer($input: CustomerUpdateInput!) {
   }
 }
 
-mutation CreateAddress($input: CustomerAddressInput!) {
+mutation CustomerAccountAddressCreate($input: CustomerAddressInput!) {
   customerAddressCreate(input: $input) {
     customerAddress {
-      id
-      firstName
-      lastName
-      address1
-      address2
-      city
-      province
-      provinceCode
-      country
-      countryCode
-      zip
-      phone
-      isDefault
+      ...CustomerAccountAddress
     }
     userErrors {
       field
@@ -138,22 +115,10 @@ mutation CreateAddress($input: CustomerAddressInput!) {
   }
 }
 
-mutation UpdateAddress($id: ID!, $input: CustomerAddressInput!) {
+mutation CustomerAccountAddressUpdate($id: ID!, $input: CustomerAddressInput!) {
   customerAddressUpdate(id: $id, input: $input) {
     customerAddress {
-      id
-      firstName
-      lastName
-      address1
-      address2
-      city
-      province
-      provinceCode
-      country
-      countryCode
-      zip
-      phone
-      isDefault
+      ...CustomerAccountAddress
     }
     userErrors {
       field
@@ -162,9 +127,21 @@ mutation UpdateAddress($id: ID!, $input: CustomerAddressInput!) {
   }
 }
 
-mutation DeleteAddress($id: ID!) {
+mutation CustomerAccountAddressDelete($id: ID!) {
   customerAddressDelete(id: $id) {
     deletedCustomerAddressId
+    userErrors {
+      field
+      message
+    }
+  }
+}
+
+mutation CustomerAccountAddressSetDefault($id: ID!) {
+  customerAddressUpdate(id: $id, input: { isDefault: true }) {
+    customerAddress {
+      ...CustomerAccountAddress
+    }
     userErrors {
       field
       message
