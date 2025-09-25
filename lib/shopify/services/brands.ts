@@ -2,40 +2,26 @@ import { callShopify, shopifyClient } from "@/lib/shopify/client"
 import { type LocalePrefs } from "@/lib/shopify/env"
 import { gql } from "graphql-tag"
 
-type AllVendorsQuery = {
-  products?: {
-    pageInfo?: { hasNextPage?: boolean | null; endCursor?: string | null } | null
-    nodes?:
-      | Array<{
-          vendor?: string | null
-          handle?: string | null
-          featuredImage?: {
-            url: string
-            width?: number | null
-            height?: number | null
-            altText?: string | null
-          } | null
-        } | null>
-      | null
+type ProductVendorsQuery = {
+  shop?: {
+    productVendors?: {
+      edges?: Array<{ node?: string | null } | null> | null
+      pageInfo?: { hasNextPage?: boolean | null; endCursor?: string | null } | null
+    } | null
   } | null
 }
 
-const ALL_VENDORS_DOCUMENT = gql`
-  query AllVendors($pageSize: Int!, $cursor: String, $language: LanguageCode, $country: CountryCode)
+const PRODUCT_VENDORS_DOCUMENT = gql`
+  query ProductVendors($pageSize: Int!, $cursor: String, $language: LanguageCode, $country: CountryCode)
     @inContext(language: $language, country: $country) {
-    products(first: $pageSize, after: $cursor, sortKey: VENDOR) {
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-      nodes {
-        vendor
-        handle
-        featuredImage {
-          url
-          width
-          height
-          altText
+    shop {
+      productVendors(first: $pageSize, after: $cursor) {
+        edges {
+          node
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
         }
       }
     }
@@ -44,7 +30,7 @@ const ALL_VENDORS_DOCUMENT = gql`
 
 export type BrandSummary = {
   name: string
-  productCount: number
+  url?: string
   featuredImage?: {
     url: string
     width?: number | null
@@ -53,17 +39,17 @@ export type BrandSummary = {
   }
 }
 
-const PAGE_SIZE = 100
-const MAX_PAGES = 50
+const PAGE_SIZE = 250
+const MAX_PAGES = 40
 
 type FetchArgs = {
   after?: string | null
   locale?: LocalePrefs
 }
 
-async function fetchPage({ after, locale }: FetchArgs) {
-  return callShopify<AllVendorsQuery>(() =>
-    shopifyClient.request(ALL_VENDORS_DOCUMENT, {
+async function fetchVendorPage({ after, locale }: FetchArgs) {
+  return callShopify<ProductVendorsQuery>(() =>
+    shopifyClient.request(PRODUCT_VENDORS_DOCUMENT, {
       pageSize: PAGE_SIZE,
       cursor: after ?? null,
       language: locale?.language as any,
@@ -72,61 +58,36 @@ async function fetchPage({ after, locale }: FetchArgs) {
   )
 }
 
+function vendorUrl(name: string) {
+  const query = encodeURIComponent(name)
+  return `/collections/vendors?q=${query}`
+}
+
 export async function getAllBrands(locale?: LocalePrefs): Promise<BrandSummary[]> {
-  const brandMap = new Map<string, BrandSummary>()
+  const brands = new Set<string>()
   let after: string | null | undefined
   let hasNext = true
   let guard = 0
 
   while (hasNext && guard < MAX_PAGES) {
-    const result = await fetchPage({ after, locale })
-    const nodes = result?.products?.nodes ?? []
+    const result = await fetchVendorPage({ after, locale })
+    const edges = result?.shop?.productVendors?.edges ?? []
 
-    for (const node of nodes) {
-      const name = node?.vendor?.trim()
+    for (const edge of edges) {
+      const name = edge?.node?.trim()
       if (!name) continue
-      const entry = brandMap.get(name)
-      if (entry) {
-        entry.productCount += 1
-        if (!entry.featuredImage && node?.featuredImage?.url) {
-          entry.featuredImage = {
-            url: node.featuredImage.url,
-            width: node.featuredImage.width,
-            height: node.featuredImage.height,
-            altText: node.featuredImage.altText,
-          }
-        }
-      } else {
-        brandMap.set(name, {
-          name,
-          productCount: 1,
-          featuredImage: node?.featuredImage?.url
-            ? {
-                url: node.featuredImage.url,
-                width: node.featuredImage.width,
-                height: node.featuredImage.height,
-                altText: node.featuredImage.altText,
-              }
-            : undefined,
-        })
-      }
+      brands.add(name)
     }
 
-    const pageInfo = result?.products?.pageInfo
+    const pageInfo = result?.shop?.productVendors?.pageInfo
     hasNext = Boolean(pageInfo?.hasNextPage)
     after = pageInfo?.endCursor ?? null
     guard += 1
 
-    if (!hasNext) break
-    if (!after) break
+    if (!hasNext || !after) break
   }
 
-  const entries = Array.from(brandMap.values())
-
-  entries.sort((a, b) => {
-    if (b.productCount !== a.productCount) return b.productCount - a.productCount
-    return a.name.localeCompare(b.name)
-  })
-
-  return entries
+  return Array.from(brands)
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({ name, url: vendorUrl(name) }))
 }

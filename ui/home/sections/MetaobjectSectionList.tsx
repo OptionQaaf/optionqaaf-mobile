@@ -16,7 +16,7 @@ export function renderMetaobjectSection(section: AppHomeSection, navigate: Navig
       return <Cmp key={section.id} {...props} onPressItem={(url: string | undefined) => navigate(url)} />
 
     case "brand_cloud":
-      return <Cmp key={section.id} {...props} />
+      return <Cmp key={section.id} {...props} onPressBrand={(url?: string) => navigate(url)} />
 
     case "duo_poster":
       return (
