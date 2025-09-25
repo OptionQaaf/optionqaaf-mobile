@@ -17,6 +17,7 @@ import {
   ImageBackground,
   KeyboardAvoidingView,
   LayoutAnimation,
+  LayoutChangeEvent,
   Linking,
   Modal,
   Platform,
@@ -71,25 +72,76 @@ export default function CollectionScreen() {
   const [view, setView] = useState<1 | 2>(2)
   const [selectedVendors, setSelectedVendors] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
+  const [pendingFilterAnimation, setPendingFilterAnimation] = useState(false)
   const [sort, setSort] = useState<"featured" | "priceAsc" | "priceDesc">("featured")
   const [minPrice, setMinPrice] = useState<string>("")
   const [maxPrice, setMaxPrice] = useState<string>("")
   const sheetProgress = React.useRef(new Animated.Value(0)).current
-  const openFilters = () => {
-    setShowFilters(true)
-  }
-  const closeFilters = () => {
-    Animated.timing(sheetProgress, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => {
-      setShowFilters(false)
+  const sheetHeightRef = React.useRef(0)
+  const [sheetHeight, setSheetHeight] = useState(0)
+  const DEFAULT_SHEET_OFFSET = 520
+  const hiddenOffset = (sheetHeight || sheetHeightRef.current || DEFAULT_SHEET_OFFSET) + 32
+  const animateFilterIn = React.useCallback(() => {
+    sheetProgress.stopAnimation((current) => {
+      const start = Math.min(1, Math.max(0, Number.isFinite(current) ? current : 0))
+      sheetProgress.setValue(start)
+      Animated.timing(sheetProgress, {
+        toValue: 1,
+        duration: Math.max(1, Math.round((1 - start) * 220)),
+        useNativeDriver: true,
+      }).start()
     })
-  }
+  }, [sheetProgress])
+  const animateFilterOut = React.useCallback(() => {
+    sheetProgress.stopAnimation((current) => {
+      const start = Math.min(1, Math.max(0, Number.isFinite(current) ? current : 0))
+      sheetProgress.setValue(start)
+      Animated.timing(sheetProgress, {
+        toValue: 0,
+        duration: Math.max(1, Math.round(start * 220)),
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) {
+          setShowFilters(false)
+          sheetProgress.setValue(0)
+        }
+      })
+    })
+  }, [sheetProgress])
+  const openFilters = React.useCallback(() => {
+    if (showFilters) {
+      animateFilterIn()
+      return
+    }
+    sheetProgress.setValue(0)
+    setPendingFilterAnimation(true)
+    setShowFilters(true)
+  }, [animateFilterIn, sheetProgress, showFilters])
+  const closeFilters = React.useCallback(() => {
+    if (!showFilters) return
+    setPendingFilterAnimation(false)
+    animateFilterOut()
+  }, [animateFilterOut, showFilters])
 
   useEffect(() => {
-    if (!showFilters) return
-    sheetProgress.stopAnimation()
-    sheetProgress.setValue(0)
-    Animated.timing(sheetProgress, { toValue: 1, duration: 220, useNativeDriver: true }).start()
+    if (!showFilters) {
+      setPendingFilterAnimation(false)
+      sheetProgress.setValue(0)
+    }
   }, [showFilters, sheetProgress])
+
+  const handleFilterSheetLayout = React.useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = Math.round(event?.nativeEvent?.layout?.height ?? 0)
+    if (!nextHeight || nextHeight === sheetHeightRef.current) return
+    sheetHeightRef.current = nextHeight
+    setSheetHeight(nextHeight)
+  }, [])
+
+  const handleFilterModalShow = React.useCallback(() => {
+    if (!pendingFilterAnimation) return
+    setPendingFilterAnimation(false)
+    animateFilterIn()
+  }, [animateFilterIn, pendingFilterAnimation])
 
   // removed eager fetch here; see targeted fetch below based on zero results
 
@@ -323,7 +375,13 @@ export default function CollectionScreen() {
             </View>
 
             {/* Filter modal: overlay fades, sheet slides up */}
-            <Modal visible={showFilters} animationType="none" transparent onRequestClose={closeFilters}>
+            <Modal
+              visible={showFilters}
+              animationType="none"
+              transparent
+              onRequestClose={closeFilters}
+              onShow={handleFilterModalShow}
+            >
               <View className="flex-1">
                 <Animated.View className="absolute inset-0 bg-black/60" style={{ opacity: sheetProgress }} />
                 <Pressable className="absolute inset-0" onPress={closeFilters} />
@@ -332,10 +390,17 @@ export default function CollectionScreen() {
                   className="flex-1 justify-end"
                 >
                   <Animated.View
+                    onLayout={handleFilterSheetLayout}
                     className="bg-white rounded-t-3xl px-4 pt-4 pb-6"
                     style={{
                       transform: [
-                        { translateY: sheetProgress.interpolate({ inputRange: [0, 1], outputRange: [320, 0] }) },
+                        {
+                          translateY: sheetProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [hiddenOffset, 0],
+                            extrapolate: "clamp",
+                          }),
+                        },
                       ],
                     }}
                   >
