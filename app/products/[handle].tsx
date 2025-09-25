@@ -308,7 +308,6 @@ function Recommended({
       <StaticProductGrid
         data={shuffled.slice(0, 8)}
         columns={2}
-        gap={12}
         renderItem={(item: any, w: number) => (
           <ProductTile
             image={item?.featuredImage?.url ?? ""}
@@ -319,8 +318,7 @@ function Recommended({
             currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
             width={w}
             imageRatio={3 / 4}
-            rounded="3xl"
-            padding="md"
+            padding="sm"
             onPress={() => item?.handle && router.push(`/products/${item.handle}` as any)}
           />
         )}

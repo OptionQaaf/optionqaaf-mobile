@@ -32,7 +32,7 @@ export default function SearchScreen() {
 
   const { width } = useWindowDimensions()
   const padH = 16 // px-4
-  const gap = 14
+  const gap = 0
   const itemW = Math.floor((width - padH * 2 - gap) / 2)
 
   // Prefetch first screen of images for snappy appearance
@@ -148,8 +148,7 @@ export default function SearchScreen() {
               currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
               width={itemW}
               imageRatio={3 / 4}
-              rounded="3xl"
-              padding="md"
+              padding="sm"
               priority={index < 6 ? "high" : "normal"}
               onPress={() => item?.handle && router.push(`/products/${item.handle}` as any)}
             />

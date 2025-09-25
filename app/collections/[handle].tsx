@@ -5,14 +5,14 @@ import { Skeleton } from "@/ui/feedback/Skeleton"
 import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
+import { Animated, MOTION } from "@/ui/motion/motion"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { router, useLocalSearchParams } from "expo-router"
-import { Filter, LayoutGrid, Square } from "lucide-react-native"
-import React, { useEffect, useMemo, useState } from "react"
+import { Check, ChevronLeft, ChevronRight, Filter, LayoutGrid, Search, Square, X } from "lucide-react-native"
+import { useEffect, useMemo, useState } from "react"
 import {
-  Animated,
   ImageBackground,
   KeyboardAvoidingView,
   LayoutAnimation,
@@ -28,10 +28,331 @@ import {
   View,
 } from "react-native"
 
+interface FilterDialogProps {
+  visible: boolean
+  onClose: () => void
+  filterScreen: "main" | "brand"
+  setFilterScreen: (screen: "main" | "brand") => void
+  title: string
+  selectedVendors: string[]
+  setSelectedVendors: (value: string[] | ((prev: string[]) => string[])) => void
+  onSaleOnly: boolean
+  setOnSaleOnly: (val: boolean) => void
+  minPrice: string
+  setMinPrice: (val: string) => void
+  maxPrice: string
+  setMaxPrice: (val: string) => void
+  sort: "featured" | "priceAsc" | "priceDesc"
+  setSort: (val: "featured" | "priceAsc" | "priceDesc") => void
+  query: string
+  setQuery: (val: string) => void
+  brandSearch: string
+  setBrandSearch: (val: string) => void
+  filtered: any[]
+  filteredVendors: { name: string; count: number }[]
+  vendorStats: { name: string; count: number }[]
+}
+
+function FilterDialog({
+  visible,
+  onClose,
+  filterScreen,
+  setFilterScreen,
+  title,
+  selectedVendors,
+  setSelectedVendors,
+  onSaleOnly,
+  setOnSaleOnly,
+  minPrice,
+  setMinPrice,
+  maxPrice,
+  setMaxPrice,
+  sort,
+  setSort,
+  query,
+  setQuery,
+  brandSearch,
+  setBrandSearch,
+  filtered,
+  filteredVendors,
+  vendorStats,
+}: FilterDialogProps) {
+  // Calculate min/max price from products for slider range
+  const priceStats = useMemo(() => {
+    let min = Infinity
+    let max = -Infinity
+    for (const p of filtered) {
+      const price = Number(p?.priceRange?.minVariantPrice?.amount ?? 0)
+      if (!isNaN(price)) {
+        if (price < min) min = price
+        if (price > max) max = price
+      }
+    }
+    if (!isFinite(min)) min = 0
+    if (!isFinite(max)) max = 10000
+    return { min, max }
+  }, [filtered])
+
+  const [shouldRender, setShouldRender] = useState(visible)
+  useEffect(() => {
+    if (visible) {
+      setShouldRender(true)
+    } else {
+      // Wait for exit animation duration before unmounting
+      const timeout = setTimeout(() => setShouldRender(false), 180)
+      return () => clearTimeout(timeout)
+    }
+  }, [visible])
+
+  if (!shouldRender) return null
+
+  return (
+    <Modal visible={true} animationType="none" transparent statusBarTranslucent onRequestClose={onClose}>
+      <View className="flex-1">
+        {/* Animated Backdrop */}
+        <Animated.View
+          entering={visible ? MOTION.enter.fade : undefined}
+          exiting={!visible ? MOTION.exit.fade : undefined}
+          className="absolute inset-0"
+        >
+          <Pressable className="flex-1 bg-black/50" onPress={onClose} />
+        </Animated.View>
+
+        {/* Animated bottom panel */}
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="flex-1 justify-end">
+          <Animated.View
+            entering={visible ? MOTION.enter.fadeUp : undefined}
+            exiting={!visible ? MOTION.exit.fadeDown : undefined}
+            className="bg-white rounded-t-3xl pt-3"
+          >
+            {/* Slide down control */}
+            <View className="border-b border-neutral-100 px-6 pb-4">
+              <View className="flex-row items-center justify-between">
+                {filterScreen === "brand" ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setFilterScreen("main")}
+                    className="h-10 w-10 items-center justify-center rounded-full bg-neutral-100"
+                  >
+                    <ChevronLeft size={18} color="#0B0B0B" />
+                  </Pressable>
+                ) : (
+                  <View className="h-10 w-10" />
+                )}
+                <Text className="text-xl font-extrabold text-neutral-900">
+                  {filterScreen === "brand" ? "Brand" : "Filter"}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={onClose}
+                  className="h-10 w-10 items-center justify-center rounded-full bg-neutral-100"
+                >
+                  <X size={18} color="#0B0B0B" />
+                </Pressable>
+              </View>
+            </View>
+
+            {filterScreen === "main" ? (
+              <>
+                <ScrollView
+                  className="max-h-[70vh]"
+                  contentContainerClassName="px-6 py-6 gap-5"
+                  showsVerticalScrollIndicator={false}
+                >
+                  {/* ...main filter content... */}
+                  <View className="rounded-3xl border border-neutral-100 bg-white px-5 py-4">
+                    <View className="flex-row items-center justify-between">
+                      <Text className="text-base font-semibold text-neutral-500">Category</Text>
+                      <View className="flex-row items-center gap-2">
+                        <Text className="text-base font-semibold text-neutral-900 opacity-80" numberOfLines={1}>
+                          {title}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                  {filteredVendors.length <= 2 ? null : (
+                    <Pressable
+                      onPress={() => setFilterScreen("brand")}
+                      className="rounded-3xl border border-neutral-100 bg-white px-5 py-4"
+                    >
+                      <View className="flex-row items-center justify-between">
+                        <View>
+                          <Text className="text-base font-semibold text-neutral-500">Brand</Text>
+                          <Text className="mt-1 text-base font-bold text-neutral-900">
+                            {selectedVendors.length > 0 ? `${selectedVendors.length} selected` : "All brands"}
+                          </Text>
+                        </View>
+                        <ChevronRight size={18} color="#0B0B0B" />
+                      </View>
+                    </Pressable>
+                  )}
+
+                  <View className="rounded-3xl border border-neutral-100 bg-white px-5 py-4">
+                    <Text className="text-base font-semibold text-neutral-500">Price</Text>
+                    <View className="mt-4 flex-row gap-4">
+                      <View className="flex-1">
+                        <Text className="text-sm text-neutral-500 mb-1">Min</Text>
+                        <TextInput
+                          className="border border-neutral-200 rounded-xl px-3 py-2"
+                          keyboardType="numeric"
+                          value={minPrice}
+                          onChangeText={setMinPrice}
+                          placeholder={`$${priceStats.min}`}
+                          placeholderClassName="text-sm"
+                          inputMode="numeric"
+                        />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-sm text-neutral-500 mb-1">Max</Text>
+                        <TextInput
+                          className="border border-neutral-200 rounded-xl px-3 py-2 text-neutral-900"
+                          keyboardType="numeric"
+                          value={maxPrice}
+                          onChangeText={setMaxPrice}
+                          placeholder={`$${priceStats.max}`}
+                          inputMode="numeric"
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  <View className="rounded-3xl border border-neutral-100 bg-white px-5 py-4">
+                    <Text className="text-base font-semibold text-neutral-500">Sort by</Text>
+                    <View className="mt-3 flex-row flex-wrap gap-3">
+                      {[
+                        { key: "featured", label: "Featured" },
+                        { key: "priceAsc", label: "Price: Low to High" },
+                        { key: "priceDesc", label: "Price: High to Low" },
+                      ].map((opt) => {
+                        const active = sort === opt.key
+                        return (
+                          <Pressable
+                            key={opt.key}
+                            onPress={() => setSort(opt.key as "featured" | "priceAsc" | "priceDesc")}
+                            className={`rounded-full border px-4 py-2 ${
+                              active ? "border-[#0B0B0B] bg-[#0B0B0B]" : "border-neutral-200 bg-white"
+                            }`}
+                          >
+                            <Text className={`text-sm font-semibold ${active ? "text-white" : "text-neutral-900"}`}>
+                              {opt.label}
+                            </Text>
+                          </Pressable>
+                        )
+                      })}
+                    </View>
+                  </View>
+                </ScrollView>
+                <View className="border-t border-neutral-100 px-6 pb-6 pt-4">
+                  <View className="flex-row items-center justify-between gap-3">
+                    <Pressable
+                      onPress={() => {
+                        setSelectedVendors([])
+                        setMinPrice("")
+                        setMaxPrice("")
+                        setSort("featured")
+                        setQuery("")
+                        setOnSaleOnly(false)
+                      }}
+                      className="flex-1 items-center justify-center rounded-full border border-neutral-200 bg-white py-3"
+                    >
+                      <Text className="text-base font-semibold text-neutral-900">Clear all</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={onClose}
+                      className="flex-1 items-center justify-center rounded-full bg-[#0B0B0B] py-3"
+                    >
+                      <Text className="text-base font-semibold text-white">
+                        {filtered.length > 0 ? `Show ${filtered.length.toLocaleString()}` : "Show results"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <>
+                <View className="px-6 pt-4 pb-2">
+                  <View className="flex-row items-center gap-3 rounded-full bg-neutral-100 px-4 py-3">
+                    <Search size={16} color="#6B7280" />
+                    <TextInput
+                      value={brandSearch}
+                      onChangeText={setBrandSearch}
+                      placeholder="Search brand"
+                      placeholderTextColor="#9CA3AF"
+                      className="flex-1 text-base text-neutral-900"
+                    />
+                  </View>
+                </View>
+                <ScrollView
+                  className="max-h-[60vh]"
+                  contentContainerClassName="px-6 pb-6"
+                  showsVerticalScrollIndicator={false}
+                >
+                  {filteredVendors.length === 0 ? (
+                    <View className="items-center py-10">
+                      <Text className="text-base font-semibold text-neutral-800">No brands found</Text>
+                    </View>
+                  ) : (
+                    filteredVendors.map((vendor) => {
+                      const checked = selectedVendors.includes(vendor.name)
+                      return (
+                        <Pressable
+                          key={vendor.name}
+                          onPress={() => {
+                            setSelectedVendors((prev: string[]) =>
+                              prev.includes(vendor.name)
+                                ? prev.filter((v: string) => v !== vendor.name)
+                                : [...prev, vendor.name],
+                            )
+                          }}
+                          className="flex-row items-center justify-between border-b border-neutral-100 py-4"
+                        >
+                          <View className="flex-row items-center gap-4">
+                            <View
+                              className={`h-6 w-6 items-center justify-center rounded-md border ${
+                                checked ? "border-transparent bg-[#0B0B0B]" : "border-neutral-300 bg-white"
+                              }`}
+                            >
+                              {checked ? <Check size={16} color="#FFFFFF" /> : null}
+                            </View>
+                            <Text className="text-base font-semibold text-neutral-900">{vendor.name}</Text>
+                          </View>
+                          <Text className="text-sm font-semibold text-neutral-700">{vendor.count}</Text>
+                        </Pressable>
+                      )
+                    })
+                  )}
+                </ScrollView>
+                <View className="border-t border-neutral-100 px-6 pb-6 pt-4">
+                  <View className="flex-row items-center justify-between gap-3">
+                    <Pressable
+                      onPress={() => setSelectedVendors([])}
+                      className="flex-1 items-center justify-center rounded-full border border-neutral-200 bg-white py-3"
+                    >
+                      <Text className="text-base font-semibold text-neutral-900">Clear</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setFilterScreen("main")}
+                      className="flex-1 items-center justify-center rounded-full bg-[#0B0B0B] py-3"
+                    >
+                      <Text className="text-base font-semibold text-white">
+                        {selectedVendors.length > 0 ? `Show ${selectedVendors.length}` : "Apply"}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </>
+            )}
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  )
+}
+
 // Optional gradient for hero overlay
 let LinearGradient: any
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   LinearGradient = require("expo-linear-gradient").LinearGradient
 } catch {}
 
@@ -54,6 +375,16 @@ export default function CollectionScreen() {
   const special = SPECIAL[h]
   const { data: specialHome } = useMobileHome(special?.homeHandle ?? "")
   const { data: specialSearch } = useSearch(special?.searchQuery ?? "", 24)
+  const specialSections = useMemo(() => specialHome?.sections ?? [], [specialHome?.sections])
+  const specialCapsuleHandles = useMemo(() => {
+    const handles: string[] = []
+    for (const section of specialSections ?? []) {
+      if (section?.kind === "product_rail" && section.collectionHandle) {
+        if (!handles.includes(section.collectionHandle)) handles.push(section.collectionHandle)
+      }
+    }
+    return handles.slice(0, 3)
+  }, [specialSections])
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useCollectionProducts(h || "", 24)
   const meta = useCollectionMeta(h || "")
   const products = (data?.pages?.flatMap((p: any) => p.nodes) ?? []) as any[]
@@ -70,24 +401,16 @@ export default function CollectionScreen() {
   const [view, setView] = useState<1 | 2>(2)
   const [selectedVendors, setSelectedVendors] = useState<string[]>([])
   const [showFilters, setShowFilters] = useState(false)
+
+  // sorting/filters
   const [sort, setSort] = useState<"featured" | "priceAsc" | "priceDesc">("featured")
   const [minPrice, setMinPrice] = useState<string>("")
   const [maxPrice, setMaxPrice] = useState<string>("")
-  const sheetProgress = React.useRef(new Animated.Value(0)).current
-  const openFilters = () => {
-    setShowFilters(true)
-    sheetProgress.setValue(0)
-    Animated.timing(sheetProgress, { toValue: 1, duration: 220, useNativeDriver: true }).start()
-  }
-  const closeFilters = () => {
-    Animated.timing(sheetProgress, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => {
-      setShowFilters(false)
-    })
-  }
+  const [onSaleOnly, setOnSaleOnly] = useState(false)
+  const [filterScreen, setFilterScreen] = useState<"main" | "brand">("main")
+  const [brandSearch, setBrandSearch] = useState("")
 
-  // removed eager fetch here; see targeted fetch below based on zero results
-
-  // Enable LayoutAnimation on Android for smooth grid resize
+  // Enable LayoutAnimation on Android for smooth grid resize (kept for view toggle)
   useEffect(() => {
     if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
       UIManager.setLayoutAnimationEnabledExperimental(true)
@@ -117,6 +440,10 @@ export default function CollectionScreen() {
       if (vset.size > 0 && !vset.has(p?.vendor)) return false
       const price = Number(p?.priceRange?.minVariantPrice?.amount ?? 0)
       if (price < min || price > max) return false
+      if (onSaleOnly) {
+        const compare = Number(p?.compareAtPriceRange?.minVariantPrice?.amount ?? 0)
+        if (!(compare > price)) return false
+      }
       if (!q) return true
       const hay = `${p?.title ?? ""} ${p?.vendor ?? ""}`.toLowerCase()
       return hay.includes(q)
@@ -131,7 +458,25 @@ export default function CollectionScreen() {
       return arr
     }
     return base
-  }, [products, query, selectedVendors, sort, minPrice, maxPrice])
+  }, [products, query, selectedVendors, sort, minPrice, maxPrice, onSaleOnly])
+
+  const vendorStats = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of products) {
+      const vendor = p?.vendor
+      if (!vendor) continue
+      counts.set(vendor, (counts.get(vendor) ?? 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [products])
+
+  const filteredVendors = useMemo(() => {
+    const q = brandSearch.trim().toLowerCase()
+    if (!q) return vendorStats
+    return vendorStats.filter((v) => v.name.toLowerCase().includes(q))
+  }, [brandSearch, vendorStats])
 
   // Auto-load more pages while searching and no results found yet
   useEffect(() => {
@@ -153,7 +498,8 @@ export default function CollectionScreen() {
 
   // If special men-1 / women-1: render aesthetic sections + PLP-like grid
   if (special) {
-    const sections = specialHome?.sections ?? []
+    const sections = specialSections
+    const capsuleHandles = specialCapsuleHandles
     const products = (specialSearch?.pages?.flatMap((p) => p.nodes) ?? []).slice(0, 24)
     const go = (url?: string) => {
       if (!url) return
@@ -175,7 +521,6 @@ export default function CollectionScreen() {
                 <StaticProductGrid
                   data={products}
                   columns={2}
-                  gap={10}
                   renderItem={(item: any, w: number) => (
                     <ProductTile
                       image={item?.featuredImage?.url ?? ""}
@@ -186,8 +531,7 @@ export default function CollectionScreen() {
                       currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
                       width={w}
                       imageRatio={3 / 4}
-                      rounded="3xl"
-                      padding="md"
+                      padding="sm"
                       onPress={() => item?.handle && router.push(`/products/${item.handle}` as any)}
                     />
                   )}
@@ -247,9 +591,8 @@ export default function CollectionScreen() {
 
           {/* Controls container */}
           <View className="px-4 -mt-8">
-            {/* One row: search (with filter icon inside), and a single toggle box for grid/list */}
             <View className="flex-row items-center gap-4">
-              {/* search box with filter icon inside */}
+              {/* search box */}
               <View className="flex-1">
                 <View className="bg-white rounded-3xl border border-black/10 px-3 py-1.5 flex-row items-center justify-between">
                   <TextInput
@@ -260,14 +603,14 @@ export default function CollectionScreen() {
                     className="flex-1 py-1 px-2"
                     style={{ textAlignVertical: "center" }}
                   />
-                  <Pressable onPress={openFilters} className="p-1.5">
+                  <Pressable onPress={() => setShowFilters(true)} className="p-1.5">
                     <Filter size={20} color="#0B0B0B" />
                   </Pressable>
                 </View>
               </View>
-              {/* segmented grid/list toggle with pill thumb */}
+
+              {/* grid/list toggle */}
               <View className="flex-row rounded-full bg-white border border-neutral-200 overflow-hidden p-0.5 relative">
-                {/* pill thumb */}
                 <View
                   className={`absolute top-0.5 bottom-0.5 w-1/2 bg-[#8E1A26] rounded-full ${view === 1 ? "left-0.5" : "right-0.5"}`}
                 />
@@ -280,139 +623,55 @@ export default function CollectionScreen() {
               </View>
             </View>
 
-            {/* Filter modal: overlay fades, sheet slides up */}
-            <Modal visible={showFilters} animationType="none" transparent onRequestClose={closeFilters}>
-              <View className="flex-1">
-                <Animated.View className="absolute inset-0 bg-black/60" style={{ opacity: sheetProgress }} />
-                <Pressable className="absolute inset-0" onPress={closeFilters} />
-                <KeyboardAvoidingView
-                  behavior={Platform.OS === "ios" ? "padding" : undefined}
-                  className="flex-1 justify-end"
-                >
-                  <Animated.View
-                    className="bg-white rounded-t-3xl px-4 pt-4 pb-6"
-                    style={{
-                      transform: [
-                        { translateY: sheetProgress.interpolate({ inputRange: [0, 1], outputRange: [320, 0] }) },
-                      ],
-                    }}
-                  >
-                    <Text className="font-extrabold text-lg mb-3">Filters</Text>
-
-                    {/* Sort */}
-                    <Text className="font-bold mb-2">Sort by</Text>
-                    <View className="flex-row flex-wrap gap-2.5 mb-3">
-                      {(
-                        [
-                          { key: "featured", label: "Featured" },
-                          { key: "priceAsc", label: "Price: Low → High" },
-                          { key: "priceDesc", label: "Price: High → Low" },
-                        ] as const
-                      ).map((opt) => (
-                        <Pressable
-                          key={opt.key}
-                          onPress={() => setSort(opt.key)}
-                          className={`py-2 px-3 rounded-full ${sort === opt.key ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
-                        >
-                          <Text className={`${sort === opt.key ? "text-white" : "text-black"} font-bold`}>
-                            {opt.label}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-
-                    {/* Vendors multi-select */}
-                    {vendors.length > 0 ? (
-                      <>
-                        <Text className="font-bold mb-2">Brands</Text>
-                        <View className="flex-row flex-wrap gap-2.5 mb-3">
-                          {vendors.map((v) => {
-                            const active = selectedVendors.includes(v)
-                            return (
-                              <Pressable
-                                key={v}
-                                onPress={() => {
-                                  setSelectedVendors((prev) =>
-                                    prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v],
-                                  )
-                                }}
-                                className={`py-2 px-3 rounded-full ${active ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
-                              >
-                                <Text className={`${active ? "text-white" : "text-black"} font-bold`}>{v}</Text>
-                              </Pressable>
-                            )
-                          })}
-                        </View>
-                      </>
-                    ) : null}
-
-                    {/* Price range */}
-                    <Text className="font-bold mb-2">Price range</Text>
-                    <View className="flex-row gap-2.5 mb-4">
-                      <TextInput
-                        value={minPrice}
-                        onChangeText={setMinPrice}
-                        placeholder="Min"
-                        placeholderTextColor="#6B7280"
-                        keyboardType="numeric"
-                        className="flex-1 border border-neutral-200 rounded-xl p-2"
-                      />
-                      <TextInput
-                        value={maxPrice}
-                        onChangeText={setMaxPrice}
-                        placeholder="Max"
-                        placeholderTextColor="#6B7280"
-                        keyboardType="numeric"
-                        className="flex-1 border border-neutral-200 rounded-xl p-2"
-                      />
-                    </View>
-
-                    {/* Actions */}
-                    <View className="flex-row justify-between gap-3">
-                      <Pressable
-                        onPress={() => {
-                          setSelectedVendors([])
-                          setMinPrice("")
-                          setMaxPrice("")
-                          setSort("featured")
-                          setQuery("")
-                        }}
-                        className="flex-1 py-3 rounded-xl bg-neutral-100 items-center"
-                      >
-                        <Text className="font-bold text-black">Clear</Text>
-                      </Pressable>
-                      <Pressable onPress={closeFilters} className="flex-1 py-3 rounded-xl bg-[#8E1A26] items-center">
-                        <Text className="font-bold text-white">Apply</Text>
-                      </Pressable>
-                    </View>
-                  </Animated.View>
-                </KeyboardAvoidingView>
-              </View>
-            </Modal>
+            {/* Filter modal: now isolated in its own component */}
+            <FilterDialog
+              visible={showFilters}
+              onClose={() => setShowFilters(false)}
+              filterScreen={filterScreen}
+              setFilterScreen={setFilterScreen}
+              title={title}
+              selectedVendors={selectedVendors}
+              setSelectedVendors={setSelectedVendors}
+              onSaleOnly={onSaleOnly}
+              setOnSaleOnly={setOnSaleOnly}
+              minPrice={minPrice}
+              setMinPrice={setMinPrice}
+              maxPrice={maxPrice}
+              setMaxPrice={setMaxPrice}
+              sort={sort}
+              setSort={setSort}
+              query={query}
+              setQuery={setQuery}
+              brandSearch={brandSearch}
+              setBrandSearch={setBrandSearch}
+              filtered={filtered}
+              filteredVendors={filteredVendors}
+              vendorStats={vendorStats}
+            />
 
             {/* Active filters summary + Clear All */}
             {selectedVendors.length > 0 || minPrice || maxPrice || sort !== "featured" || query ? (
               <View className="flex-row items-center flex-wrap gap-2 mt-3">
                 {query ? (
                   <View className="py-1.5 px-3 rounded-full bg-neutral-200">
-                    <Text className="font-semibold text-black">Query: {query}</Text>
+                    <Text className="font-semibold text-neutral-900">Query: {query}</Text>
                   </View>
                 ) : null}
                 {selectedVendors.map((v) => (
                   <View key={`vf-${v}`} className="py-1.5 px-3 rounded-full bg-neutral-200">
-                    <Text className="font-semibold text-black">Brand: {v}</Text>
+                    <Text className="font-semibold text-neutral-900">Brand: {v}</Text>
                   </View>
                 ))}
                 {minPrice || maxPrice ? (
                   <View className="py-1.5 px-3 rounded-full bg-neutral-200">
-                    <Text className="font-semibold text-black">
+                    <Text className="font-semibold text-neutral-900">
                       Price: {minPrice || "0"} - {maxPrice || "∞"}
                     </Text>
                   </View>
                 ) : null}
                 {sort !== "featured" ? (
                   <View className="py-1.5 px-3 rounded-full bg-neutral-200">
-                    <Text className="font-semibold text-black">Sort: {sort}</Text>
+                    <Text className="font-semibold text-neutral-900">Sort: {sort}</Text>
                   </View>
                 ) : null}
                 <Pressable
@@ -425,7 +684,7 @@ export default function CollectionScreen() {
                   }}
                   className="ml-auto py-2 px-3 rounded-xl bg-neutral-100"
                 >
-                  <Text className="font-bold text-black">Clear all</Text>
+                  <Text className="font-bold text-neutral-900">Clear all</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -442,7 +701,9 @@ export default function CollectionScreen() {
                   onPress={() => setSelectedVendors([])}
                   className={`py-2.5 px-4 rounded-full ${selectedVendors.length === 0 ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
                 >
-                  <Text className={`${selectedVendors.length === 0 ? "text-white" : "text-black"} font-bold`}>All</Text>
+                  <Text className={`${selectedVendors.length === 0 ? "text-white" : "text-neutral-900"} font-bold`}>
+                    All
+                  </Text>
                 </Pressable>
                 {vendors.map((v) => (
                   <Pressable
@@ -450,7 +711,7 @@ export default function CollectionScreen() {
                     onPress={() => setSelectedVendors([v])}
                     className={`py-2.5 px-4 rounded-full ${selectedVendors.includes(v) ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
                   >
-                    <Text className={`${selectedVendors.includes(v) ? "text-white" : "text-black"} font-bold`}>
+                    <Text className={`${selectedVendors.includes(v) ? "text-white" : "text-neutral-900"} font-bold`}>
                       {v}
                     </Text>
                   </Pressable>
@@ -460,17 +721,16 @@ export default function CollectionScreen() {
           </View>
 
           {/* Products */}
-          <View className="px-4 mt-4">
+          <View className="mt-4">
             {filtered.length === 0 ? (
               <View className="items-center py-10">
-                <Text className="text-black font-bold text-lg mb-1.5">No products found</Text>
+                <Text className="text-neutral-900 font-bold text-lg mb-1.5">No products found</Text>
                 <Text className="text-gray-500">Try adjusting filters or search.</Text>
               </View>
             ) : null}
             <StaticProductGrid
               data={filtered}
               columns={view}
-              gap={view === 2 ? 14 : 16}
               renderItem={(item: any, itemW: number) => (
                 <ProductTile
                   image={item?.featuredImage?.url ?? ""}
@@ -485,8 +745,7 @@ export default function CollectionScreen() {
                   currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
                   width={itemW}
                   imageRatio={3 / 4}
-                  rounded="3xl"
-                  padding={view === 2 ? "md" : "lg"}
+                  padding={view === 2 ? "sm" : "md"}
                   onPress={() => {
                     const h = item?.handle
                     if (h) router.push(`/products/${h}` as any)
@@ -499,13 +758,13 @@ export default function CollectionScreen() {
             {isFetchingNextPage ? (
               <View className="mt-3">
                 {view === 2 ? (
-                  <View className="flex-row gap-3">
-                    <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
-                    <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
+                  <View className="flex-row">
+                    <Skeleton className="flex-1 " style={{ aspectRatio: 3 / 4 }} />
+                    <Skeleton className="flex-1 " style={{ aspectRatio: 3 / 4 }} />
                   </View>
                 ) : (
                   <View>
-                    <Skeleton className="rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
+                    <Skeleton className="" style={{ aspectRatio: 3 / 4 }} />
                   </View>
                 )}
               </View>
