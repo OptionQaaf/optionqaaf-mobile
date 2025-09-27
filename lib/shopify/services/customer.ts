@@ -16,7 +16,18 @@ function sanitizeDomain(domain: string) {
 }
 
 const SHOP_DOMAIN = sanitizeDomain(SHOPIFY_DOMAIN)
-const DEFAULT_GRAPHQL_ENDPOINT = `https://${SHOP_DOMAIN}/customer-account/api/${SHOPIFY_API_VERSION}/graphql`
+
+function normalizeGraphqlEndpoint(endpoint: string | undefined | null) {
+  if (!endpoint) return undefined
+  const sanitized = endpoint.replace(/\/?$/, "")
+  if (sanitized.endsWith("/graphql")) return `${sanitized}.json`
+  return sanitized
+}
+
+const DEFAULT_GRAPHQL_ENDPOINT_BASE = `https://${SHOP_DOMAIN}/customer-account/api/${SHOPIFY_API_VERSION}/graphql`
+// Shopify expects Customer Account GraphQL requests to target the `.json` endpoint
+// (see https://shopify.dev/docs/api/customer#authentication).
+const DEFAULT_GRAPHQL_ENDPOINT = normalizeGraphqlEndpoint(DEFAULT_GRAPHQL_ENDPOINT_BASE)!
 const WELL_KNOWN_URL = `https://${SHOP_DOMAIN}/.well-known/customer-account-api`
 const DEFAULT_PORTAL_URL = `https://${SHOP_DOMAIN}/account`
 
@@ -64,7 +75,7 @@ async function loadCustomerAccountMetadata(): Promise<CustomerAccountMetadata> {
     }
     const payload = (await response.json()) as WellKnownResponse
     return {
-      graphqlEndpoint: payload.graphql_api || DEFAULT_GRAPHQL_ENDPOINT,
+      graphqlEndpoint: normalizeGraphqlEndpoint(payload.graphql_api) || DEFAULT_GRAPHQL_ENDPOINT,
       accountPortalUrl: payload.account_management_url ?? payload.account_url ?? DEFAULT_PORTAL_URL,
       accountManagementUrl: payload.account_management_url ?? null,
     }
