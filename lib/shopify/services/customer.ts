@@ -45,7 +45,7 @@ type WellKnownResponse = {
 
 type GraphQLResponse<T> = {
   data?: T
-  errors?: { message?: string | null }[]
+  errors?: unknown
 }
 
 type CustomerUpdateMutationPayload = {
@@ -120,6 +120,39 @@ function prepareVariables(variables?: Record<string, unknown>) {
   return sanitized
 }
 
+function normalizeGraphqlErrors(errors: unknown, rawBody: string) {
+  if (!errors) return [] as string[]
+
+  if (Array.isArray(errors)) {
+    const messages = errors
+      .map((error) => {
+        if (typeof error === "string") return error
+        if (error && typeof error === "object" && "message" in error) {
+          const message = (error as { message?: unknown }).message
+          if (typeof message === "string") return message
+        }
+        return undefined
+      })
+      .filter((message): message is string => Boolean(message && message.length))
+
+    if (messages.length) return messages
+  }
+
+  if (typeof errors === "string" && errors.length) {
+    return [errors]
+  }
+
+  if (errors && typeof errors === "object" && "message" in errors) {
+    const message = (errors as { message?: unknown }).message
+    if (typeof message === "string" && message.length) {
+      return [message]
+    }
+  }
+
+  const fallback = rawBody?.trim()
+  return fallback ? [fallback] : []
+}
+
 async function executeCustomerAccountGraphql<T>(
   endpoint: string,
   accessToken: string,
@@ -155,9 +188,9 @@ async function executeCustomerAccountGraphql<T>(
     throw new ShopifyError(rawBody || "Customer Account API response malformed", error)
   }
 
-  const graphQLErrors = payload.errors?.map((err) => err?.message).filter(Boolean) as string[] | undefined
-  if (!response.ok || (graphQLErrors && graphQLErrors.length)) {
-    const message = graphQLErrors?.join("; ") || `Customer Account API request failed${response.status ? ` (${response.status})` : ""}`
+  const graphQLErrors = normalizeGraphqlErrors(payload.errors, rawBody)
+  if (!response.ok || graphQLErrors.length) {
+    const message = graphQLErrors.join("; ") || `Customer Account API request failed${response.status ? ` (${response.status})` : ""}`
     throw new CustomerAccountApiError(message, response.status, rawBody, endpoint)
   }
 
