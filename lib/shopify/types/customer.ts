@@ -26,6 +26,16 @@ export type AddressNode = {
   formatted?: string[]
 }
 
+export type PageInfo = {
+  hasNextPage?: boolean | null
+  endCursor?: string | null
+}
+
+export type AddressConnection = {
+  pageInfo?: PageInfo | null
+  nodes: AddressNode[]
+}
+
 export type OrderLineItemNode = {
   title?: string | null
   quantity?: number | null
@@ -46,10 +56,7 @@ export type OrderNode = {
 }
 
 export type OrdersConnection = {
-  pageInfo?: {
-    hasNextPage?: boolean | null
-    endCursor?: string | null
-  } | null
+  pageInfo?: PageInfo | null
   nodes: OrderNode[]
 }
 
@@ -61,6 +68,7 @@ export type CustomerNode = {
   emailAddress?: CustomerEmailAddress | null
   phone?: string | null
   addresses?: AddressNode[] | null
+  addressesConnection?: AddressConnection | null
   orders?: OrdersConnection | null
 }
 
@@ -79,7 +87,15 @@ export type CustomerAddressesResult = {
   customer?: {
     id: string
     addresses?: AddressNode[] | null
+    addressesConnection?: AddressConnection | null
   } | null
+}
+
+export type CustomerUpdateInput = {
+  email?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  phone?: string | null
 }
 
 export type MailingAddressInput = {
@@ -97,13 +113,6 @@ export type MailingAddressInput = {
   isDefault?: boolean | null
 }
 
-export type CustomerUpdateInput = {
-  email?: string | null
-  firstName?: string | null
-  lastName?: string | null
-  phone?: string | null
-}
-
 export type CustomerAddressInput = {
   firstName?: string | null
   lastName?: string | null
@@ -115,4 +124,41 @@ export type CustomerAddressInput = {
   zip?: string | null
   phone?: string | null
   isDefault?: boolean | null
+}
+
+export type CustomerUpdateResult = {
+  customerUpdate?: {
+    customer?: CustomerNode | null
+    userErrors?: GraphQLUserError[] | null
+  } | null
+}
+
+export type CustomerAddressCreateResult = {
+  customerAddressCreate?: {
+    customerAddress?: AddressNode | null
+    userErrors?: GraphQLUserError[] | null
+  } | null
+}
+
+export type CustomerAddressUpdateResult = {
+  customerAddressUpdate?: {
+    customerAddress?: AddressNode | null
+    userErrors?: GraphQLUserError[] | null
+  } | null
+}
+
+export type CustomerAddressDeleteResult = {
+  customerAddressDelete?: {
+    deletedCustomerAddressId?: string | null
+    userErrors?: GraphQLUserError[] | null
+  } | null
+}
+
+export type CustomerDefaultAddressUpdateResult = {
+  customerDefaultAddressUpdate?: {
+    customer?: {
+      defaultAddress?: AddressNode | null
+    } | null
+    userErrors?: GraphQLUserError[] | null
+  } | null
 }

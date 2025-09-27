@@ -36,7 +36,12 @@ fragment CustomerAccountOrder on Order {
   }
 }
 
-query CustomerAccountOverview($ordersFirst: Int = 20, $ordersAfter: String) {
+query CustomerAccountOverview(
+  $addressesFirst: Int = 10
+  $addressesAfter: String
+  $ordersFirst: Int = 20
+  $ordersAfter: String
+) {
   customer {
     id
     displayName
@@ -46,8 +51,14 @@ query CustomerAccountOverview($ordersFirst: Int = 20, $ordersAfter: String) {
       emailAddress
     }
     phone
-    addresses {
-      ...CustomerAccountAddress
+    addresses(first: $addressesFirst, after: $addressesAfter) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        ...CustomerAccountAddress
+      }
     }
     orders(first: $ordersFirst, after: $ordersAfter) {
       pageInfo {
@@ -75,11 +86,17 @@ query CustomerAccountOrders($first: Int!, $after: String) {
   }
 }
 
-query CustomerAccountAddresses {
+query CustomerAccountAddresses($first: Int = 20, $after: String) {
   customer {
     id
-    addresses {
-      ...CustomerAccountAddress
+    addresses(first: $first, after: $after) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        ...CustomerAccountAddress
+      }
     }
   }
 }
@@ -138,9 +155,11 @@ mutation CustomerAccountAddressDelete($id: ID!) {
 }
 
 mutation CustomerAccountAddressSetDefault($id: ID!) {
-  customerAddressUpdate(id: $id, input: { isDefault: true }) {
-    customerAddress {
-      ...CustomerAccountAddress
+  customerDefaultAddressUpdate(addressId: $id) {
+    customer {
+      defaultAddress {
+        ...CustomerAccountAddress
+      }
     }
     userErrors {
       field

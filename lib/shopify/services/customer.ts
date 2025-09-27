@@ -1,41 +1,53 @@
 import { ShopifyError, callShopify } from "@/lib/shopify/client"
 import { SHOPIFY_API_VERSION, SHOPIFY_DOMAIN } from "@/lib/shopify/env"
 import type {
+  AddressConnection,
   AddressNode,
+  CustomerAddressCreateResult,
+  CustomerAddressDeleteResult,
+  CustomerAddressInput,
+  CustomerAddressUpdateResult,
   CustomerAddressesResult,
+  CustomerDefaultAddressUpdateResult,
   CustomerOverviewResult,
   CustomerOrdersResult,
   CustomerUpdateInput,
+  CustomerUpdateResult,
   GraphQLUserError,
   MailingAddressInput,
-  OrderNode,
+  OrdersConnection,
 } from "@/lib/shopify/types/customer"
+
+const METADATA_TTL_MS = 5 * 60 * 1000
+const METADATA_ERROR_TTL_MS = 60 * 1000
 
 function sanitizeDomain(domain: string) {
   return domain.replace(/^https?:\/\//, "").replace(/\/$/, "")
 }
 
 const SHOP_DOMAIN = sanitizeDomain(SHOPIFY_DOMAIN)
+const SHOP_ORIGIN = `https://${SHOP_DOMAIN}`
+const CUSTOMER_ACCOUNT_GRAPHQL_BASE = `${SHOP_ORIGIN}/customer-account/api/${SHOPIFY_API_VERSION}/graphql`
 
-function normalizeGraphqlEndpoint(endpoint: string | undefined | null) {
-  if (!endpoint) return undefined
-  const sanitized = endpoint.replace(/\/?$/, "")
+function coerceUrl(value?: string | null) {
+  if (!value) return null
+  const trimmed = value.trim()
+  return trimmed.length ? trimmed : null
+}
+
+function ensureGraphqlEndpoint(endpoint?: string | null) {
+  const raw = coerceUrl(endpoint)
+  if (!raw) {
+    return `${CUSTOMER_ACCOUNT_GRAPHQL_BASE}.json`
+  }
+  const sanitized = raw.replace(/\s+/g, "").replace(/\/+$/, "")
+  if (sanitized.endsWith("/graphql.json")) return sanitized
   if (sanitized.endsWith("/graphql")) return `${sanitized}.json`
-  return sanitized
+  if (sanitized.endsWith(".json")) return sanitized
+  return `${sanitized}/graphql.json`
 }
-
-const DEFAULT_GRAPHQL_ENDPOINT_BASE = `https://${SHOP_DOMAIN}/customer-account/api/${SHOPIFY_API_VERSION}/graphql`
-// Shopify expects Customer Account GraphQL requests to target the `.json` endpoint
-// (see https://shopify.dev/docs/api/customer#authentication).
-const DEFAULT_GRAPHQL_ENDPOINT = normalizeGraphqlEndpoint(DEFAULT_GRAPHQL_ENDPOINT_BASE)!
-const WELL_KNOWN_URL = `https://${SHOP_DOMAIN}/.well-known/customer-account-api`
-const DEFAULT_PORTAL_URL = `https://${SHOP_DOMAIN}/account`
-
-type CustomerAccountMetadata = {
-  graphqlEndpoint: string
-  accountPortalUrl?: string | null
-  accountManagementUrl?: string | null
-}
+const WELL_KNOWN_URL = `${SHOP_ORIGIN}/.well-known/customer-account-api`
+const DEFAULT_PORTAL_URL = `${SHOP_ORIGIN}/account`
 
 type WellKnownResponse = {
   graphql_api?: string
@@ -43,76 +55,149 @@ type WellKnownResponse = {
   account_management_url?: string | null
 }
 
-type GraphQLResponse<T> = {
-  data?: T
-  errors?: unknown
-}
-
-type CustomerUpdateMutationPayload = {
-  customerUpdate?: {
-    customer?: CustomerOverviewResult["customer"]
-    userErrors?: GraphQLUserError[] | null
-  } | null
+type CustomerAccountMetadata = {
+  graphqlEndpoint: string
+  accountPortalUrl: string | null
+  accountManagementUrl: string | null
+  expiresAt: number
 }
 
 class CustomerAccountApiError extends ShopifyError {
-  constructor(message: string, public status?: number, public body?: string, public endpoint?: string) {
-    super(message)
+  status?: number
+  endpoint?: string
+  requestId?: string | null
+  body?: string
+  errors?: string[]
+
+  constructor(
+    message: string,
+    init?: {
+      status?: number
+      endpoint?: string
+      requestId?: string | null
+      body?: string
+      errors?: string[]
+      cause?: unknown
+    },
+  ) {
+    super(message, init?.cause)
     this.name = "CustomerAccountApiError"
+    this.status = init?.status
+    this.endpoint = init?.endpoint
+    this.requestId = init?.requestId ?? null
+    this.body = init?.body
+    this.errors = init?.errors
   }
 }
 
 let metadataCache: CustomerAccountMetadata | null = null
 let metadataPromise: Promise<CustomerAccountMetadata> | null = null
 
-async function loadCustomerAccountMetadata(): Promise<CustomerAccountMetadata> {
-  try {
-    const response = await fetch(WELL_KNOWN_URL, {
-      headers: { Accept: "application/json" },
-    })
-    if (!response.ok) {
-      throw new ShopifyError(`Failed to load customer metadata (${response.status})`)
-    }
-    const payload = (await response.json()) as WellKnownResponse
-    return {
-      graphqlEndpoint: normalizeGraphqlEndpoint(payload.graphql_api) || DEFAULT_GRAPHQL_ENDPOINT,
-      accountPortalUrl: payload.account_management_url ?? payload.account_url ?? DEFAULT_PORTAL_URL,
-      accountManagementUrl: payload.account_management_url ?? null,
-    }
-  } catch (error) {
-    if (typeof __DEV__ !== "undefined" && __DEV__) {
-      console.warn("[Shopify] Unable to resolve Customer Account metadata", error)
-    }
-    return {
-      graphqlEndpoint: DEFAULT_GRAPHQL_ENDPOINT,
-      accountPortalUrl: DEFAULT_PORTAL_URL,
-      accountManagementUrl: null,
-    }
+function createMetadata(payload: WellKnownResponse | null | undefined, ttl: number): CustomerAccountMetadata {
+  const portalCandidate =
+    coerceUrl(payload?.account_management_url) || coerceUrl(payload?.account_url) || DEFAULT_PORTAL_URL
+  return {
+    graphqlEndpoint: ensureGraphqlEndpoint(payload?.graphql_api),
+    accountPortalUrl: portalCandidate,
+    accountManagementUrl: coerceUrl(payload?.account_management_url),
+    expiresAt: Date.now() + ttl,
   }
 }
 
-async function getCustomerAccountMetadata(options?: { refresh?: boolean }) {
-  if (options?.refresh) {
+async function fetchCustomerMetadata(): Promise<CustomerAccountMetadata> {
+  let response: Response
+  try {
+    response = await fetch(WELL_KNOWN_URL, { headers: { Accept: "application/json" } })
+  } catch (error) {
+    throw new CustomerAccountApiError("Unable to reach Shopify customer metadata endpoint", {
+      endpoint: WELL_KNOWN_URL,
+      cause: error,
+    })
+  }
+
+  const requestId = response.headers.get("x-request-id")
+  let body = ""
+  try {
+    body = await response.text()
+  } catch (error) {
+    throw new CustomerAccountApiError("Unable to read Shopify customer metadata response", {
+      endpoint: WELL_KNOWN_URL,
+      status: response.status,
+      requestId,
+      cause: error,
+    })
+  }
+
+  if (!response.ok) {
+    throw new CustomerAccountApiError(`Failed to load customer metadata (${response.status})`, {
+      endpoint: WELL_KNOWN_URL,
+      status: response.status,
+      requestId,
+      body,
+    })
+  }
+
+  let payload: WellKnownResponse | null = null
+  if (body.trim().length) {
+    try {
+      payload = JSON.parse(body) as WellKnownResponse
+    } catch (error) {
+      throw new CustomerAccountApiError("Customer metadata payload malformed", {
+        endpoint: WELL_KNOWN_URL,
+        status: response.status,
+        requestId,
+        body,
+        cause: error,
+      })
+    }
+  }
+
+  return createMetadata(payload ?? undefined, METADATA_TTL_MS)
+}
+
+async function getCustomerAccountMetadata(options?: { force?: boolean }) {
+  if (options?.force) {
     metadataCache = null
     metadataPromise = null
   }
-  if (metadataCache) return metadataCache
+
+  if (metadataCache && metadataCache.expiresAt > Date.now()) {
+    return metadataCache
+  }
+
   if (!metadataPromise) {
-    metadataPromise = loadCustomerAccountMetadata()
-      .then((meta) => {
-        metadataCache = meta
-        return meta
+    metadataPromise = fetchCustomerMetadata()
+      .catch((error) => {
+        if (typeof __DEV__ !== "undefined" && __DEV__) {
+          console.warn("[Shopify] Unable to resolve Customer Account metadata", error)
+        }
+        const ttl = error instanceof CustomerAccountApiError && error.status === 429
+          ? METADATA_ERROR_TTL_MS
+          : METADATA_TTL_MS
+        return createMetadata(undefined, ttl)
+      })
+      .then((metadata) => {
+        metadataCache = metadata
+        return metadata
       })
       .finally(() => {
         metadataPromise = null
       })
   }
+
   return metadataPromise
 }
 
-function prepareVariables(variables?: Record<string, unknown>) {
+type GraphQLResponse<T> = {
+  data?: T
+  errors?: unknown
+}
+
+type GraphQLVariables = Record<string, unknown>
+
+function sanitizeVariables(variables?: GraphQLVariables) {
   if (!variables) return undefined
-  const sanitized: Record<string, unknown> = {}
+  const sanitized: GraphQLVariables = {}
   for (const [key, value] of Object.entries(variables)) {
     if (value === undefined) continue
     sanitized[key] = value
@@ -123,105 +208,138 @@ function prepareVariables(variables?: Record<string, unknown>) {
 function normalizeGraphqlErrors(errors: unknown, rawBody: string) {
   if (!errors) return [] as string[]
 
+  const normalized: string[] = []
   if (Array.isArray(errors)) {
-    const messages = errors
-      .map((error) => {
-        if (typeof error === "string") return error
-        if (error && typeof error === "object" && "message" in error) {
-          const message = (error as { message?: unknown }).message
-          if (typeof message === "string") return message
+    for (const error of errors) {
+      if (typeof error === "string" && error.trim().length) {
+        normalized.push(error)
+      } else if (error && typeof error === "object" && "message" in error) {
+        const message = (error as { message?: unknown }).message
+        if (typeof message === "string" && message.trim().length) {
+          normalized.push(message)
         }
-        return undefined
-      })
-      .filter((message): message is string => Boolean(message && message.length))
-
-    if (messages.length) return messages
-  }
-
-  if (typeof errors === "string" && errors.length) {
-    return [errors]
-  }
-
-  if (errors && typeof errors === "object" && "message" in errors) {
+      }
+    }
+  } else if (typeof errors === "string" && errors.trim().length) {
+    normalized.push(errors)
+  } else if (errors && typeof errors === "object" && "message" in errors) {
     const message = (errors as { message?: unknown }).message
-    if (typeof message === "string" && message.length) {
-      return [message]
+    if (typeof message === "string" && message.trim().length) {
+      normalized.push(message)
     }
   }
 
-  const fallback = rawBody?.trim()
-  return fallback ? [fallback] : []
+  if (!normalized.length && rawBody.trim().length) {
+    normalized.push(rawBody.trim())
+  }
+
+  return normalized
 }
 
-async function executeCustomerAccountGraphql<T>(
-  endpoint: string,
+async function executeGraphql<T>(
+  metadata: CustomerAccountMetadata,
   accessToken: string,
   query: string,
-  variables?: Record<string, unknown>,
+  variables?: GraphQLVariables,
 ) {
   let response: Response
   try {
-    response = await fetch(endpoint, {
+    response = await fetch(metadata.graphqlEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ query, variables: prepareVariables(variables) }),
+      body: JSON.stringify({ query, variables: sanitizeVariables(variables) }),
     })
   } catch (error) {
-    throw new ShopifyError("Unable to reach Shopify Customer Account API", error)
+    throw new CustomerAccountApiError("Unable to reach Shopify Customer Account API", {
+      endpoint: metadata.graphqlEndpoint,
+      cause: error,
+    })
   }
 
+  const requestId = response.headers.get("x-request-id")
   let rawBody = ""
   try {
     rawBody = await response.text()
   } catch (error) {
-    throw new ShopifyError("Unable to read Customer Account API response", error)
+    throw new CustomerAccountApiError("Unable to read Customer Account API response", {
+      endpoint: metadata.graphqlEndpoint,
+      status: response.status,
+      requestId,
+      cause: error,
+    })
   }
 
-  let payload: GraphQLResponse<T>
-  try {
-    payload = rawBody ? (JSON.parse(rawBody) as GraphQLResponse<T>) : ({} as GraphQLResponse<T>)
-  } catch (error) {
-    throw new ShopifyError(rawBody || "Customer Account API response malformed", error)
+  let payload: GraphQLResponse<T> | null = null
+  if (rawBody.trim().length) {
+    try {
+      payload = JSON.parse(rawBody) as GraphQLResponse<T>
+    } catch (error) {
+      throw new CustomerAccountApiError("Customer Account API response malformed", {
+        endpoint: metadata.graphqlEndpoint,
+        status: response.status,
+        requestId,
+        body: rawBody,
+        cause: error,
+      })
+    }
   }
 
-  const graphQLErrors = normalizeGraphqlErrors(payload.errors, rawBody)
-  if (!response.ok || graphQLErrors.length) {
-    const message = graphQLErrors.join("; ") || `Customer Account API request failed${response.status ? ` (${response.status})` : ""}`
-    throw new CustomerAccountApiError(message, response.status, rawBody, endpoint)
+  const errors = normalizeGraphqlErrors(payload?.errors, rawBody)
+  if (!response.ok || errors.length) {
+    const message =
+      errors.length > 0
+        ? errors.join("; ")
+        : `Customer Account API request failed${response.status ? ` (${response.status})` : ""}`
+    throw new CustomerAccountApiError(message, {
+      endpoint: metadata.graphqlEndpoint,
+      status: response.status,
+      requestId,
+      body: rawBody,
+      errors,
+    })
   }
 
-  if (!payload.data) {
-    throw new ShopifyError("Customer Account API response missing data")
+  if (!payload?.data) {
+    throw new CustomerAccountApiError("Customer Account API response missing data", {
+      endpoint: metadata.graphqlEndpoint,
+      status: response.status,
+      requestId,
+      body: rawBody,
+    })
   }
 
   return payload.data
 }
 
-async function customerAccountRequest<T>(accessToken: string, query: string, variables?: Record<string, unknown>) {
+async function customerAccountGraphql<T>(
+  accessToken: string,
+  query: string,
+  variables?: GraphQLVariables,
+): Promise<T> {
   let lastError: unknown
-  for (const refresh of [false, true]) {
-    const metadata = await getCustomerAccountMetadata({ refresh })
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const metadata = await getCustomerAccountMetadata({ force: attempt > 0 })
     try {
-      return await executeCustomerAccountGraphql<T>(metadata.graphqlEndpoint, accessToken, query, variables)
+      return await executeGraphql<T>(metadata, accessToken, query, variables)
     } catch (error) {
-      if (error instanceof CustomerAccountApiError && error.status === 404 && !refresh) {
+      if (error instanceof CustomerAccountApiError && error.status === 404 && attempt === 0) {
         lastError = error
         continue
       }
       throw error
     }
   }
-  if (lastError instanceof Error) throw lastError
-  throw new ShopifyError("Customer Account API request failed")
-}
 
-export async function getCustomerAccountPortalUrl() {
-  const metadata = await getCustomerAccountMetadata()
-  return metadata.accountManagementUrl ?? metadata.accountPortalUrl ?? null
+  if (lastError instanceof Error) {
+    throw lastError
+  }
+
+  throw new ShopifyError("Customer Account API request failed")
 }
 
 function formatAddress(address: AddressNode): AddressNode {
@@ -245,25 +363,37 @@ function formatAddress(address: AddressNode): AddressNode {
   }
 }
 
-function normalizeOrder(order: OrderNode): OrderNode {
+function normalizeAddressConnection(connection?: AddressConnection | null): AddressConnection {
+  const nodes = connection?.nodes ?? []
   return {
-    ...order,
-    lineItems: {
-      nodes: order.lineItems?.nodes ?? [],
-    },
+    pageInfo: connection?.pageInfo,
+    nodes: nodes.map(formatAddress),
+  }
+}
+
+function normalizeOrdersConnection(connection?: OrdersConnection | null): OrdersConnection {
+  const nodes = connection?.nodes ?? []
+  return {
+    pageInfo: connection?.pageInfo,
+    nodes: nodes.map((order) => ({
+      ...order,
+      lineItems: {
+        nodes: order.lineItems?.nodes ?? [],
+      },
+    })),
   }
 }
 
 function assertNoUserErrors(errors?: GraphQLUserError[] | null) {
   const messages = (errors || [])
-    .map((error) => error?.message)
-    .filter((message): message is string => Boolean(message && message.length))
+    .map((error) => (typeof error?.message === "string" ? error.message.trim() : ""))
+    .filter((message) => message.length)
   if (messages.length) {
     throw new ShopifyError(messages.join("; "))
   }
 }
 
-function toCustomerAddressInput(address: MailingAddressInput) {
+function toCustomerAddressInput(address: MailingAddressInput): CustomerAddressInput {
   return {
     firstName: address.firstName ?? undefined,
     lastName: address.lastName ?? undefined,
@@ -278,8 +408,6 @@ function toCustomerAddressInput(address: MailingAddressInput) {
   }
 }
 
-// Keep the Customer Account API document strings in sync with
-// lib/shopify/queries/customerAccount.graphql so tooling and codegen remain accurate.
 const CUSTOMER_ACCOUNT_ADDRESS_FRAGMENT = /* GraphQL */ `
   fragment CustomerAccountAddress on MailingAddress {
     id
@@ -323,7 +451,12 @@ const CUSTOMER_ACCOUNT_ORDER_FRAGMENT = /* GraphQL */ `
 const CUSTOMER_ACCOUNT_OVERVIEW_QUERY = /* GraphQL */ `
   ${CUSTOMER_ACCOUNT_ADDRESS_FRAGMENT}
   ${CUSTOMER_ACCOUNT_ORDER_FRAGMENT}
-  query CustomerAccountOverview($ordersFirst: Int = 20, $ordersAfter: String) {
+  query CustomerAccountOverview(
+    $addressesFirst: Int = 10
+    $addressesAfter: String
+    $ordersFirst: Int = 20
+    $ordersAfter: String
+  ) {
     customer {
       id
       displayName
@@ -333,8 +466,14 @@ const CUSTOMER_ACCOUNT_OVERVIEW_QUERY = /* GraphQL */ `
         emailAddress
       }
       phone
-      addresses {
-        ...CustomerAccountAddress
+      addresses(first: $addressesFirst, after: $addressesAfter) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          ...CustomerAccountAddress
+        }
       }
       orders(first: $ordersFirst, after: $ordersAfter) {
         pageInfo {
@@ -368,11 +507,17 @@ const CUSTOMER_ACCOUNT_ORDERS_QUERY = /* GraphQL */ `
 
 const CUSTOMER_ACCOUNT_ADDRESSES_QUERY = /* GraphQL */ `
   ${CUSTOMER_ACCOUNT_ADDRESS_FRAGMENT}
-  query CustomerAccountAddresses {
+  query CustomerAccountAddresses($first: Int = 20, $after: String) {
     customer {
       id
-      addresses {
-        ...CustomerAccountAddress
+      addresses(first: $first, after: $after) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          ...CustomerAccountAddress
+        }
       }
     }
   }
@@ -444,9 +589,11 @@ const CUSTOMER_ACCOUNT_ADDRESS_DELETE_MUTATION = /* GraphQL */ `
 const CUSTOMER_ACCOUNT_ADDRESS_SET_DEFAULT_MUTATION = /* GraphQL */ `
   ${CUSTOMER_ACCOUNT_ADDRESS_FRAGMENT}
   mutation CustomerAccountAddressSetDefault($id: ID!) {
-    customerAddressUpdate(id: $id, input: { isDefault: true }) {
-      customerAddress {
-        ...CustomerAccountAddress
+    customerDefaultAddressUpdate(addressId: $id) {
+      customer {
+        defaultAddress {
+          ...CustomerAccountAddress
+        }
       }
       userErrors {
         field
@@ -456,14 +603,42 @@ const CUSTOMER_ACCOUNT_ADDRESS_SET_DEFAULT_MUTATION = /* GraphQL */ `
   }
 `
 
-export async function getCustomerAccountOverview(
-  accessToken: string,
-  options?: { ordersFirst?: number; ordersAfter?: string | null },
-) {
+type RawCustomerOverviewResult = {
+  customer?: {
+    id: string
+    displayName?: string | null
+    firstName?: string | null
+    lastName?: string | null
+    emailAddress?: { emailAddress?: string | null } | null
+    phone?: string | null
+    addresses?: AddressConnection | null
+    orders?: OrdersConnection | null
+  } | null
+}
+
+type RawCustomerOrdersResult = {
+  customer?: {
+    orders?: OrdersConnection | null
+  } | null
+}
+
+type RawCustomerAddressesResult = {
+  customer?: {
+    id: string
+    addresses?: AddressConnection | null
+  } | null
+}
+
+export async function getCustomerAccountPortalUrl() {
+  const metadata = await getCustomerAccountMetadata()
+  return metadata.accountManagementUrl ?? metadata.accountPortalUrl ?? null
+}
+
+export async function getCustomerAccountOverview(accessToken: string): Promise<CustomerOverviewResult> {
   const result = await callShopify(() =>
-    customerAccountRequest<CustomerOverviewResult>(accessToken, CUSTOMER_ACCOUNT_OVERVIEW_QUERY, {
-      ordersFirst: options?.ordersFirst ?? 20,
-      ordersAfter: options?.ordersAfter ?? undefined,
+    customerAccountGraphql<RawCustomerOverviewResult>(accessToken, CUSTOMER_ACCOUNT_OVERVIEW_QUERY, {
+      addressesFirst: 10,
+      ordersFirst: 20,
     }),
   )
 
@@ -471,30 +646,27 @@ export async function getCustomerAccountOverview(
     throw new ShopifyError("Customer not found")
   }
 
-  const addresses = (result.customer.addresses ?? []).map(formatAddress)
-  const ordersConnection = result.customer.orders
-  const orders = ordersConnection
-    ? {
-        ...ordersConnection,
-        nodes: (ordersConnection.nodes ?? []).map(normalizeOrder),
-      }
-    : { nodes: [] as OrderNode[], pageInfo: undefined }
-
+  const addressesConnection = normalizeAddressConnection(result.customer.addresses)
+  const ordersConnection = normalizeOrdersConnection(result.customer.orders)
   const portal = await getCustomerAccountPortalUrl()
 
   return {
     customer: {
       ...result.customer,
-      addresses,
-      orders,
+      addresses: addressesConnection.nodes,
+      addressesConnection,
+      orders: ordersConnection,
     },
     customerAccountUrl: portal,
   }
 }
 
-export async function getCustomerOrders(accessToken: string, variables: { first: number; after?: string | null }) {
+export async function getCustomerOrders(
+  accessToken: string,
+  variables: { first: number; after?: string | null },
+): Promise<CustomerOrdersResult> {
   const result = await callShopify(() =>
-    customerAccountRequest<CustomerOrdersResult>(accessToken, CUSTOMER_ACCOUNT_ORDERS_QUERY, {
+    customerAccountGraphql<RawCustomerOrdersResult>(accessToken, CUSTOMER_ACCOUNT_ORDERS_QUERY, {
       first: variables.first,
       after: variables.after ?? undefined,
     }),
@@ -504,52 +676,55 @@ export async function getCustomerOrders(accessToken: string, variables: { first:
     throw new ShopifyError("Customer not found")
   }
 
-  const ordersConnection = result.customer.orders
-  const nodes = ordersConnection?.nodes ?? []
+  const ordersConnection = normalizeOrdersConnection(result.customer.orders)
 
   return {
     customer: {
       ...result.customer,
-      orders: {
-        nodes: nodes.map(normalizeOrder),
-        pageInfo: ordersConnection?.pageInfo,
-      },
+      orders: ordersConnection,
     },
   }
 }
 
-export async function getCustomerAddresses(accessToken: string) {
+export async function getCustomerAddresses(accessToken: string, options?: { first?: number; after?: string | null }) {
   const result = await callShopify(() =>
-    customerAccountRequest<CustomerAddressesResult>(accessToken, CUSTOMER_ACCOUNT_ADDRESSES_QUERY),
+    customerAccountGraphql<RawCustomerAddressesResult>(accessToken, CUSTOMER_ACCOUNT_ADDRESSES_QUERY, {
+      first: options?.first ?? 50,
+      after: options?.after ?? undefined,
+    }),
   )
 
   if (!result.customer) {
     throw new ShopifyError("Customer not found")
   }
 
-  return {
+  const addressesConnection = normalizeAddressConnection(result.customer.addresses)
+
+  const payload: CustomerAddressesResult = {
     customer: {
-      ...result.customer,
-      addresses: (result.customer.addresses ?? []).map(formatAddress),
+      id: result.customer.id,
+      addresses: addressesConnection.nodes,
+      addressesConnection,
     },
   }
+
+  return payload
 }
 
 export async function updateCustomerProfile(accessToken: string, input: CustomerUpdateInput) {
-  const payloadInput: Record<string, unknown> = {}
-  if (input.email !== undefined) payloadInput.email = input.email
-  if (input.firstName !== undefined) payloadInput.firstName = input.firstName
-  if (input.lastName !== undefined) payloadInput.lastName = input.lastName
-  if (input.phone !== undefined) payloadInput.phone = input.phone
+  const variables: Record<string, unknown> = {}
+  if (input.email !== undefined) variables.email = input.email
+  if (input.firstName !== undefined) variables.firstName = input.firstName
+  if (input.lastName !== undefined) variables.lastName = input.lastName
+  if (input.phone !== undefined) variables.phone = input.phone
 
   const result = await callShopify(() =>
-    customerAccountRequest<CustomerUpdateMutationPayload>(accessToken, CUSTOMER_ACCOUNT_UPDATE_MUTATION, {
-      input: payloadInput,
+    customerAccountGraphql<CustomerUpdateResult>(accessToken, CUSTOMER_ACCOUNT_UPDATE_MUTATION, {
+      input: variables,
     }),
   )
 
   const payload = result.customerUpdate
-
   if (!payload) {
     throw new ShopifyError("Unable to update profile")
   }
@@ -560,9 +735,9 @@ export async function updateCustomerProfile(accessToken: string, input: Customer
 
 export async function createCustomerAddress(accessToken: string, address: MailingAddressInput) {
   const result = await callShopify(() =>
-    customerAccountRequest<{
-      customerAddressCreate?: { customerAddress?: AddressNode | null; userErrors?: GraphQLUserError[] | null }
-    }>(accessToken, CUSTOMER_ACCOUNT_ADDRESS_CREATE_MUTATION, { input: toCustomerAddressInput(address) }),
+    customerAccountGraphql<CustomerAddressCreateResult>(accessToken, CUSTOMER_ACCOUNT_ADDRESS_CREATE_MUTATION, {
+      input: toCustomerAddressInput(address),
+    }),
   )
 
   const payload = result.customerAddressCreate
@@ -576,9 +751,10 @@ export async function createCustomerAddress(accessToken: string, address: Mailin
 
 export async function updateCustomerAddress(accessToken: string, id: string, address: MailingAddressInput) {
   const result = await callShopify(() =>
-    customerAccountRequest<{
-      customerAddressUpdate?: { customerAddress?: AddressNode | null; userErrors?: GraphQLUserError[] | null }
-    }>(accessToken, CUSTOMER_ACCOUNT_ADDRESS_UPDATE_MUTATION, { id, input: toCustomerAddressInput(address) }),
+    customerAccountGraphql<CustomerAddressUpdateResult>(accessToken, CUSTOMER_ACCOUNT_ADDRESS_UPDATE_MUTATION, {
+      id,
+      input: toCustomerAddressInput(address),
+    }),
   )
 
   const payload = result.customerAddressUpdate
@@ -592,9 +768,9 @@ export async function updateCustomerAddress(accessToken: string, id: string, add
 
 export async function deleteCustomerAddress(accessToken: string, id: string) {
   const result = await callShopify(() =>
-    customerAccountRequest<{
-      customerAddressDelete?: { deletedCustomerAddressId?: string | null; userErrors?: GraphQLUserError[] | null }
-    }>(accessToken, CUSTOMER_ACCOUNT_ADDRESS_DELETE_MUTATION, { id }),
+    customerAccountGraphql<CustomerAddressDeleteResult>(accessToken, CUSTOMER_ACCOUNT_ADDRESS_DELETE_MUTATION, {
+      id,
+    }),
   )
 
   const payload = result.customerAddressDelete
@@ -608,16 +784,19 @@ export async function deleteCustomerAddress(accessToken: string, id: string) {
 
 export async function setDefaultCustomerAddress(accessToken: string, addressId: string) {
   const result = await callShopify(() =>
-    customerAccountRequest<{
-      customerAddressUpdate?: { customerAddress?: AddressNode | null; userErrors?: GraphQLUserError[] | null }
-    }>(accessToken, CUSTOMER_ACCOUNT_ADDRESS_SET_DEFAULT_MUTATION, { id: addressId }),
+    customerAccountGraphql<CustomerDefaultAddressUpdateResult>(
+      accessToken,
+      CUSTOMER_ACCOUNT_ADDRESS_SET_DEFAULT_MUTATION,
+      { id: addressId },
+    ),
   )
 
-  const payload = result.customerAddressUpdate
+  const payload = result.customerDefaultAddressUpdate
   if (!payload) {
     throw new ShopifyError("Unable to update default address")
   }
 
   assertNoUserErrors(payload.userErrors)
-  return payload.customerAddress ? formatAddress(payload.customerAddress) : null
+  const defaultAddress = payload.customer?.defaultAddress
+  return defaultAddress ? formatAddress({ ...defaultAddress, isDefault: true }) : null
 }
