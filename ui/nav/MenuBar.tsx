@@ -3,8 +3,8 @@ import { useDrawer } from "@/features/navigation/drawerContext"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { router, usePathname } from "expo-router"
 import { ChevronLeft, Menu, Search, ShoppingBag, User2 } from "lucide-react-native"
-import { DeviceEventEmitter, Image, Text, View } from "react-native"
 import { useEffect, useRef } from "react"
+import { DeviceEventEmitter, Image, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 type Props = {
@@ -85,7 +85,7 @@ export function MenuBar({ variant = "light", floating = false, scrim = 0, back =
         <View className="flex-row items-center gap-4">
           <Icon
             onPress={() => {
-              router.push("/account" as any)
+              console.log("go to account")
             }}
           >
             <User2 size={22} color={color} />
