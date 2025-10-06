@@ -1,0 +1,34 @@
+query CustomerOverviewLite {
+  customer {
+    id
+    firstName
+    lastName
+    emailAddress {
+      emailAddress
+    }
+    orders(first: 5, reverse: true) {
+      nodes {
+        id
+        name
+        processedAt
+        currentTotalPrice {
+          amount
+          currencyCode
+        }
+      }
+    }
+    addresses(first: 8) {
+      nodes {
+        id
+        firstName
+        lastName
+        city
+        countryCode
+        address1
+        address2
+        zip
+        provinceCode
+      }
+    }
+  }
+}

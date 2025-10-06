@@ -230,6 +230,27 @@ const { data: recommended } = useRecommendedProducts(product.id)
 
 ---
 
+## 📱 Mobile – Customer Account Auth (PKCE)
+
+### Required environment variables
+
+- `EXPO_PUBLIC_SHOPIFY_DOMAIN`
+- `EXPO_PUBLIC_SHOPIFY_SHOP_ID`
+- `EXPO_PUBLIC_SHOPIFY_CUSTOMER_CLIENT_ID`
+
+### How to test the login flow
+
+1. Ensure the variables above are set and rebuild the development client if they change.
+2. Open the account tab (avatar icon) and tap **Log in with Shopify**.
+3. Complete the Shopify Customer Account login and wait for the redirect back to the app.
+4. Verify profile, orders, and address data load; pull-to-refresh to confirm silent token refresh.
+
+### Resetting the session
+
+- Use the **Log out** button on the account home screen, or run `pnpm reset-project` during development to clear MMKV storage.
+
+---
+
 ## ✅ Final Summary
 
 You’ve built:

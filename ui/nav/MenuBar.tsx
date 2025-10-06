@@ -1,4 +1,5 @@
 import { useCartQuery } from "@/features/cart/api"
+import { useCustomerSession } from "@/lib/shopify/customer/hooks"
 import { useDrawer } from "@/features/navigation/drawerContext"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { router, usePathname } from "expo-router"
@@ -16,6 +17,8 @@ type Props = {
 
 export function MenuBar({ variant = "light", floating = false, scrim = 0, back = false }: Props) {
   const { toggle } = useDrawer()
+  const { status: sessionStatus } = useCustomerSession()
+  const isAuthenticated = sessionStatus === "authenticated"
   const color = variant === "dark" ? "#f8f8f8" : "#1e1e1e"
   const pathname = usePathname()
 
@@ -84,11 +87,15 @@ export function MenuBar({ variant = "light", floating = false, scrim = 0, back =
         {/* right group */}
         <View className="flex-row items-center gap-4">
           <Icon
-            onPress={() => {
-              console.log("go to account")
-            }}
+            onPress={() => router.push("/account" as const)}
+            accessibilityLabel={isAuthenticated ? "View account" : "Log in"}
           >
-            <User2 size={22} color={color} />
+            <View>
+              <User2 size={22} color={color} />
+              {isAuthenticated ? (
+                <View className="absolute -right-1 -top-1 h-[10px] w-[10px] rounded-full bg-brand" accessibilityElementsHidden />
+              ) : null}
+            </View>
           </Icon>
           <CartIcon color={color} />
         </View>
@@ -97,9 +104,21 @@ export function MenuBar({ variant = "light", floating = false, scrim = 0, back =
   )
 }
 
-export function Icon({ children, onPress }: { children: React.ReactNode; onPress?: () => void }) {
+export function Icon({
+  children,
+  onPress,
+  accessibilityLabel,
+}: {
+  children: React.ReactNode
+  onPress?: () => void
+  accessibilityLabel?: string
+}) {
   return (
-    <PressableOverlay onPress={onPress} className="h-10 w-10 items-center justify-center rounded-2xl">
+    <PressableOverlay
+      onPress={onPress}
+      accessibilityLabel={accessibilityLabel}
+      className="h-10 w-10 items-center justify-center rounded-2xl"
+    >
       {children}
     </PressableOverlay>
   )

@@ -1,4 +1,5 @@
 import { useCartQuery, useEnsureCart, useSyncCartChanges, useUpdateDiscountCodes } from "@/features/cart/api"
+import { useCustomerSession } from "@/lib/shopify/customer/hooks"
 import { convertAmount } from "@/features/currency/rates"
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { usePrefs } from "@/store/prefs"
@@ -31,6 +32,7 @@ export default function CartScreen() {
   const insets = useSafeAreaInsets()
   const { currency: prefCurrencyState } = usePrefs()
   const { show } = useToast()
+  const { status: customerStatus } = useCustomerSession()
 
   // Ensure there is a cart as early as possible (for codes, etc.)
   const ensure = useEnsureCart()
@@ -144,8 +146,9 @@ export default function CartScreen() {
     await flush()
     const url = cart?.checkoutUrl
     if (!url) return Alert.alert("Checkout unavailable", "Missing checkout URL")
-    router.push({ pathname: "/checkout", params: { url } } as any)
-  }, [cart?.checkoutUrl, flush])
+    const finalUrl = customerStatus === "authenticated" ? setQueryParam(url, "logged_in", "true") : url
+    router.push({ pathname: "/checkout", params: { url: finalUrl } } as any)
+  }, [cart?.checkoutUrl, customerStatus, flush])
 
   const onDelete = useCallback(
     (lineId: string) => {
@@ -571,4 +574,20 @@ type LineNode = {
 function n(x: unknown, fallback = 0): number {
   const v = Number(x)
   return Number.isFinite(v) ? v : fallback
+}
+
+function setQueryParam(url: string, key: string, value: string): string {
+  try {
+    const parsed = new URL(url)
+    parsed.searchParams.set(key, value)
+    return parsed.toString()
+  } catch {
+    const hasQuery = url.includes("?")
+    const encoded = encodeURIComponent(value)
+    const pattern = new RegExp(`([?&])${key}=[^&]*`)
+    if (pattern.test(url)) {
+      return url.replace(pattern, `$1${key}=${encoded}`)
+    }
+    return `${url}${hasQuery ? "&" : "?"}${key}=${encoded}`
+  }
 }
