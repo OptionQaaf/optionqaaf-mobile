@@ -4,7 +4,7 @@ import { getCustomerApiEndpoint } from "@/lib/shopify/customer/discovery"
 import { SHOPIFY_DOMAIN, SHOPIFY_SHOP_ID } from "@/lib/shopify/env"
 
 export class CustomerApiError extends Error {
-  constructor(message: string, public status?: number, public cause?: unknown) {
+  constructor(message: string, public status?: number, public cause?: unknown, public invalidToken?: boolean) {
     super(message)
     this.name = "CustomerApiError"
   }
@@ -86,6 +86,27 @@ function logCostExtensions(extensions: any) {
   }
 }
 
+function detectInvalidToken(
+  status: number | undefined,
+  errors: GraphQLErrorShape[] | undefined,
+  message: string | undefined,
+): boolean {
+  if (status === 401) return true
+  if (Array.isArray(errors)) {
+    for (const entry of errors) {
+      const code = String(entry?.extensions?.code ?? "").toUpperCase()
+      if (code === "UNAUTHORIZED" || code === "INVALID_TOKEN" || code === "TOKEN_INVALID") return true
+      const msg = String(entry?.message ?? "").toLowerCase()
+      if (msg.includes("invalid token") || msg.includes("invalid_token")) return true
+    }
+  }
+  if (typeof message === "string") {
+    const lower = message.toLowerCase()
+    if (lower.includes("invalid token") || lower.includes("invalid_token")) return true
+  }
+  return false
+}
+
 type RawResult<T> = { data: T; extensions?: any }
 
 export async function callCustomerApi<T>(fn: () => Promise<RawResult<T>>): Promise<T> {
@@ -103,7 +124,9 @@ export async function callCustomerApi<T>(fn: () => Promise<RawResult<T>>): Promi
       if (throttled) throw { throttled: true, error, retryAfter }
       const duration = Date.now() - start
       const status = error?.response?.status ?? error?.status
-      const details = error?.response?.errors?.map((e: any) => e.message).join("; ") || error?.message
+      const responseErrors: GraphQLErrorShape[] | undefined = error?.response?.errors
+      const details = responseErrors?.map((e: any) => e.message).filter(Boolean).join("; ") || error?.message
+      const invalidToken = detectInvalidToken(status, responseErrors, details)
       if (typeof __DEV__ !== "undefined" && __DEV__) {
         console.warn(
           `[ShopifyCustomer] failed in ${duration}ms${status ? ` (${status})` : ""}: ${details || "Customer API request failed"}`,
@@ -122,7 +145,7 @@ export async function callCustomerApi<T>(fn: () => Promise<RawResult<T>>): Promi
           if (body) console.warn("[CustomerAPI] 404 body", body)
         }
       }
-      throw new CustomerApiError(details || "Customer API request failed", status, error)
+      throw new CustomerApiError(details || "Customer API request failed", status, error, invalidToken)
     }
   }
 

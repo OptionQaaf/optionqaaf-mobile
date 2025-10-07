@@ -68,7 +68,7 @@ export function getCustomerApiConfigOverride(): CustomerApiConfig | null {
 
 type CachedEntry<T> = { value: T; expiresAt: number }
 
-const CUSTOMER_ENDPOINT_CACHE_KEY = "customerAccount.api.endpoint"
+const CUSTOMER_ENDPOINT_CACHE_KEY = "customerAccount.api.endpoint:v1"
 const CUSTOMER_ENDPOINT_TTL = 24 * 60 * 60 * 1000
 
 export async function getCustomerApiEndpoint(): Promise<string> {

@@ -11,6 +11,7 @@ import {
   SHOPIFY_DOMAIN,
 } from "@/lib/shopify/env"
 import { kv } from "@/lib/storage/mmkv"
+import { secureKv } from "@/lib/storage/secureKv"
 import { qk } from "@/lib/shopify/queryKeys"
 import {
   SHOPIFY_CUSTOMER_SCOPES,
@@ -117,27 +118,33 @@ export type CustomerOverview = z.infer<typeof customerOverviewSchema>["customer"
 let inMemoryTokens: StoredTokens | null = null
 let refreshPromise: Promise<StoredTokens> | null = null
 
-function readTokens(): StoredTokens | null {
+async function readTokens(): Promise<StoredTokens | null> {
   if (inMemoryTokens) return inMemoryTokens
-  const raw = kv.get(TOKEN_KEY)
+  let raw: string | null
+  try {
+    raw = await secureKv.get(TOKEN_KEY)
+  } catch {
+    raw = kv.get(TOKEN_KEY) ?? null
+  }
   if (!raw) return null
   try {
     const parsed = storedTokenSchema.parse(JSON.parse(raw))
     inMemoryTokens = parsed
     return parsed
   } catch {
-    kv.del(TOKEN_KEY)
+    await secureKv.del(TOKEN_KEY)
+    inMemoryTokens = null
     return null
   }
 }
 
-function persistTokens(tokens: StoredTokens | null) {
+async function persistTokens(tokens: StoredTokens | null) {
   inMemoryTokens = tokens
   if (!tokens) {
-    kv.del(TOKEN_KEY)
+    await secureKv.del(TOKEN_KEY)
     return
   }
-  kv.set(TOKEN_KEY, JSON.stringify(tokens))
+  await secureKv.set(TOKEN_KEY, JSON.stringify(tokens))
 }
 
 function persistPending(pending: PendingAuth | null) {
@@ -157,10 +164,17 @@ function alreadyExpired(tokens: StoredTokens): boolean {
   return Date.now() >= tokens.expiryEpoch
 }
 
-async function ensureFreshTokens(current: StoredTokens): Promise<StoredTokens | null> {
-  if (!refreshEligible(current)) {
+async function ensureFreshTokens(current: StoredTokens, force = false): Promise<StoredTokens | null> {
+  if (!force && !refreshEligible(current)) {
     if (alreadyExpired(current)) {
-      persistTokens(null)
+      await persistTokens(null)
+      return null
+    }
+    return current
+  }
+  if (!current.refreshToken) {
+    if (force) {
+      await persistTokens(null)
       return null
     }
     return current
@@ -183,10 +197,10 @@ async function ensureFreshTokens(current: StoredTokens): Promise<StoredTokens | 
         expiryEpoch: issuedAt + refreshed.expiresIn * 1000,
         shopDomain: current.shopDomain,
       }
-      persistTokens(next)
+      await persistTokens(next)
       return next
     } catch (error) {
-      persistTokens(null)
+      await persistTokens(null)
       throw error
     } finally {
       refreshPromise = null
@@ -200,19 +214,11 @@ async function ensureFreshTokens(current: StoredTokens): Promise<StoredTokens | 
 }
 
 async function loadSession(): Promise<CustomerSessionState> {
-  const existing = readTokens()
+  const existing = await readTokens()
   if (!existing) return { status: "unauthenticated" }
   const fresh = await ensureFreshTokens(existing)
   if (!fresh) return { status: "unauthenticated" }
   return { status: "authenticated", tokens: fresh }
-}
-
-function isInvalidTokenError(error: CustomerApiError): boolean {
-  const causeErrors: any[] | undefined = (error.cause as any)?.response?.errors
-  if (Array.isArray(causeErrors) && causeErrors.some((e) => typeof e?.message === "string" && e.message.includes("invalid_token"))) {
-    return true
-  }
-  return typeof error.message === "string" && error.message.toLowerCase().includes("invalid_token")
 }
 
 export async function getCustomerOverviewData(tokens: StoredTokens): Promise<CustomerOverview | null> {
@@ -221,33 +227,9 @@ export async function getCustomerOverviewData(tokens: StoredTokens): Promise<Cus
   const exec = (headers?: Record<string, string>) =>
     callCustomerApi(() => client.rawRequest(CUSTOMER_OVERVIEW_QUERY, undefined, headers))
 
-  try {
-    const data = await exec()
-    const parsed = customerOverviewSchema.parse(data)
-    return parsed.customer ?? null
-  } catch (error) {
-    if (error instanceof CustomerApiError && error.status === 401 && isInvalidTokenError(error)) {
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.warn("[CustomerAPI] retrying with Bearer token header after invalid_token")
-      }
-      const bearerHeaders = { Authorization: `Bearer ${tokens.accessToken}` }
-      try {
-        const data = await exec(bearerHeaders)
-        client.setHeader("Authorization", bearerHeaders.Authorization)
-        if (typeof __DEV__ !== "undefined" && __DEV__) {
-          console.log("[CustomerAPI] Bearer retry succeeded")
-        }
-        const parsed = customerOverviewSchema.parse(data)
-        return parsed.customer ?? null
-      } catch (retryError) {
-        throw retryError
-      }
-    }
-    if (error instanceof CustomerApiError && error.status === 404) {
-      throw error
-    }
-    throw error
-  }
+  const data = await exec()
+  const parsed = customerOverviewSchema.parse(data)
+  return parsed.customer ?? null
 }
 
 export async function prefetchCustomer(_: QueryClient, __?: StoredTokens | null) {}
@@ -285,10 +267,10 @@ export function useCustomerSession(): UseCustomerSessionResult {
       } catch (error) {
         if (
           error instanceof CustomerApiError &&
-          (error.status === 401 || error.status === 404) &&
+          (error.status === 401 || error.invalidToken === true) &&
           session.data.tokens.refreshToken
         ) {
-          const refreshed = await ensureFreshTokens(session.data.tokens)
+          const refreshed = await ensureFreshTokens(session.data.tokens, true)
           if (!refreshed) throw error
           await qc.setQueryData(qk.customerSession(), { status: "authenticated", tokens: refreshed })
           return getCustomerOverviewData(refreshed)
@@ -309,26 +291,26 @@ export function useCustomerSession(): UseCustomerSessionResult {
   })
 
   const refresh = useCallback(async () => {
-    const current = readTokens()
+    const current = await readTokens()
     if (!current) {
-      persistTokens(null)
+      await persistTokens(null)
       await qc.invalidateQueries({ queryKey: qk.customerSession() as any })
       return
     }
     const refreshed = await ensureFreshTokens(current)
     if (!refreshed) {
-      persistTokens(null)
+      await persistTokens(null)
     }
     await qc.invalidateQueries({ queryKey: qk.customerSession() as any })
     await qc.invalidateQueries({ queryKey: qk.customerOverview() as any, refetchType: "none" })
   }, [qc])
 
   const logout = useCallback(async () => {
-    const tokens = readTokens()
+    const tokens = await readTokens()
     if (tokens?.idToken) {
       await logoutRemote({ idToken: tokens.idToken, shopDomain: tokens.shopDomain })
     }
-    persistTokens(null)
+    await persistTokens(null)
     await qc.invalidateQueries({ queryKey: qk.customerSession() as any })
     await qc.removeQueries({ queryKey: qk.customerOverview() as any })
   }, [qc])
@@ -451,7 +433,7 @@ export function useLogin() {
           expiryEpoch: issuedAt + tokens.expiresIn * 1000,
           shopDomain,
         }
-        persistTokens(stored)
+        await persistTokens(stored)
         tokensSaved = true
 
         await qc.invalidateQueries({ queryKey: qk.customerSession() as any })
@@ -461,7 +443,7 @@ export function useLogin() {
         const cached = qc.getQueryData<CustomerOverview | null>(qk.customerOverview()) ?? null
         return { customer: cached }
       } catch (error) {
-        if (!tokensSaved) persistTokens(null)
+        if (!tokensSaved) await persistTokens(null)
         let message = error instanceof Error ? error.message : "Login failed"
         if (
           error instanceof CustomerAuthError ||

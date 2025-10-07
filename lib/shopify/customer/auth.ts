@@ -69,8 +69,7 @@ type RetryableError = Error & { status?: number }
 const authCache = new Map<string, AuthDiscovery>()
 const customerApiCache = new Map<string, CustomerApiDiscovery>()
 const DISCOVERY_TTL_MS = 24 * 60 * 60 * 1000
-const AUTH_DISCOVERY_KEY = "customer.discovery.auth"
-const CUSTOMER_DISCOVERY_KEY = "customer.discovery.customerApi"
+const AUTH_DISCOVERY_KEY = "customer.discovery.auth:v1"
 
 const SHOP_DOMAIN = sanitizeShopDomain(SHOPIFY_DOMAIN)
 
@@ -296,8 +295,8 @@ function writeDiscovery<T>(key: string, value: T) {
 export async function getAuthDiscoveryCached(shopDomain: string = SHOP_DOMAIN): Promise<AuthDiscovery> {
   const key = sanitizeShopDomain(shopDomain)
   const override = getOpenIdConfigOverride()
-  if (!loggedOpenIdOverrideUsage && typeof __DEV__ !== "undefined" && __DEV__) {
-    console.log("[CustomerAuth] Using overrides for OpenID:", Boolean(override))
+  if (override && !loggedOpenIdOverrideUsage && typeof __DEV__ !== "undefined" && __DEV__) {
+    console.log("[CustomerAuth] Using overrides for OpenID")
     loggedOpenIdOverrideUsage = true
   }
   if (override) {
@@ -351,8 +350,8 @@ export async function getAuthDiscoveryCached(shopDomain: string = SHOP_DOMAIN): 
 export async function getCustomerApiDiscoveryCached(shopDomain: string = SHOP_DOMAIN): Promise<CustomerApiDiscovery> {
   const key = sanitizeShopDomain(shopDomain)
   const override = getCustomerApiConfigOverride()
-  if (!loggedCustomerOverrideUsage && typeof __DEV__ !== "undefined" && __DEV__) {
-    console.log("[CustomerAuth] Using overrides for Customer API:", Boolean(override))
+  if (override && !loggedCustomerOverrideUsage && typeof __DEV__ !== "undefined" && __DEV__) {
+    console.log("[CustomerAuth] Using overrides for Customer API")
     loggedCustomerOverrideUsage = true
   }
   if (override) {
@@ -555,17 +554,51 @@ export function decodeJwtPayload<T = Record<string, unknown>>(token: string): T 
     const payload = parts[1]
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/")
     const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=")
-    const decoded = globalThis.atob ? globalThis.atob(padded) : decodeBase64(padded)
+    const decoded = decodeBase64(padded)
     return JSON.parse(decoded) as T
   } catch {
     return null
   }
 }
 
+const BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+const BASE64_LOOKUP = (() => {
+  const table = new Uint8Array(256)
+  table.fill(255)
+  for (let i = 0; i < BASE64_ALPHABET.length; i += 1) {
+    table[BASE64_ALPHABET.charCodeAt(i)] = i
+  }
+  return table
+})()
+
 function decodeBase64(input: string): string {
-  if (typeof Buffer !== "undefined") return Buffer.from(input, "base64").toString("utf-8")
-  const binary = globalThis.atob ? globalThis.atob(input) : ""
-  return binary
+  let buffer = 0
+  let bitsCollected = 0
+  let output = ""
+
+  for (let i = 0; i < input.length; i += 1) {
+    const charCode = input.charCodeAt(i)
+    const value = BASE64_LOOKUP[charCode]
+
+    if (value === 255) {
+      if (input[i] === "=") {
+        break
+      }
+      continue
+    }
+
+    buffer = (buffer << 6) | value
+    bitsCollected += 6
+
+    if (bitsCollected >= 8) {
+      bitsCollected -= 8
+      const byte = (buffer >> bitsCollected) & 0xff
+      output += String.fromCharCode(byte)
+      buffer &= (1 << bitsCollected) - 1
+    }
+  }
+
+  return output
 }
 
 export const SHOPIFY_CUSTOMER_SCOPES = "openid email customer-account-api:full"

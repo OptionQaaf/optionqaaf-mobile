@@ -582,12 +582,16 @@ function setQueryParam(url: string, key: string, value: string): string {
     parsed.searchParams.set(key, value)
     return parsed.toString()
   } catch {
-    const hasQuery = url.includes("?")
+    const [base, fragment] = url.split("#", 2)
+    const hasQuery = base.includes("?")
     const encoded = encodeURIComponent(value)
     const pattern = new RegExp(`([?&])${key}=[^&]*`)
-    if (pattern.test(url)) {
-      return url.replace(pattern, `$1${key}=${encoded}`)
+    let nextBase = base
+    if (pattern.test(base)) {
+      nextBase = base.replace(pattern, `$1${key}=${encoded}`)
+    } else {
+      nextBase = `${base}${hasQuery ? "&" : "?"}${key}=${encoded}`
     }
-    return `${url}${hasQuery ? "&" : "?"}${key}=${encoded}`
+    return fragment !== undefined ? `${nextBase}#${fragment}` : nextBase
   }
 }
