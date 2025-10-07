@@ -1,6 +1,6 @@
 import { getShopifyCustomerConfig, sanitizeShopDomain } from "./config"
 import { getCustomerApiConfig } from "./discovery"
-import { GraphQLErrorWithStatus } from "./errors"
+import { CustomerApiError } from "./errors"
 import type { CustomerApiConfig } from "./types"
 import { getValidAccessToken, setGraphqlEndpointForSession, updateStoredCustomerSession } from "./tokens"
 
@@ -49,7 +49,11 @@ async function performRequest<T>(
   return { response, body }
 }
 
-function buildGraphQLError<T>(endpoint: string, response: Response, body: GraphQLResponse<T>): GraphQLErrorWithStatus {
+function buildGraphQLError<T>(
+  endpoint: string,
+  response: Response,
+  body: GraphQLResponse<T>,
+): CustomerApiError {
   const status = response.status
   const message =
     body.errors
@@ -59,7 +63,7 @@ function buildGraphQLError<T>(endpoint: string, response: Response, body: GraphQ
     (status === 404
       ? "Customer Accounts not enabled for this shop or misconfigured sales channel. Please verify Admin → Settings → Customer accounts is ON, and Headless/Hydrogen sales channel Customer Account API is configured. Also ensure you used the discovered GraphQL endpoint."
       : `Customer GraphQL request failed (${status})`)
-  return new GraphQLErrorWithStatus(message, status, body.errors, endpoint)
+  return new CustomerApiError(message, status, body.errors, endpoint)
 }
 
 export async function createCustomerGraphQLClient(rawShopDomain?: string): Promise<CustomerGraphQLClient> {
@@ -77,7 +81,7 @@ export async function createCustomerGraphQLClient(rawShopDomain?: string): Promi
 
   async function execute<T, V>(operationName: string, query: string, variables?: V): Promise<T> {
     let attempt = 0
-    let lastError: GraphQLErrorWithStatus | null = null
+    let lastError: CustomerApiError | null = null
     let endpoint = discovery?.graphqlApi || (await ensureDiscovery()).graphqlApi
 
     while (attempt < 3) {
@@ -116,7 +120,7 @@ export async function createCustomerGraphQLClient(rawShopDomain?: string): Promi
     }
 
     if (lastError) throw lastError
-    throw new GraphQLErrorWithStatus("Customer GraphQL request failed", 500)
+    throw new CustomerApiError("Customer GraphQL request failed", 500)
   }
 
   return {
@@ -127,3 +131,5 @@ export async function createCustomerGraphQLClient(rawShopDomain?: string): Promi
 export async function invalidateSessionEndpoints(): Promise<void> {
   await updateStoredCustomerSession((current) => current)
 }
+
+export { CustomerApiError }

@@ -27,3 +27,15 @@ export class GraphQLErrorWithStatus extends Error {
     this.name = "GraphQLErrorWithStatus"
   }
 }
+
+export class CustomerApiError extends GraphQLErrorWithStatus {
+  constructor(
+    message: string,
+    status: number,
+    errors?: unknown,
+    url?: string,
+  ) {
+    super(message, status, errors, url)
+    this.name = "CustomerApiError"
+  }
+}

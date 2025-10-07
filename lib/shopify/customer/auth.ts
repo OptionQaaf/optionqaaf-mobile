@@ -12,19 +12,6 @@ import {
   updateStoredCustomerSession,
 } from "./tokens"
 
-function buildAuthorizeUrl(authorizationEndpoint: string, request: AuthSession.AuthRequest, state: string): string {
-  const url = new URL(authorizationEndpoint)
-  url.searchParams.set("client_id", request.clientId)
-  const scopes = request.scopes?.join(" ") ?? ""
-  if (scopes) url.searchParams.set("scope", scopes)
-  url.searchParams.set("response_type", "code")
-  url.searchParams.set("redirect_uri", request.redirectUri)
-  url.searchParams.set("code_challenge", request.codeChallenge ?? "")
-  url.searchParams.set("code_challenge_method", "S256")
-  url.searchParams.set("state", state)
-  return url.toString()
-}
-
 export async function startLogin(rawShopDomain?: string): Promise<StoredCustomerSession> {
   const config = getShopifyCustomerConfig()
   const shopDomain = sanitizeShopDomain(rawShopDomain || config.shopDomain)
@@ -43,18 +30,18 @@ export async function startLogin(rawShopDomain?: string): Promise<StoredCustomer
     codeChallengeMethod: AuthSession.CodeChallengeMethod.S256,
     extraParams: { state },
   })
+  const expectedState = request.state ?? state
 
   await request.makeAuthUrlAsync({ url: authorizationEndpoint })
 
-  const authUrl = buildAuthorizeUrl(authorizationEndpoint, request, state)
-  const result = await AuthSession.startAsync({ authUrl, returnUrl: config.redirectUri })
+  const result = await request.promptAsync({ authorizationEndpoint }, { useProxy: false })
 
   if (result.type !== "success") {
     throw new Error(result.type === "cancel" ? "Login cancelled" : "Authentication failed")
   }
 
   const params = result.params ?? {}
-  if (params.state !== state) {
+  if (params.state !== expectedState) {
     throw new Error("State mismatch. Ensure the callback URL matches the configured scheme.")
   }
   if (!params.code) {
