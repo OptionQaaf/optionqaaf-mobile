@@ -1,6 +1,7 @@
 # OptionQaaf Mobile App
 
-A custom-built, design-forward React Native application for **OptionQaaf**, seamlessly integrated with Shopify. Built with performance, customization, and user experience in mind.
+A custom-built, design-forward React Native application for **OptionQaaf**, seamlessly integrated with Shopify. Built
+with performance, customization, and user experience in mind.
 
 ---
 
@@ -50,14 +51,14 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
    npx expo start
    ```
 
-4. **Environment Setup:**
-   Create a `.env` file with the following:
+4. **Environment Setup:** Create a `.env` file with the following:
    ```env
-   EXPO_PUBLIC_SHOPIFY_DOMAIN=optionqaaf.myshopify.com
+   EXPO_PUBLIC_SHOPIFY_SHOP_DOMAIN=optionqaaf.myshopify.com
    EXPO_PUBLIC_SHOPIFY_STOREFRONT_TOKEN=your_token
    EXPO_PUBLIC_SHOPIFY_API_VERSION=2025-07
-   EXPO_PUBLIC_SHOPIFY_CUSTOMER_CLIENT_ID=55f5b958-3344-457c-8fc7-0d1cadee09da
-   EXPO_PUBLIC_SHOPIFY_CUSTOMER_SCOPES="openid email customer-account-api:full"
+   EXPO_PUBLIC_SHOPIFY_CLIENT_ID=55f5b958-3344-457c-8fc7-0d1cadee09da
+   EXPO_PUBLIC_SHOPIFY_SCOPES="openid email customer-account-api:full"
+   EXPO_PUBLIC_SHOPIFY_AUTH_SCHEME=shop.1234567890.app://callback
    ```
 
 ---

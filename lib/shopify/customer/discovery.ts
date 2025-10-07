@@ -1,190 +1,193 @@
 import { kv } from "@/lib/storage/mmkv"
 
-export type OpenIdConfig = {
-  authorization_endpoint: string
-  token_endpoint: string
-  end_session_endpoint?: string
-  issuer?: string
-  jwks_uri?: string
+import { getShopifyCustomerConfig, sanitizeShopDomain } from "./config"
+import { DiscoveryError } from "./errors"
+import type { CustomerApiConfig, OpenIdConfig } from "./types"
+
+type CachedEntry<T> = {
+  value: T
+  expiresAt: number
+  fetchedAt: number
 }
 
-export type CustomerApiConfig = {
-  graphql_api: string
-  mcp_api?: string
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000
+const STALE_GRACE_MS = 5 * 60 * 1000
+
+const inflight = new Map<string, Promise<any>>()
+
+function cacheKey(type: "openid" | "customer", shopDomain: string) {
+  return `shopify.customer.discovery:${type}:v1:${shopDomain}`
 }
 
-let cachedOpenIdOverride: OpenIdConfig | null | undefined
-let cachedCustomerOverride: CustomerApiConfig | null | undefined
-let cachedCustomerEndpoint: string | null | undefined
-let loggedOverrideNotice = false
-let loggedEndpoint = false
-
-function env(name: string): string | undefined {
-  const value = process.env[name]
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined
-}
-
-export function getOpenIdConfigOverride(): OpenIdConfig | null {
-  if (cachedOpenIdOverride !== undefined) return cachedOpenIdOverride
-
-  const authorization = env("EXPO_PUBLIC_SHOPIFY_OPENID_AUTHORIZATION_ENDPOINT")
-  const token = env("EXPO_PUBLIC_SHOPIFY_OPENID_TOKEN_ENDPOINT")
-  const logout = env("EXPO_PUBLIC_SHOPIFY_OPENID_LOGOUT_ENDPOINT")
-  const issuer = env("EXPO_PUBLIC_SHOPIFY_OPENID_ISSUER")
-  const jwks = env("EXPO_PUBLIC_SHOPIFY_OPENID_JWKS_URI")
-
-  if (authorization && token) {
-    cachedOpenIdOverride = {
-      authorization_endpoint: authorization,
-      token_endpoint: token,
-      end_session_endpoint: logout,
-      issuer,
-      jwks_uri: jwks,
-    }
-  } else {
-    cachedOpenIdOverride = null
-  }
-  return cachedOpenIdOverride
-}
-
-export function getCustomerApiConfigOverride(): CustomerApiConfig | null {
-  if (cachedCustomerOverride !== undefined) return cachedCustomerOverride
-
-  const graphql = env("EXPO_PUBLIC_SHOPIFY_CUSTOMER_GRAPHQL_ENDPOINT")
-  const mcp = env("EXPO_PUBLIC_SHOPIFY_CUSTOMER_MCP_ENDPOINT")
-
-  if (graphql) {
-    cachedCustomerOverride = {
-      graphql_api: graphql,
-      mcp_api: mcp,
-    }
-    cachedCustomerEndpoint = graphql
-  } else {
-    cachedCustomerOverride = null
-    cachedCustomerEndpoint = null
-  }
-  return cachedCustomerOverride
-}
-
-type CachedEntry<T> = { value: T; expiresAt: number }
-
-const CUSTOMER_ENDPOINT_CACHE_KEY = "customerAccount.api.endpoint:v1"
-const CUSTOMER_ENDPOINT_TTL = 24 * 60 * 60 * 1000
-
-export async function getCustomerApiEndpoint(): Promise<string> {
-  const override = env("EXPO_PUBLIC_SHOPIFY_CUSTOMER_GRAPHQL_ENDPOINT")
-  if (override) {
-    if (!loggedOverrideNotice && typeof __DEV__ !== "undefined" && __DEV__) {
-      console.log("[CustomerAuth] Using overrides for Customer API endpoint")
-      loggedOverrideNotice = true
-    }
-    cachedCustomerEndpoint = override
-    logEndpointOnce(override)
-    return override
-  }
-
-  if (cachedCustomerEndpoint) return cachedCustomerEndpoint
-
-  const cached = readEndpointFromCache()
-  if (cached && !cached.expired) {
-    cachedCustomerEndpoint = cached.value
-    logEndpointOnce(cached.value)
-    return cached.value
-  }
-
-  const domain = env("EXPO_PUBLIC_SHOPIFY_DOMAIN")
-  if (!domain) throw new Error("Missing EXPO_PUBLIC_SHOPIFY_DOMAIN")
-
-  const url = `https://${domain.replace(/^https?:\/\//, "").replace(/\/$/, "")}/.well-known/customer-account-api`
-
-  const response = await fetchWithRetry(url)
-  if (!response.ok) {
-    const text = await response.text().catch(() => "")
-    if (cached) {
-      cachedCustomerEndpoint = cached.value
-      logEndpointOnce(cached.value)
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.warn(
-          `[CustomerAuth] Discovery failed (${response.status}) – using cached endpoint`,
-        )
-      }
-      return cached.value
-    }
-    throw new Error(`Failed to discover customer API (${response.status})${text ? `: ${text}` : ""}`)
-  }
-  const data = (await response.json()) as { graphql_api: string }
-  const endpoint = data.graphql_api
-  cachedCustomerEndpoint = endpoint
-  writeEndpointToCache(endpoint)
-  logEndpointOnce(endpoint)
-  return endpoint
-}
-
-async function fetchWithRetry(url: string): Promise<Response> {
-  let delay = 800
-  const deadline = Date.now() + 15_000
-  let lastError: any
-
-  for (let attempt = 0; attempt < 6 && Date.now() < deadline; attempt += 1) {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 5000)
-    try {
-      const res = await fetch(url, { signal: controller.signal })
-      clearTimeout(timeout)
-      if (res.ok) return res
-      if ((res.status === 429 || res.status >= 500) && Date.now() < deadline) {
-        const retryAfter = res.headers.get("retry-after")
-        const wait = retryAfter ? Number(retryAfter) * 1000 : delay
-        await sleep(wait + Math.random() * 150)
-        delay = Math.min(delay * 2, 8000)
-        continue
-      }
-      return res
-    } catch (error) {
-      clearTimeout(timeout)
-      lastError = error
-      if (error?.name === "AbortError" && Date.now() < deadline) {
-        continue
-      }
-      await sleep(delay + Math.random() * 150)
-      delay = Math.min(delay * 2, 8000)
-    }
-  }
-  if (lastError instanceof Response) return lastError
-  throw lastError ?? new Error("Failed to fetch customer API discovery")
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function readEndpointFromCache(): { value: string; expired: boolean } | null {
+function readCache<T>(key: string): { entry: CachedEntry<T>; expired: boolean } | null {
+  const raw = kv.get(key)
+  if (!raw) return null
   try {
-    const raw = kv.get(CUSTOMER_ENDPOINT_CACHE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as CachedEntry<string>
-    if (!parsed?.value) return null
-    const expired = !parsed.expiresAt || Date.now() > parsed.expiresAt
-    return { value: parsed.value, expired }
+    const entry = JSON.parse(raw) as CachedEntry<T>
+    const expired = entry.expiresAt <= Date.now()
+    return { entry, expired }
   } catch {
+    kv.del(key)
     return null
   }
 }
 
-function writeEndpointToCache(endpoint: string) {
-  try {
-    const entry: CachedEntry<string> = {
-      value: endpoint,
-      expiresAt: Date.now() + CUSTOMER_ENDPOINT_TTL,
+function writeCache<T>(key: string, value: T) {
+  const entry: CachedEntry<T> = {
+    value,
+    fetchedAt: Date.now(),
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  }
+  kv.set(key, JSON.stringify(entry))
+}
+
+async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+    signal,
+  })
+  if (!response.ok) {
+    const message = await response.text().catch(() => "")
+    throw new DiscoveryError(`Discovery failed (${response.status})${message ? `: ${message}` : ""}`, response.status)
+  }
+  return (await response.json()) as T
+}
+
+async function resolveWithCache<T>(
+  type: "openid" | "customer",
+  shopDomain: string,
+  fetcher: () => Promise<T>,
+  forceRefresh?: boolean,
+): Promise<T> {
+  const key = cacheKey(type, shopDomain)
+  const cached = readCache<T>(key)
+
+  if (!forceRefresh && cached && !cached.expired) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.log(`[Shopify][Discovery] ${type} cache hit for ${shopDomain}`)
     }
-    kv.set(CUSTOMER_ENDPOINT_CACHE_KEY, JSON.stringify(entry))
-  } catch {
-    // ignore cache errors
+    return cached.entry.value
+  }
+
+  if (!forceRefresh && cached) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.log(`[Shopify][Discovery] ${type} cache stale for ${shopDomain} – serving stale & revalidating`)
+    }
+    void revalidate(key, fetcher)
+    return cached.entry.value
+  }
+
+  const keyInflight = `${type}:${shopDomain}`
+  let task = inflight.get(keyInflight) as Promise<T> | undefined
+  if (!task) {
+    task = (async () => {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 7000)
+      try {
+        const value = await fetcher()
+        writeCache(key, value)
+        return value
+      } finally {
+        clearTimeout(timeout)
+        inflight.delete(keyInflight)
+      }
+    })()
+    inflight.set(keyInflight, task)
+  }
+
+  try {
+    const value = await task
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.log(`[Shopify][Discovery] ${type} fetched from network for ${shopDomain}`)
+    }
+    return value
+  } catch (error) {
+    inflight.delete(keyInflight)
+    if (cached && Date.now() - cached.entry.fetchedAt < CACHE_TTL_MS + STALE_GRACE_MS) {
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn(`[Shopify][Discovery] ${type} fetch failed – using stale cache`, error)
+      }
+      return cached.entry.value
+    }
+    throw error
   }
 }
 
-function logEndpointOnce(endpoint: string) {
-  if (loggedEndpoint || typeof __DEV__ === "undefined" || !__DEV__) return
-  console.log("[CustomerAuth] GraphQL endpoint:", endpoint)
-  loggedEndpoint = true
+async function revalidate<T>(key: string, fetcher: () => Promise<T>) {
+  try {
+    const value = await fetcher()
+    writeCache(key, value)
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.log("[Shopify][Discovery] cache refreshed")
+    }
+  } catch (error) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn("[Shopify][Discovery] background refresh failed", error)
+    }
+  }
+}
+
+export async function getOpenIdConfig(rawShopDomain?: string, forceRefresh = false): Promise<OpenIdConfig> {
+  const { shopDomain, authorizationEndpointOverride, tokenEndpointOverride, logoutEndpointOverride } =
+    getShopifyCustomerConfig()
+  const domain = sanitizeShopDomain(rawShopDomain || shopDomain)
+
+  if (authorizationEndpointOverride && tokenEndpointOverride) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.log("[Shopify][Discovery] Using OpenID overrides")
+    }
+    return {
+      authorizationEndpoint: authorizationEndpointOverride,
+      tokenEndpoint: tokenEndpointOverride,
+      endSessionEndpoint: logoutEndpointOverride,
+    }
+  }
+
+  const config = await resolveWithCache(
+    "openid",
+    domain,
+    async () => {
+      const url = `https://${domain}/.well-known/openid-configuration`
+      const json = await fetchJson<{
+        authorization_endpoint: string
+        token_endpoint: string
+        end_session_endpoint?: string
+      }>(url)
+      return {
+        authorizationEndpoint: json.authorization_endpoint,
+        tokenEndpoint: json.token_endpoint,
+        endSessionEndpoint: json.end_session_endpoint,
+      }
+    },
+    forceRefresh,
+  )
+
+  if (logoutEndpointOverride) {
+    return { ...config, endSessionEndpoint: logoutEndpointOverride }
+  }
+
+  return config
+}
+
+export async function getCustomerApiConfig(rawShopDomain?: string, forceRefresh = false): Promise<CustomerApiConfig> {
+  const { shopDomain, graphqlEndpointOverride } = getShopifyCustomerConfig()
+  const domain = sanitizeShopDomain(rawShopDomain || shopDomain)
+
+  if (graphqlEndpointOverride) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.log("[Shopify][Discovery] Using GraphQL override")
+    }
+    return { graphqlApi: graphqlEndpointOverride }
+  }
+
+  return resolveWithCache(
+    "customer",
+    domain,
+    async () => {
+      const url = `https://${domain}/.well-known/customer-account-api`
+      const json = await fetchJson<{ graphql_api: string; mcp_api?: string }>(url)
+      return { graphqlApi: json.graphql_api, mcpApi: json.mcp_api }
+    },
+    forceRefresh,
+  )
 }

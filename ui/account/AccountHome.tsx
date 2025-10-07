@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { RefreshControl, View } from "react-native"
 
-import type { CustomerOverview } from "@/lib/shopify/customer/hooks"
+import type { CustomerAccountSnapshot } from "@/lib/shopify/customer/types"
 import { formatMoney } from "@/lib/shopify/money"
 import { Button } from "@/ui/primitives/Button"
 import { H2, H3, Muted, Text } from "@/ui/primitives/Typography"
@@ -9,7 +9,7 @@ import { Card } from "@/ui/surfaces/Card"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 
 export type AccountHomeProps = {
-  customer: CustomerOverview | null
+  customer: CustomerAccountSnapshot
   onViewOrders: () => void
   onViewAddresses: () => void
   onRefresh: () => Promise<void>
@@ -29,10 +29,12 @@ export function AccountHome({
 }: AccountHomeProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-  const fullName = [customer?.firstName, customer?.lastName].filter(Boolean).join(" ") || "Account"
+  const fullName = customer?.displayName || "Account"
   const email = customer?.emailAddress?.emailAddress || "—"
+  const tags = Array.isArray(customer?.tags) ? customer?.tags.filter(Boolean) : []
   const orders = (customer?.orders?.nodes ?? []).filter(Boolean)
   const addresses = (customer?.addresses?.nodes ?? []).filter(Boolean)
+  const defaultAddress = customer?.defaultAddress || null
 
   const onLogoutPress = async () => {
     if (isLoggingOut) return
@@ -54,7 +56,22 @@ export function AccountHome({
         <View className="gap-1">
           <H2 className="text-[24px] leading-[32px]">{fullName}</H2>
           <Text className="text-secondary text-[16px]">{email}</Text>
+          {tags && tags.length > 0 ? (
+            <View className="flex-row flex-wrap gap-2 pt-2">
+              {tags.map((tag) => (
+                <View key={tag} className="rounded-full bg-muted px-3 py-1">
+                  <Text className="text-[12px] uppercase tracking-wide text-secondary">{tag}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
+        {defaultAddress ? (
+          <View className="rounded-xl border border-border px-4 py-3 gap-1">
+            <Muted className="text-[12px] uppercase">Default address</Muted>
+            <AddressRow address={defaultAddress} />
+          </View>
+        ) : null}
         <Button variant="outline" onPress={onViewAddresses} accessibilityLabel="Manage saved addresses">
           Manage Addresses
         </Button>
@@ -115,10 +132,13 @@ type OrderRowProps = {
 }
 
 export function OrderRow({ order }: OrderRowProps) {
-  const name = typeof order?.name === "string" && order.name.length > 0 ? order.name : order?.id ?? "Order"
+  const name = typeof order?.name === "string" && order.name.length > 0 ? order.name : (order?.id ?? "Order")
   const processedAt = order?.processedAt ? formatter.format(new Date(order.processedAt)) : "Processing"
-  const total = formatMoney(order?.currentTotalPrice ?? null)
-  const status = order?.statusFulfillment || "Unfulfilled"
+  const money = order?.totalPriceSet?.presentmentMoney ?? null
+  const total = formatMoney(money ?? null)
+  const financial = order?.financialStatus ? order.financialStatus.replace(/_/g, " ") : null
+  const fulfillment = order?.fulfillmentStatus ? order.fulfillmentStatus.replace(/_/g, " ") : null
+  const status = [financial, fulfillment].filter(Boolean).join(" · ") || "Pending"
 
   return (
     <View className="rounded-xl border border-border px-4 py-3 gap-2">
@@ -128,11 +148,7 @@ export function OrderRow({ order }: OrderRowProps) {
       </View>
       <View className="flex-row items-center justify-between">
         <Text className="text-[15px]">{total}</Text>
-        <Muted className="text-[13px] capitalize">
-          {String(status)
-            .replace(/_/g, " ")
-            .toLowerCase()}
-        </Muted>
+        <Muted className="text-[13px] capitalize">{status.toLowerCase()}</Muted>
       </View>
     </View>
   )
@@ -144,18 +160,20 @@ type AddressRowProps = {
 
 export function AddressRow({ address }: AddressRowProps) {
   const fullName = [address?.firstName, address?.lastName].filter(Boolean).join(" ")
-  const lines = [address?.address1, address?.address2].filter(Boolean)
-  const locale = [address?.city, address?.provinceCode, address?.zip].filter(Boolean).join(", ")
-  const country = address?.countryCode
+  const lines = (address?.formatted ?? []).filter(Boolean)
+  const locale = [address?.city, address?.province, address?.zip].filter(Boolean).join(", ")
+  const country = address?.country
 
   return (
     <View className="rounded-xl border border-border px-4 py-3 gap-1">
       <Text className="text-[16px] font-geist-semibold">{fullName || "Unnamed"}</Text>
-      {lines.map((line: string, idx: number) => (
-        <Text key={`${address.id}-line-${idx}`} className="text-[14px] text-secondary">
-          {line}
-        </Text>
-      ))}
+      {(lines.length > 0 ? lines : [address?.address1, address?.address2].filter(Boolean)).map(
+        (line: string, idx: number) => (
+          <Text key={`${address.id}-line-${idx}`} className="text-[14px] text-secondary">
+            {line}
+          </Text>
+        ),
+      )}
       {locale ? <Text className="text-[14px] text-secondary">{locale}</Text> : null}
       {country ? <Muted className="text-[13px] uppercase">{country}</Muted> : null}
     </View>

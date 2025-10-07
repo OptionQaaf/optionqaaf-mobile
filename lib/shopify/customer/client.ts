@@ -1,175 +1,129 @@
-import { GraphQLClient } from "graphql-request"
+import { getShopifyCustomerConfig, sanitizeShopDomain } from "./config"
+import { getCustomerApiConfig } from "./discovery"
+import { GraphQLErrorWithStatus } from "./errors"
+import type { CustomerApiConfig } from "./types"
+import { getValidAccessToken, setGraphqlEndpointForSession, updateStoredCustomerSession } from "./tokens"
 
-import { getCustomerApiEndpoint } from "@/lib/shopify/customer/discovery"
-import { SHOPIFY_DOMAIN, SHOPIFY_SHOP_ID } from "@/lib/shopify/env"
+type FetchGraphQL = <TResult, TVariables = Record<string, unknown>>(
+  operationName: string,
+  query: string,
+  variables?: TVariables,
+) => Promise<TResult>
 
-export class CustomerApiError extends Error {
-  constructor(message: string, public status?: number, public cause?: unknown, public invalidToken?: boolean) {
-    super(message)
-    this.name = "CustomerApiError"
-  }
+export type CustomerGraphQLClient = {
+  fetchGraphQL: FetchGraphQL
 }
 
-let memoizedEndpoint: string | null = null
-let memoizedShopDomain: string | null = null
-let loggedGraphEndpoint = false
+type GraphQLResponse<T> = {
+  data?: T
+  errors?: Array<{ message?: string; extensions?: Record<string, any> }>
+}
 
-export async function createCustomerGqlClient(accessToken: string, shopDomain: string) {
-  if (!memoizedEndpoint || memoizedShopDomain !== shopDomain) {
-    memoizedEndpoint = await getCustomerApiEndpoint()
-    memoizedShopDomain = shopDomain
-  }
-  if (typeof __DEV__ !== "undefined" && __DEV__ && !loggedGraphEndpoint) {
-    console.log("[CustomerAuth] GraphQL endpoint:", memoizedEndpoint)
-    loggedGraphEndpoint = true
-  }
-  const originDomain = SHOPIFY_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, "")
-  const client = new GraphQLClient(memoizedEndpoint!, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "Shopify-Shop-Id": SHOPIFY_SHOP_ID,
-      Origin: `https://${originDomain}`,
-      "User-Agent": "OptionQaafMobile/1.0 (ReactNative)",
-      ...(typeof __DEV__ !== "undefined" && __DEV__ ? { "Shopify-GraphQL-Cost-Debug": "1" } : {}),
-    },
+function createPayload(operationName: string, query: string, variables?: unknown) {
+  return JSON.stringify({
+    operationName,
+    query,
+    variables: variables ?? {},
   })
-  return client
 }
 
-let inflight: Promise<unknown> | null = null
-
-async function enqueue<T>(task: () => Promise<T>): Promise<T> {
-  const prev = inflight
-  const current = (async () => {
-    try {
-      if (prev) {
-        await prev.catch(() => {})
-      }
-      return await task()
-    } finally {
-      if (inflight === current) inflight = null
-    }
-  })()
-  inflight = current
-  return current
+async function performRequest<T>(
+  endpoint: string,
+  token: string,
+  payload: string,
+): Promise<{ response: Response; body: GraphQLResponse<T> }> {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: token,
+    },
+    body: payload,
+  })
+  let body: GraphQLResponse<T>
+  try {
+    body = (await response.json()) as GraphQLResponse<T>
+  } catch {
+    body = { data: undefined, errors: undefined }
+  }
+  return { response, body }
 }
 
-type GraphQLErrorShape = { message?: string; extensions?: { code?: string }; [key: string]: any }
-
-function isThrottleResponse(error: any): { throttled: boolean; retryAfter?: number } {
-  const status = error?.response?.status
-  if (status === 429) {
-    const retryHeader = error?.response?.headers?.get?.("retry-after")
-    const retryAfter = retryHeader ? Number(retryHeader) * 1000 : undefined
-    return { throttled: true, retryAfter }
-  }
-  if (status === 200 || status === undefined) {
-    const errors: GraphQLErrorShape[] | undefined = error?.response?.errors
-    if (Array.isArray(errors)) {
-      const throttled = errors.some((e) =>
-        typeof e?.message === "string" && e.message.toLowerCase().includes("throttled"),
-      )
-      const throttledCode = errors.some((e) => e?.extensions?.code === "THROTTLED")
-      if (throttled || throttledCode) {
-        return { throttled: true }
-      }
-    }
-  }
-  return { throttled: false }
+function buildGraphQLError<T>(endpoint: string, response: Response, body: GraphQLResponse<T>): GraphQLErrorWithStatus {
+  const status = response.status
+  const message =
+    body.errors
+      ?.map((err) => err?.message)
+      .filter(Boolean)
+      .join("; ") ||
+    (status === 404
+      ? "Customer Accounts not enabled for this shop or misconfigured sales channel. Please verify Admin → Settings → Customer accounts is ON, and Headless/Hydrogen sales channel Customer Account API is configured. Also ensure you used the discovered GraphQL endpoint."
+      : `Customer GraphQL request failed (${status})`)
+  return new GraphQLErrorWithStatus(message, status, body.errors, endpoint)
 }
 
-function logCostExtensions(extensions: any) {
-  if (typeof __DEV__ === "undefined" || !__DEV__) return
-  if (extensions?.cost) {
-    console.log("[CustomerAPI] cost", extensions.cost)
-  }
-}
+export async function createCustomerGraphQLClient(rawShopDomain?: string): Promise<CustomerGraphQLClient> {
+  const { shopDomain } = getShopifyCustomerConfig()
+  const domain = sanitizeShopDomain(rawShopDomain || shopDomain)
+  let discovery: CustomerApiConfig | null = null
 
-function detectInvalidToken(
-  status: number | undefined,
-  errors: GraphQLErrorShape[] | undefined,
-  message: string | undefined,
-): boolean {
-  if (status === 401) return true
-  if (Array.isArray(errors)) {
-    for (const entry of errors) {
-      const code = String(entry?.extensions?.code ?? "").toUpperCase()
-      if (code === "UNAUTHORIZED" || code === "INVALID_TOKEN" || code === "TOKEN_INVALID") return true
-      const msg = String(entry?.message ?? "").toLowerCase()
-      if (msg.includes("invalid token") || msg.includes("invalid_token")) return true
-    }
+  async function ensureDiscovery(force?: boolean) {
+    discovery = await getCustomerApiConfig(domain, force)
+    await setGraphqlEndpointForSession(discovery.graphqlApi)
+    return discovery
   }
-  if (typeof message === "string") {
-    const lower = message.toLowerCase()
-    if (lower.includes("invalid token") || lower.includes("invalid_token")) return true
-  }
-  return false
-}
 
-type RawResult<T> = { data: T; extensions?: any }
+  await ensureDiscovery()
 
-export async function callCustomerApi<T>(fn: () => Promise<RawResult<T>>): Promise<T> {
-  const start = Date.now()
-  const attempt = async (): Promise<T> => {
-    try {
-      const result = await fn()
-      logCostExtensions(result?.extensions)
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.log(`[ShopifyCustomer] ${Date.now() - start}ms`)
-      }
-      return result.data
-    } catch (error: any) {
-      const { throttled, retryAfter } = isThrottleResponse(error)
-      if (throttled) throw { throttled: true, error, retryAfter }
-      const duration = Date.now() - start
-      const status = error?.response?.status ?? error?.status
-      const responseErrors: GraphQLErrorShape[] | undefined = error?.response?.errors
-      const details = responseErrors?.map((e: any) => e.message).filter(Boolean).join("; ") || error?.message
-      const invalidToken = detectInvalidToken(status, responseErrors, details)
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.warn(
-          `[ShopifyCustomer] failed in ${duration}ms${status ? ` (${status})` : ""}: ${details || "Customer API request failed"}`,
-        )
-        if (status === 404) {
-          const res = error?.response
-          const headers: Record<string, string> = {}
-          if (res?.headers?.forEach) {
-            res.headers.forEach((value: string, key: string) => {
-              headers[key] = value
-            })
-          }
-          console.warn("[CustomerAPI] 404 url", res?.url ?? "unknown")
-          console.warn("[CustomerAPI] 404 headers", headers)
-          const body = res?.data ?? error?.response?.body ?? error?.response?.error ?? null
-          if (body) console.warn("[CustomerAPI] 404 body", body)
+  async function execute<T, V>(operationName: string, query: string, variables?: V): Promise<T> {
+    let attempt = 0
+    let lastError: GraphQLErrorWithStatus | null = null
+    let endpoint = discovery?.graphqlApi || (await ensureDiscovery()).graphqlApi
+
+    while (attempt < 3) {
+      attempt += 1
+      const { accessToken } = await getValidAccessToken(domain, {
+        forceRefresh: attempt > 1 && lastError?.status === 401,
+      })
+      const payload = createPayload(operationName, query, variables)
+      const { response, body } = await performRequest<T>(endpoint, accessToken, payload)
+
+      if (response.ok && body.data) {
+        if (body.errors && body.errors.length > 0) {
+          throw buildGraphQLError(endpoint, response, body)
         }
+        return body.data
       }
-      throw new CustomerApiError(details || "Customer API request failed", status, error, invalidToken)
-    }
-  }
 
-  const maxRetries = 3
-  let delay = 800
-  for (let attemptIndex = 0; attemptIndex < maxRetries; attemptIndex += 1) {
-    try {
-      return await enqueue(attempt)
-    } catch (err: any) {
-      if (err?.throttled) {
-        const jitter = Math.random() * 200
-        const wait = err.retryAfter ?? delay + jitter
+      const error = buildGraphQLError(endpoint, response, body)
+
+      if (response.status === 401 || response.status === 403) {
+        lastError = error
+        if (attempt < 3) continue
+      }
+
+      if (response.status === 404 && attempt < 3) {
+        const refreshed = await ensureDiscovery(true)
+        endpoint = refreshed.graphqlApi
         if (typeof __DEV__ !== "undefined" && __DEV__) {
-          console.warn(`[CustomerAPI] throttled – retrying after ${Math.round(wait)}ms`)
-        }
-        await new Promise((resolve) => setTimeout(resolve, wait))
-        delay *= 2
-        if (attemptIndex === maxRetries - 1) {
-          throw new CustomerApiError("Customer API throttled", 429, err.error)
+          console.warn("[Shopify][Customer] GraphQL 404 – re-discovered endpoint", endpoint)
         }
         continue
       }
-      throw err
+
+      lastError = error
+      break
     }
+
+    if (lastError) throw lastError
+    throw new GraphQLErrorWithStatus("Customer GraphQL request failed", 500)
   }
-  throw new CustomerApiError("Customer API throttled", 429)
+
+  return {
+    fetchGraphQL: execute,
+  }
+}
+
+export async function invalidateSessionEndpoints(): Promise<void> {
+  await updateStoredCustomerSession((current) => current)
 }
