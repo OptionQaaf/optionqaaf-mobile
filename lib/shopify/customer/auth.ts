@@ -34,7 +34,10 @@ export async function startLogin(rawShopDomain?: string): Promise<StoredCustomer
 
   await request.makeAuthUrlAsync({ url: authorizationEndpoint })
 
-  const result = await request.promptAsync({ authorizationEndpoint }, { useProxy: false })
+  const result = await request.promptAsync(
+    { authorizationEndpoint },
+    { useProxy: false, projectNameForProxy: undefined, redirectUri: config.redirectUri },
+  )
 
   if (result.type !== "success") {
     throw new Error(result.type === "cancel" ? "Login cancelled" : "Authentication failed")

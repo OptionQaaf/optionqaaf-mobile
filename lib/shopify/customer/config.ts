@@ -1,4 +1,4 @@
-import * as Linking from "expo-linking"
+import * as AuthSession from "expo-auth-session"
 
 type ShopifyCustomerConfig = {
   shopDomain: string
@@ -39,8 +39,13 @@ export function getShopifyCustomerConfig(): ShopifyCustomerConfig {
 
   const scopes = readEnv("EXPO_PUBLIC_SHOPIFY_SCOPES") || "openid email customer-account-api:full"
 
+  const explicitRedirect = readEnv("EXPO_PUBLIC_SHOPIFY_CUSTOMER_REDIRECT_URI")
   const scheme = readEnv("EXPO_PUBLIC_SHOPIFY_AUTH_SCHEME")
-  const redirectUri = scheme ?? Linking.createURL("customer/callback")
+  const redirectUri =
+    explicitRedirect ||
+    (scheme
+      ? AuthSession.makeRedirectUri({ scheme, path: "callback" })
+      : AuthSession.makeRedirectUri({ path: "customer/callback" }))
 
   const graphqlEndpointOverride = readEnv("EXPO_PUBLIC_SHOPIFY_CUSTOMER_GRAPHQL_ENDPOINT")
   const authorizationEndpointOverride =
