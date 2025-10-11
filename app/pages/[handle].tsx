@@ -59,7 +59,6 @@ export default function CustomPage() {
                     currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
                     width={w}
                     imageRatio={3 / 4}
-                    rounded="3xl"
                     padding="md"
                     onPress={() => item?.handle && router.push(`/products/${item.handle}` as any)}
                   />

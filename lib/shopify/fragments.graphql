@@ -29,8 +29,12 @@ fragment ProductCard on Product {
     }
   }
   compareAtPriceRange {
-    minVariantPrice { ...Money }
-    maxVariantPrice { ...Money }
+    minVariantPrice {
+      ...Money
+    }
+    maxVariantPrice {
+      ...Money
+    }
   }
 }
 
@@ -43,7 +47,7 @@ fragment ProductDetail on Product {
   descriptionHtml
   featuredImage {
     ...Image
-  } # ← ADD THIS LINE
+  }
   media(first: 10) {
     nodes {
       ... on MediaImage {
@@ -90,7 +94,10 @@ fragment CartCommon on Cart {
   id
   totalQuantity
   checkoutUrl
-  discountCodes { code applicable }
+  discountCodes {
+    code
+    applicable
+  }
   cost {
     subtotalAmount {
       ...Money
@@ -122,16 +129,16 @@ fragment CartCommon on Cart {
           price {
             ...Money
           }
-      compareAtPrice {
-        ...Money
-      }
-      image {
-        ...Image
-      }
-      selectedOptions {
-        name
-        value
-      }
+          compareAtPrice {
+            ...Money
+          }
+          image {
+            ...Image
+          }
+          selectedOptions {
+            name
+            value
+          }
         }
       }
       cost {

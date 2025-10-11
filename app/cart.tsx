@@ -1,5 +1,4 @@
 import { useCartQuery, useEnsureCart, useSyncCartChanges, useUpdateDiscountCodes } from "@/features/cart/api"
-import { useCustomerSession } from "@/lib/shopify/customer/hooks"
 import { convertAmount } from "@/features/currency/rates"
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { usePrefs } from "@/store/prefs"
@@ -32,7 +31,6 @@ export default function CartScreen() {
   const insets = useSafeAreaInsets()
   const { currency: prefCurrencyState } = usePrefs()
   const { show } = useToast()
-  const { status: customerStatus } = useCustomerSession()
 
   // Ensure there is a cart as early as possible (for codes, etc.)
   const ensure = useEnsureCart()
@@ -146,9 +144,9 @@ export default function CartScreen() {
     await flush()
     const url = cart?.checkoutUrl
     if (!url) return Alert.alert("Checkout unavailable", "Missing checkout URL")
-    const finalUrl = customerStatus === "authenticated" ? setQueryParam(url, "logged_in", "true") : url
-    router.push({ pathname: "/checkout", params: { url: finalUrl } } as any)
-  }, [cart?.checkoutUrl, customerStatus, flush])
+
+    router.push({ pathname: "/checkout", params: { url } } as any)
+  }, [cart?.checkoutUrl, flush])
 
   const onDelete = useCallback(
     (lineId: string) => {
