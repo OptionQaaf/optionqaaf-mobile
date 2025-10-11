@@ -91,7 +91,8 @@ export function getCustomerAuthConfig(): CustomerAuthConfig {
   )
 
   const redirectScheme = resolveRedirectScheme()
-  const redirectUri = makeRedirectUri({ scheme: redirectScheme, path: "callback" })
+  // Always emit the custom scheme explicitly so Expo's dev proxy URLs are never used during auth.
+  const redirectUri = `${redirectScheme}://callback`
   const scopes = coalesceEnv(["EXPO_PUBLIC_OAUTH_SCOPES"], DEFAULT_SCOPES) ?? DEFAULT_SCOPES
 
   const debugAuth = readEnv("EXPO_PUBLIC_DEBUG_AUTH") === "1" || readEnv("EXPO_PUBLIC_DEBUG_AUTH") === "true"

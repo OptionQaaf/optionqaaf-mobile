@@ -75,6 +75,11 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
    }
    ```
 
+   > **Heads up:** We disable the Expo AuthSession proxy so Shopify always receives the custom
+   > redirect (`shop.85072904499.app://callback`). Make sure that exact scheme is registered in both
+   > `app.json` and the Shopify Admin callback URL list; otherwise the hosted auth page will report
+   > an `Invalid redirect_uri scheme` error when developing locally.
+
 ---
 
 ## 🧩 Folder Structure (WIP)
