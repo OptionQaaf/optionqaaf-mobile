@@ -1,0 +1,16 @@
+query MeProfile {
+  customer {
+    id
+    displayName
+    firstName
+    lastName
+    creationDate
+    imageUrl
+    emailAddress {
+      emailAddress
+    }
+    phoneNumber {
+      number
+    }
+  }
+}

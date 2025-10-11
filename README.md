@@ -84,6 +84,22 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
 - Shopify checkout is external via `checkoutUrl`
 - Authentication and customer features are included (wishlist, orders, etc.)
 - Designed mobile-first, with future support for web possible via Expo Web
+- Generate Shopify Customer Account GraphQL types (requires a temporary `shcat_` token):
+
+  ```bash
+  export CUSTOMER_SCHEMA_TOKEN=shcat_XXXX
+  npm run codegen:customer
+  # or with pnpm
+  CUSTOMER_SCHEMA_TOKEN=shcat_XXXX pnpm run codegen:customer
+  ```
+
+  If your shop sits behind Cloudflare (common on custom domains) you may need to point the schema introspection at the
+  customer GraphQL endpoint discovered from `https://<shop-domain>/.well-known/customer-account-api`:
+
+  ```bash
+  export CUSTOMER_SCHEMA_ENDPOINT=https://optionqaaf.com/account/customer/api/graphql
+  CUSTOMER_SCHEMA_TOKEN=shcat_XXXX pnpm run codegen:customer
+  ```
 
 ---
 

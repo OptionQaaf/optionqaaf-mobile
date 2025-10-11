@@ -1,0 +1,18 @@
+query MeOrders($first: Int!) {
+  customer {
+    orders(first: $first) {
+      nodes {
+        id
+        name
+        createdAt
+        processedAt
+        currencyCode
+        totalPrice {
+          amount
+          currencyCode
+        }
+        statusPageUrl
+      }
+    }
+  }
+}

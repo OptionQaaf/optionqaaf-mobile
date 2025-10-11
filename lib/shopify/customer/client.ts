@@ -1,16 +1,23 @@
 import { getValidAccessToken } from "@/lib/shopify/customer/auth"
 import { getCustomerGraphqlEndpoint } from "@/lib/shopify/customer/discovery"
 import { ORIGIN_HEADER, USER_AGENT } from "@/lib/shopify/env"
+import { TypedDocumentNode as DocumentNode } from "@graphql-typed-document-node/core"
+import { print } from "graphql"
 
 type GQLError = { message: string; extensions?: any }
 type GQ<T> = { data?: T; errors?: GQLError[] }
 
-export async function customerGraphQL<T>(query: string, variables?: Record<string, any>): Promise<T> {
+type QueryInput<T, V> = string | DocumentNode<T, V>
+
+export async function customerGraphQL<TData, TVariables = Record<string, any>>(
+  query: QueryInput<TData, TVariables>,
+  variables?: TVariables,
+): Promise<TData> {
   const url = await getCustomerGraphqlEndpoint()
   const token = await getValidAccessToken()
   if (!token) throw new Error("Not authenticated")
 
-  console.log("GRAPHQL TOKEN PREFIX →", token.slice(0, 7)) // should log 'shcat_'
+  const textQuery = typeof query === "string" ? query : print(query)
 
   const res = await fetch(url, {
     method: "POST",
@@ -22,7 +29,7 @@ export async function customerGraphQL<T>(query: string, variables?: Record<strin
       // Optional if your edge wants it:
       // 'Shopify-Shop-Id': '85072904499',
     },
-    body: JSON.stringify({ query, variables }),
+    body: JSON.stringify({ query: textQuery, variables }),
   })
 
   const text = await res.text()
