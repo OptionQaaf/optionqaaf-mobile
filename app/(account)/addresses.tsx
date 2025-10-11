@@ -5,11 +5,12 @@ import {
   type MeAddressesQuery,
   type MeAddressesQueryVariables,
 } from "@/lib/shopify/customer/gql/graphql"
+import { AccountSectionHeading } from "./components"
 import { Screen } from "@/ui/layout/Screen"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
-import { H2, Muted, Text } from "@/ui/primitives/Typography"
+import { Muted, Text } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
 import { useQuery } from "@tanstack/react-query"
 import { ActivityIndicator, View } from "react-native"
@@ -30,8 +31,8 @@ export default function AddressesScreen() {
     return (
       <Screen>
         <MenuBar back />
-        <View className="flex-1 items-center justify-center gap-6 px-8">
-          <H2 className="text-center">Sign in to manage your addresses</H2>
+        <View className="flex-1 items-center justify-center gap-4 px-8">
+          <Text className="text-[20px] font-geist-semibold text-center">Sign in to manage your addresses</Text>
           <Button size="lg" onPress={login} accessibilityLabel="Sign in to Shopify">
             Sign in
           </Button>
@@ -47,35 +48,32 @@ export default function AddressesScreen() {
   return (
     <Screen>
       <MenuBar back />
-      <PageScrollView contentContainerClassName="px-5 py-6">
-        <View className="gap-5">
-          <View className="gap-2">
-            <H2>Addresses</H2>
-            <Muted>Your saved shipping destinations.</Muted>
-          </View>
+      <PageScrollView contentContainerClassName="px-6 py-8">
+        <View className="gap-6">
+          <AccountSectionHeading title="Addresses" description="Manage where we ship your orders." />
 
           {query.isLoading ? (
-            <Card padding="lg" className="items-center py-8">
+            <Card padding="lg" className="items-center py-8 bg-white">
               <ActivityIndicator />
             </Card>
           ) : (
             <View className="gap-4">
               {defaultAddress ? (
-                <Card padding="lg" className="gap-2 border-brand/40">
-                  <Muted className="uppercase text-[12px] tracking-wide">Default</Muted>
+                <Card padding="lg" className="gap-3 bg-white border border-primary/20">
+                  <Muted className="uppercase text-[12px] tracking-wide text-primary">Default address</Muted>
                   <AddressBlock address={defaultAddress} />
                 </Card>
               ) : null}
 
               {nodes.length > 0 ? (
                 nodes.map((addr) => (
-                  <Card key={addr.id} padding="lg" className="gap-2">
+                  <Card key={addr.id} padding="lg" className="gap-3 bg-white">
                     <AddressBlock address={addr} />
                   </Card>
                 ))
               ) : (
-                <Card padding="lg">
-                  <Muted>No saved addresses.</Muted>
+                <Card padding="lg" className="bg-white">
+                  <Muted>No saved addresses yet.</Muted>
                 </Card>
               )}
             </View>
