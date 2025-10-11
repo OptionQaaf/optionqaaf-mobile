@@ -46,11 +46,7 @@ export default function AccountIndex() {
           </View>
           <View className="gap-4">
             {cards.map((item) => (
-              <PressableOverlay
-                key={item.href}
-                className="rounded-xl"
-                onPress={() => router.push(item.href as any)}
-              >
+              <PressableOverlay key={item.href} className="rounded-xl" onPress={() => router.push(item.href as any)}>
                 <Card padding="lg" className="gap-2">
                   <Text className="font-geist-semibold text-[18px]">{item.title}</Text>
                   <Muted>{item.description}</Muted>

@@ -89,6 +89,8 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
   ```bash
   export CUSTOMER_SCHEMA_TOKEN=shcat_XXXX
   npm run codegen:customer
+  # or with pnpm
+  CUSTOMER_SCHEMA_TOKEN=shcat_XXXX pnpm run codegen:customer
   ```
 
 ---

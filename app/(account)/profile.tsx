@@ -9,7 +9,6 @@ import { H2, Muted, Text } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
 import { useQuery } from "@tanstack/react-query"
 import { Image } from "expo-image"
-import { useMemo } from "react"
 import { ActivityIndicator, View } from "react-native"
 
 export default function ProfileScreen() {
@@ -36,19 +35,8 @@ export default function ProfileScreen() {
   }
 
   const profile = query.data?.customer ?? null
-  const fullName = useMemo(() => {
-    if (!profile) return null
-    if (profile.displayName) return profile.displayName
-    const parts = [profile.firstName, profile.lastName].filter(Boolean)
-    if (parts.length === 0) return null
-    return parts.join(" ")
-  }, [profile])
-  const creationDate = useMemo(() => {
-    if (!profile?.creationDate) return null
-    const d = new Date(profile.creationDate)
-    if (Number.isNaN(d.getTime())) return profile.creationDate
-    return d.toLocaleDateString()
-  }, [profile?.creationDate])
+  const fullName = formatFullName(profile)
+  const creationDate = formatCreationDate(profile?.creationDate)
 
   return (
     <Screen>
@@ -104,11 +92,7 @@ function Avatar({ imageUrl, name }: { imageUrl?: string | null; name?: string | 
   if (imageUrl) {
     return (
       <View className="items-center">
-        <Image
-          source={{ uri: imageUrl }}
-          style={{ width: 96, height: 96, borderRadius: 48 }}
-          contentFit="cover"
-        />
+        <Image source={{ uri: imageUrl }} style={{ width: 96, height: 96, borderRadius: 48 }} contentFit="cover" />
       </View>
     )
   }
@@ -119,4 +103,21 @@ function Avatar({ imageUrl, name }: { imageUrl?: string | null; name?: string | 
       <Text className="text-[32px] font-geist-semibold text-primary">{letter}</Text>
     </View>
   )
+}
+
+type CustomerProfile = MeProfileQuery["customer"]
+
+function formatFullName(profile: CustomerProfile | null | undefined) {
+  if (!profile) return null
+  if (profile.displayName) return profile.displayName
+  const parts = [profile.firstName, profile.lastName].filter(Boolean)
+  if (parts.length === 0) return null
+  return parts.join(" ")
+}
+
+function formatCreationDate(value: string | null | undefined) {
+  if (!value) return null
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleDateString()
 }

@@ -1,10 +1,6 @@
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { customerGraphQL } from "@/lib/shopify/customer/client"
-import {
-  MeOrdersDocument,
-  type MeOrdersQuery,
-  type MeOrdersQueryVariables,
-} from "@/lib/shopify/customer/gql/graphql"
+import { MeOrdersDocument, type MeOrdersQuery, type MeOrdersQueryVariables } from "@/lib/shopify/customer/gql/graphql"
 import { Screen } from "@/ui/layout/Screen"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { MenuBar } from "@/ui/nav/MenuBar"

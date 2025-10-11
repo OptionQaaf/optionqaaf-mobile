@@ -12,7 +12,9 @@ const customerGraphqlEndpoint =
 
 const schemaToken = process.env.CUSTOMER_SCHEMA_TOKEN
 if (!schemaToken) {
-  throw new Error("Missing CUSTOMER_SCHEMA_TOKEN (temporary dev-only token for schema introspection)")
+  throw new Error(
+    "Missing CUSTOMER_SCHEMA_TOKEN (temporary dev-only token for schema introspection). Set it via `export CUSTOMER_SCHEMA_TOKEN=shcat_XXXX` or prefix the command, e.g. `CUSTOMER_SCHEMA_TOKEN=shcat_XXXX pnpm run codegen:customer`.",
+  )
 }
 
 export default {
