@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "gql:gen": "graphql-codegen --config codegen.ts",
-    "gql:watch": "graphql-codegen --config codegen.ts --watch"
+    "gql:watch": "graphql-codegen --config codegen.ts --watch",
+    "codegen:customer": "graphql-codegen --config codegen.customer.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

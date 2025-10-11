@@ -1,0 +1,26 @@
+query MeAddresses($first: Int!) {
+  customer {
+    defaultAddress {
+      id
+      name
+      address1
+      address2
+      city
+      province
+      country
+      zip
+    }
+    addresses(first: $first) {
+      nodes {
+        id
+        name
+        address1
+        address2
+        city
+        province
+        country
+        zip
+      }
+    }
+  }
+}
