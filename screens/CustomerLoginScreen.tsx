@@ -16,7 +16,7 @@ export function CustomerLoginScreen() {
     setError(null)
     try {
       setIsLoading(true)
-      await startLogin(shopDomain)
+      await startLogin()
       router.replace("/test/customer-account")
     } catch (err: any) {
       const message = err instanceof Error ? err.message : "Unable to start Shopify login"

@@ -1,7 +1,9 @@
 import * as AuthSession from "expo-auth-session"
 
-import { getShopifyCustomerConfig, sanitizeShopDomain } from "./config"
-import { getCustomerApiConfig, getOpenIdConfig } from "./discovery"
+import { getCustomerApiEndpoint } from "./discovery"
+import { getShopifyCustomerConfig } from "./config"
+import { SHOP_ID } from "./env"
+import { getOidcEndpoints } from "./oauth"
 import { AuthExpiredError } from "./errors"
 import type { StoredCustomerSession } from "./types"
 import {
@@ -12,31 +14,49 @@ import {
   updateStoredCustomerSession,
 } from "./tokens"
 
-export async function startLogin(rawShopDomain?: string): Promise<StoredCustomerSession> {
+const REQUIRED_SCOPES = new Set(["openid", "email", "customer-account-api:full"])
+
+function buildScopeList(scopes: string): string[] {
+  const values = new Set<string>()
+  scopes
+    .split(/\s+/g)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .forEach((scope) => values.add(scope))
+  REQUIRED_SCOPES.forEach((scope) => values.add(scope))
+  return Array.from(values)
+}
+
+export async function startLogin(): Promise<StoredCustomerSession> {
   const config = getShopifyCustomerConfig()
-  const shopDomain = sanitizeShopDomain(rawShopDomain || config.shopDomain)
 
-  const [{ authorizationEndpoint, tokenEndpoint, endSessionEndpoint }, customerConfig] = await Promise.all([
-    getOpenIdConfig(shopDomain),
-    getCustomerApiConfig(shopDomain),
-  ])
+  const [oidc, graphqlEndpoint] = await Promise.all([getOidcEndpoints(), getCustomerApiEndpoint()])
 
-  const state = AuthSession.generateStateAsync?.() ? await AuthSession.generateStateAsync() : `${Date.now()}`
+  let state: string
+  try {
+    state = await AuthSession.generateHexStringAsync(16)
+  } catch {
+    state = Math.random().toString(36).slice(2)
+  }
+  const scopes = buildScopeList(config.scopes)
+
   const request = new AuthSession.AuthRequest({
     clientId: config.clientId,
-    scopes: config.scopes.split(/\s+/g).filter(Boolean),
+    scopes,
     redirectUri: config.redirectUri,
     responseType: AuthSession.ResponseType.Code,
     codeChallengeMethod: AuthSession.CodeChallengeMethod.S256,
-    extraParams: { state },
+    state,
   })
+
+  const discoveryDocument = { authorizationEndpoint: oidc.authorizationEndpoint }
+
   const expectedState = request.state ?? state
 
-  await request.makeAuthUrlAsync({ url: authorizationEndpoint })
+  await request.makeAuthUrlAsync(discoveryDocument)
 
   const result = await request.promptAsync(
-    { authorizationEndpoint },
-    { useProxy: false, projectNameForProxy: undefined, redirectUri: config.redirectUri },
+    discoveryDocument,
   )
 
   if (result.type !== "success") {
@@ -61,9 +81,12 @@ export async function startLogin(rawShopDomain?: string): Promise<StoredCustomer
     body.set("code_verifier", request.codeVerifier)
   }
 
-  const tokenResponse = await fetch(tokenEndpoint, {
+  const tokenResponse = await fetch(oidc.tokenEndpoint, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
     body: body.toString(),
   })
 
@@ -87,30 +110,30 @@ export async function startLogin(rawShopDomain?: string): Promise<StoredCustomer
 
   const now = Date.now()
   const session: StoredCustomerSession = {
-    shopDomain,
+    shopId: SHOP_ID,
+    shopDomain: config.shopDomain ?? null,
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token ?? null,
     idToken: tokens.id_token ?? null,
     scope: tokens.scope ?? null,
     tokenType: tokens.token_type ?? null,
     expiresAt: tokens.expires_in ? now + tokens.expires_in * 1000 : now + 60 * 60 * 1000,
-    graphqlEndpoint: customerConfig.graphqlApi,
-    tokenEndpoint,
-    logoutEndpoint: endSessionEndpoint ?? null,
+    graphqlEndpoint,
+    tokenEndpoint: oidc.tokenEndpoint,
+    logoutEndpoint: oidc.endSessionEndpoint ?? null,
     idTokenIssuedAt: now,
   }
 
   await setStoredCustomerSession(session)
-  await setGraphqlEndpointForSession(customerConfig.graphqlApi)
+  await setGraphqlEndpointForSession(graphqlEndpoint)
 
   return session
 }
 
-export async function logout(rawShopDomain?: string): Promise<void> {
+export async function logout(): Promise<void> {
   const config = getShopifyCustomerConfig()
-  const shopDomain = sanitizeShopDomain(rawShopDomain || config.shopDomain)
   const session = await getStoredCustomerSession()
-  if (!session || session.shopDomain !== shopDomain) {
+  if (!session || session.shopId !== SHOP_ID) {
     await clearStoredCustomerSession()
     return
   }
@@ -119,14 +142,20 @@ export async function logout(rawShopDomain?: string): Promise<void> {
   let logoutEndpoint = session.logoutEndpoint || config.logoutEndpointOverride || null
 
   if (!logoutEndpoint) {
-    const openId = await getOpenIdConfig(shopDomain)
-    logoutEndpoint = openId.endSessionEndpoint ?? null
-    if (logoutEndpoint) {
-      await updateStoredCustomerSession((current) => ({
-        ...current,
-        logoutEndpoint,
-        tokenEndpoint: openId.tokenEndpoint,
-      }))
+    try {
+      const oidc = await getOidcEndpoints({ forceRefresh: true })
+      logoutEndpoint = oidc.endSessionEndpoint ?? null
+      if (logoutEndpoint) {
+        await updateStoredCustomerSession((current) => ({
+          ...current,
+          logoutEndpoint,
+          tokenEndpoint: oidc.tokenEndpoint,
+        }))
+      }
+    } catch (error) {
+      if (typeof __DEV__ === "undefined" || __DEV__) {
+        console.warn("[CAAPI][oauth] Failed to refresh logout endpoint", error)
+      }
     }
   }
 
@@ -136,8 +165,8 @@ export async function logout(rawShopDomain?: string): Promise<void> {
       url.searchParams.set("id_token_hint", idToken)
       await fetch(url.toString(), { method: "GET" })
     } catch (error) {
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.warn("[Shopify][Customer] Logout request failed", error)
+      if (typeof __DEV__ === "undefined" || __DEV__) {
+        console.warn("[CAAPI][oauth] Logout request failed", error)
       }
     }
   }
@@ -147,6 +176,8 @@ export async function logout(rawShopDomain?: string): Promise<void> {
 
 export async function requireSessionOrThrow(): Promise<StoredCustomerSession> {
   const session = await getStoredCustomerSession()
-  if (!session) throw new AuthExpiredError()
+  if (!session || session.shopId !== SHOP_ID) {
+    throw new AuthExpiredError()
+  }
   return session
 }

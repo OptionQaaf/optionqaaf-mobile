@@ -1,8 +1,118 @@
-import { getShopifyCustomerConfig, sanitizeShopDomain } from "./config"
-import { getCustomerApiConfig } from "./discovery"
+import { SHOPIFY_API_VERSION } from "../env"
+import { getCustomerApiEndpoint } from "./discovery"
+import { CUSTOMER_CLIENT_ID, SHOP_DOMAIN_HEADER, SHOP_ID } from "./env"
 import { CustomerApiError } from "./errors"
-import type { CustomerApiConfig } from "./types"
-import { getValidAccessToken, setGraphqlEndpointForSession, updateStoredCustomerSession } from "./tokens"
+import { getValidAccessToken, updateStoredCustomerSession } from "./tokens"
+
+export type GraphQLResponse<T> = {
+  data?: T
+  errors?: Array<{ message?: string; [key: string]: any }>
+}
+
+type ExecuteOptions = {
+  attempt?: number
+  forceEndpointRefresh?: boolean
+  forceTokenRefresh?: boolean
+  operationName?: string
+}
+
+async function executeCustomerGraphQL<T>(
+  query: string,
+  variables?: Record<string, unknown>,
+  options?: ExecuteOptions,
+): Promise<{ json: GraphQLResponse<T>; endpoint: string }> {
+  const attempt = options?.attempt ?? 0
+  const endpoint = await getCustomerApiEndpoint({ forceRefresh: options?.forceEndpointRefresh })
+
+  await updateStoredCustomerSession((current) => ({ ...current, graphqlEndpoint: endpoint }))
+
+  const { accessToken } = await getValidAccessToken({ forceRefresh: options?.forceTokenRefresh })
+
+  const payload: Record<string, unknown> = {
+    query,
+    variables: variables ?? {},
+  }
+  if (options?.operationName) {
+    payload.operationName = options.operationName
+  }
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    "Shopify-Api-Client-Id": CUSTOMER_CLIENT_ID,
+    "Shopify-Shop-Id": String(SHOP_ID),
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  }
+  if (SHOPIFY_API_VERSION) {
+    headers["Shopify-Api-Version"] = SHOPIFY_API_VERSION
+  }
+  if (SHOP_DOMAIN_HEADER) {
+    headers["Shopify-Shop-Domain"] = SHOP_DOMAIN_HEADER
+  }
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    if (res.status === 401 || res.status === 403) {
+      if (attempt >= 1) {
+        throw new CustomerApiError(`[CAAPI] ${res.status} ${res.statusText}`, res.status, text ? [{ message: text }] : undefined, endpoint)
+      }
+      return executeCustomerGraphQL<T>(query, variables, {
+        ...options,
+        attempt: attempt + 1,
+        forceTokenRefresh: true,
+      })
+    }
+
+    if (res.status === 404) {
+      if (typeof __DEV__ === "undefined" || __DEV__) {
+        console.warn("[CAAPI] HTTP error", res.status, "endpoint:", endpoint, "body:", text)
+      }
+      if (attempt >= 1) {
+        throw new CustomerApiError(
+          "[CAAPI] 404 Not Found (check discovery source and Shopify-Shop-Id)",
+          res.status,
+          text ? [{ message: text }] : undefined,
+          endpoint,
+        )
+      }
+      return executeCustomerGraphQL<T>(query, variables, {
+        ...options,
+        attempt: attempt + 1,
+        forceEndpointRefresh: true,
+      })
+    }
+
+    throw new CustomerApiError(
+      `[CAAPI] ${res.status} ${res.statusText}`,
+      res.status,
+      text ? [{ message: text }] : undefined,
+      endpoint,
+    )
+  }
+
+  let json: GraphQLResponse<T>
+  try {
+    json = (await res.json()) as GraphQLResponse<T>
+  } catch {
+    throw new CustomerApiError("[CAAPI] Invalid JSON response", res.status, undefined, endpoint)
+  }
+
+  return { json, endpoint }
+}
+
+export async function customerQuery<T = any>(
+  query: string,
+  variables?: Record<string, any>,
+): Promise<GraphQLResponse<T>> {
+  const { json } = await executeCustomerGraphQL<T>(query, variables)
+  return json
+}
 
 type FetchGraphQL = <TResult, TVariables = Record<string, unknown>>(
   operationName: string,
@@ -14,117 +124,38 @@ export type CustomerGraphQLClient = {
   fetchGraphQL: FetchGraphQL
 }
 
-type GraphQLResponse<T> = {
-  data?: T
-  errors?: Array<{ message?: string; extensions?: Record<string, any> }>
-}
-
-function createPayload(operationName: string, query: string, variables?: unknown) {
-  return JSON.stringify({
-    operationName,
-    query,
-    variables: variables ?? {},
-  })
-}
-
-async function performRequest<T>(
-  endpoint: string,
-  token: string,
-  payload: string,
-): Promise<{ response: Response; body: GraphQLResponse<T> }> {
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: token,
-    },
-    body: payload,
-  })
-  let body: GraphQLResponse<T>
-  try {
-    body = (await response.json()) as GraphQLResponse<T>
-  } catch {
-    body = { data: undefined, errors: undefined }
-  }
-  return { response, body }
-}
-
 function buildGraphQLError<T>(
   endpoint: string,
-  response: Response,
   body: GraphQLResponse<T>,
+  status = 200,
 ): CustomerApiError {
-  const status = response.status
   const message =
     body.errors
       ?.map((err) => err?.message)
       .filter(Boolean)
-      .join("; ") ||
-    (status === 404
-      ? "Customer Accounts not enabled for this shop or misconfigured sales channel. Please verify Admin → Settings → Customer accounts is ON, and Headless/Hydrogen sales channel Customer Account API is configured. Also ensure you used the discovered GraphQL endpoint."
-      : `Customer GraphQL request failed (${status})`)
+      .join("; ") || "Customer GraphQL request failed"
   return new CustomerApiError(message, status, body.errors, endpoint)
 }
 
-export async function createCustomerGraphQLClient(rawShopDomain?: string): Promise<CustomerGraphQLClient> {
-  const { shopDomain } = getShopifyCustomerConfig()
-  const domain = sanitizeShopDomain(rawShopDomain || shopDomain)
-  let discovery: CustomerApiConfig | null = null
-
-  async function ensureDiscovery(force?: boolean) {
-    discovery = await getCustomerApiConfig(domain, force)
-    await setGraphqlEndpointForSession(discovery.graphqlApi)
-    return discovery
-  }
-
-  await ensureDiscovery()
-
-  async function execute<T, V>(operationName: string, query: string, variables?: V): Promise<T> {
-    let attempt = 0
-    let lastError: CustomerApiError | null = null
-    let endpoint = discovery?.graphqlApi || (await ensureDiscovery()).graphqlApi
-
-    while (attempt < 3) {
-      attempt += 1
-      const { accessToken } = await getValidAccessToken(domain, {
-        forceRefresh: attempt > 1 && lastError?.status === 401,
-      })
-      const payload = createPayload(operationName, query, variables)
-      const { response, body } = await performRequest<T>(endpoint, accessToken, payload)
-
-      if (response.ok && body.data) {
-        if (body.errors && body.errors.length > 0) {
-          throw buildGraphQLError(endpoint, response, body)
-        }
-        return body.data
-      }
-
-      const error = buildGraphQLError(endpoint, response, body)
-
-      if (response.status === 401 || response.status === 403) {
-        lastError = error
-        if (attempt < 3) continue
-      }
-
-      if (response.status === 404 && attempt < 3) {
-        const refreshed = await ensureDiscovery(true)
-        endpoint = refreshed.graphqlApi
-        if (typeof __DEV__ !== "undefined" && __DEV__) {
-          console.warn("[Shopify][Customer] GraphQL 404 – re-discovered endpoint", endpoint)
-        }
-        continue
-      }
-
-      lastError = error
-      break
-    }
-
-    if (lastError) throw lastError
-    throw new CustomerApiError("Customer GraphQL request failed", 500)
-  }
-
+export async function createCustomerGraphQLClient(): Promise<CustomerGraphQLClient> {
   return {
-    fetchGraphQL: execute,
+    fetchGraphQL: async (operationName, query, variables) => {
+      const { json, endpoint } = await executeCustomerGraphQL<any>(
+        query,
+        variables as Record<string, unknown> | undefined,
+        { operationName },
+      )
+
+      if (json.errors && json.errors.length > 0) {
+        throw buildGraphQLError(endpoint, json)
+      }
+
+      if (!json.data) {
+        throw buildGraphQLError(endpoint, json)
+      }
+
+      return json.data as any
+    },
   }
 }
 

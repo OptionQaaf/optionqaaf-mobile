@@ -40,7 +40,7 @@ export function CustomerAccountScreen() {
         refreshing: !!opts?.refresh,
       }))
       try {
-        const client = await createCustomerGraphQLClient(shopDomain)
+        const client = await createCustomerGraphQLClient()
         const fetch = client.fetchGraphQL
 
         const [basics, addresses, orders] = await Promise.all([
@@ -69,7 +69,7 @@ export function CustomerAccountScreen() {
         setState((prev) => ({ ...prev, loading: false, refreshing: false, error: message }))
       }
     },
-    [shopDomain],
+    [],
   )
 
   useEffect(() => {
@@ -83,9 +83,9 @@ export function CustomerAccountScreen() {
   }, [load])
 
   const onSignOut = useCallback(async () => {
-    await logout(shopDomain)
+    await logout()
     router.replace("/test/customer-login")
-  }, [router, shopDomain])
+  }, [router])
 
   const orders = useMemo(() => (state.customer?.orders?.nodes ?? []).filter(Boolean), [state.customer?.orders?.nodes])
   const addresses = useMemo(

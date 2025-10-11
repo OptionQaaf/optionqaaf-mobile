@@ -1,14 +1,3 @@
-export type OpenIdConfig = {
-  authorizationEndpoint: string
-  tokenEndpoint: string
-  endSessionEndpoint?: string
-}
-
-export type CustomerApiConfig = {
-  graphqlApi: string
-  mcpApi?: string | null
-}
-
 export type AuthTokens = {
   accessToken: string
   refreshToken?: string | null
@@ -19,7 +8,8 @@ export type AuthTokens = {
 }
 
 export type StoredCustomerSession = {
-  shopDomain: string
+  shopId: number
+  shopDomain?: string | null
   accessToken: string
   refreshToken?: string | null
   idToken?: string | null

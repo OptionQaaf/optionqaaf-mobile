@@ -6,7 +6,6 @@ import { qk } from "@/lib/shopify/queryKeys"
 
 import { startLogin, logout as remoteLogout } from "./auth"
 import { createCustomerGraphQLClient } from "./client"
-import { getShopifyCustomerConfig } from "./config"
 import { AuthExpiredError, GraphQLErrorWithStatus } from "./errors"
 import { CUSTOMER_ADDRESSES_QUERY, CUSTOMER_BASICS_QUERY, CUSTOMER_ORDERS_QUERY } from "./queries"
 import type {
@@ -18,15 +17,13 @@ import type {
 } from "./types"
 import { clearStoredCustomerSession, getStoredCustomerSession, getValidAccessToken } from "./tokens"
 
-const config = getShopifyCustomerConfig()
-
 type CustomerSessionState = { status: "unauthenticated" } | { status: "authenticated"; session: StoredCustomerSession }
 
 async function loadSession(): Promise<CustomerSessionState> {
   const session = await getStoredCustomerSession()
   if (!session) return { status: "unauthenticated" }
   try {
-    const { session: validated } = await getValidAccessToken(session.shopDomain)
+    const { session: validated } = await getValidAccessToken()
     return { status: "authenticated", session: validated }
   } catch (error) {
     if (error instanceof AuthExpiredError) {
@@ -38,7 +35,7 @@ async function loadSession(): Promise<CustomerSessionState> {
 }
 
 async function fetchCustomerOverview(session: StoredCustomerSession): Promise<CustomerAccountSnapshot> {
-  const client = await createCustomerGraphQLClient(session.shopDomain)
+  const client = await createCustomerGraphQLClient()
   const fetch = client.fetchGraphQL
 
   const [basics, addresses, orders] = await Promise.all([
@@ -105,7 +102,7 @@ export function useCustomerSession(): UseCustomerSessionResult {
   }, [queryClient])
 
   const logout = useCallback(async () => {
-    await remoteLogout(config.shopDomain)
+    await remoteLogout()
     await queryClient.invalidateQueries({ queryKey: qk.customerSession() })
     await queryClient.removeQueries({ queryKey: qk.customerOverview() })
   }, [queryClient])
@@ -141,7 +138,7 @@ export function useLogin() {
   const queryClient = useQueryClient()
   return useMutation<LoginResult, Error>({
     mutationFn: async () => {
-      const session = await startLogin(config.shopDomain)
+      const session = await startLogin()
       await queryClient.invalidateQueries({ queryKey: qk.customerSession() })
       await queryClient.removeQueries({ queryKey: qk.customerOverview() })
       router.replace("/account")

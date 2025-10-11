@@ -1,7 +1,8 @@
 import { secureKv } from "@/lib/storage/secureKv"
 
-import { getShopifyCustomerConfig, sanitizeShopDomain } from "./config"
-import { getOpenIdConfig } from "./discovery"
+import { getShopifyCustomerConfig } from "./config"
+import { SHOP_ID } from "./env"
+import { getOidcEndpoints } from "./oauth"
 import { AuthExpiredError } from "./errors"
 import type { StoredCustomerSession } from "./types"
 
@@ -13,10 +14,26 @@ let refreshPromise: Promise<StoredCustomerSession> | null = null
 
 function parseSession(raw: string): StoredCustomerSession | null {
   try {
-    const parsed = JSON.parse(raw) as StoredCustomerSession
+    const parsed = JSON.parse(raw) as Partial<StoredCustomerSession> & {
+      shopId?: number
+      shopDomain?: string | null
+    }
     if (!parsed || typeof parsed !== "object") return null
-    if (!parsed.shopDomain || !parsed.accessToken || !parsed.graphqlEndpoint) return null
-    return parsed
+    if (!parsed.accessToken || !parsed.graphqlEndpoint) return null
+
+    const resolvedShopId =
+      typeof parsed.shopId === "number" && Number.isFinite(parsed.shopId) ? parsed.shopId : SHOP_ID
+
+    return {
+      ...parsed,
+      shopId: resolvedShopId,
+      shopDomain: parsed.shopDomain ?? null,
+      refreshToken: parsed.refreshToken ?? null,
+      idToken: parsed.idToken ?? null,
+      scope: parsed.scope ?? null,
+      tokenType: parsed.tokenType ?? null,
+      logoutEndpoint: parsed.logoutEndpoint ?? null,
+    } as StoredCustomerSession
   } catch {
     return null
   }
@@ -76,18 +93,17 @@ function needsRefresh(session: StoredCustomerSession, forceRefresh?: boolean) {
   return session.expiresAt <= Date.now() + EXPIRY_GRACE_MS
 }
 
-export async function getValidAccessToken(
-  rawShopDomain?: string,
-  options?: { forceRefresh?: boolean },
-): Promise<{ accessToken: string; session: StoredCustomerSession }> {
+export async function getValidAccessToken(options?: {
+  forceRefresh?: boolean
+}): Promise<{ accessToken: string; session: StoredCustomerSession }> {
   const session = await readStoredSession()
   if (!session) {
     throw new AuthExpiredError("No customer session found")
   }
 
-  const domain = sanitizeShopDomain(rawShopDomain || session.shopDomain)
-  if (session.shopDomain !== domain) {
-    throw new AuthExpiredError("Customer session does not match requested shop")
+  if (session.shopId !== SHOP_ID) {
+    await clearStoredCustomerSession()
+    throw new AuthExpiredError("Stored session belongs to a different shop")
   }
 
   if (!needsRefresh(session, options?.forceRefresh)) {
@@ -102,7 +118,7 @@ export async function getValidAccessToken(
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const refreshed = await refreshAccessTokenInternal(session, domain)
+        const refreshed = await refreshAccessTokenInternal(session)
         await writeSession(refreshed)
         return refreshed
       } catch (error) {
@@ -118,12 +134,9 @@ export async function getValidAccessToken(
   return { accessToken: refreshedSession.accessToken, session: refreshedSession }
 }
 
-async function refreshAccessTokenInternal(
-  session: StoredCustomerSession,
-  shopDomain: string,
-): Promise<StoredCustomerSession> {
+async function refreshAccessTokenInternal(session: StoredCustomerSession): Promise<StoredCustomerSession> {
   const { clientId } = getShopifyCustomerConfig()
-  const openId = await getOpenIdConfig(shopDomain, true)
+  const openId = await getOidcEndpoints({ forceRefresh: true })
 
   const params = new URLSearchParams({
     grant_type: "refresh_token",
