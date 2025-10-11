@@ -93,6 +93,14 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
   CUSTOMER_SCHEMA_TOKEN=shcat_XXXX pnpm run codegen:customer
   ```
 
+  If your shop sits behind Cloudflare (common on custom domains) you may need to point the schema introspection at the
+  customer GraphQL endpoint discovered from `https://<shop-domain>/.well-known/customer-account-api`:
+
+  ```bash
+  export CUSTOMER_SCHEMA_ENDPOINT=https://optionqaaf.com/account/customer/api/graphql
+  CUSTOMER_SCHEMA_TOKEN=shcat_XXXX pnpm run codegen:customer
+  ```
+
 ---
 
 ## 📦 Deployment

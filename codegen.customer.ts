@@ -7,8 +7,11 @@ const ENDPOINT_ENV = process.env.EXPO_PUBLIC_SHOPIFY_CUSTOMER_GRAPHQL_ENDPOINT
 if (!SHOP_DOMAIN) throw new Error("Missing EXPO_PUBLIC_SHOPIFY_DOMAIN")
 if (!SHOP_ID) throw new Error("Missing EXPO_PUBLIC_SHOPIFY_SHOP_ID")
 
-const customerGraphqlEndpoint =
-  ENDPOINT_ENV || `https://shopify.com/${SHOP_ID}/account/customer/api/graphql`
+const defaultEndpoint = `https://shopify.com/${SHOP_ID}/account/customer/api/graphql`
+
+const customerGraphqlEndpoint = ENDPOINT_ENV || defaultEndpoint
+
+const schemaEndpoint = process.env.CUSTOMER_SCHEMA_ENDPOINT || customerGraphqlEndpoint
 
 const schemaToken = process.env.CUSTOMER_SCHEMA_TOKEN
 if (!schemaToken) {
@@ -19,7 +22,7 @@ if (!schemaToken) {
 
 export default {
   schema: {
-    [customerGraphqlEndpoint]: {
+    [schemaEndpoint]: {
       headers: {
         Authorization: schemaToken,
       },
