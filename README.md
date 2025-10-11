@@ -51,14 +51,28 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
    npx expo start
    ```
 
-4. **Environment Setup:** Create a `.env` file with the following:
+4. **Environment Setup:** Copy `.env.example` to `.env` and populate the values:
    ```env
-   EXPO_PUBLIC_SHOPIFY_SHOP_DOMAIN=optionqaaf.myshopify.com
-   EXPO_PUBLIC_SHOPIFY_STOREFRONT_TOKEN=your_token
+   EXPO_PUBLIC_SHOP_DOMAIN=optionqaaf.com
+   EXPO_PUBLIC_CUSTOMER_APP_CLIENT_ID=bae78312-4865-4881-af68-c1eba8c61451
+   EXPO_PUBLIC_SHOP_ID=85072904499
+   EXPO_PUBLIC_OAUTH_REDIRECT_SCHEME=shop.85072904499.app
+   EXPO_PUBLIC_OAUTH_SCOPES="openid email customer-account-api:full"
+   EXPO_PUBLIC_DEBUG_AUTH=0
+
+   # Storefront API (existing checkout/catalog integrations)
+   EXPO_PUBLIC_SHOPIFY_DOMAIN=optionqaaf.myshopify.com
+   EXPO_PUBLIC_SHOPIFY_STOREFRONT_TOKEN=your_storefront_token
    EXPO_PUBLIC_SHOPIFY_API_VERSION=2025-07
-   EXPO_PUBLIC_SHOPIFY_CLIENT_ID=55f5b958-3344-457c-8fc7-0d1cadee09da
-   EXPO_PUBLIC_SHOPIFY_SCOPES="openid email customer-account-api:full"
-   EXPO_PUBLIC_SHOPIFY_AUTH_SCHEME=shop.1234567890.app://callback
+   ```
+
+   Add the redirect scheme to `app.json` if it is not present yet:
+   ```json
+   {
+     "expo": {
+       "scheme": ["shop.85072904499.app"]
+     }
+   }
    ```
 
 ---
@@ -84,6 +98,17 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
 - Shopify checkout is external via `checkoutUrl`
 - Authentication and customer features are included (wishlist, orders, etc.)
 - Designed mobile-first, with future support for web possible via Expo Web
+
+### 🔐 Customer Accounts (OTP)
+
+- Customer sign-in uses Shopify Customer Account API with hosted OAuth + PKCE. Discovery starts from the storefront domain
+  (`EXPO_PUBLIC_SHOP_DOMAIN`) and falls back to the Admin-provided endpoints only if discovery fails.
+- Tokens are stored in `expo-secure-store` and refreshed when Shopify issues refresh tokens. Public-client flows without
+  refresh tokens trigger a re-authentication when the access token expires.
+- All customer data (profile, addresses, orders) is fetched via the Customer Account GraphQL API—no Storefront customer
+  mutations remain. Errors such as `THROTTLED`, permission failures, or token expiry are surfaced through the global auth
+  context.
+- Logout clears the local session and calls the discovered end-session endpoint; mobile clients do not expect a redirect.
 
 ---
 

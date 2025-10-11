@@ -41,13 +41,10 @@ Screen (useProduct)
 
 ```
 lib/
-  └── shopify/
-      ├── client.ts
-      ├── fragments.graphql
-      ├── queries/
-      ├── gql/  ← auto-generated
-      └── services/
-
+  ├── customerAuth/       # Discovery, OAuth/PKCE, session persistence
+  ├── customerApi/        # Customer Account GraphQL client + operations
+  └── shopify/            # Storefront API client and generated documents
+      
 features/
   └── product/api.ts
   └── cart/api.ts

@@ -2,8 +2,7 @@ import { useCallback, useState } from "react"
 import { ActivityIndicator, View } from "react-native"
 import { router } from "expo-router"
 
-import { useCustomerSession } from "@/lib/shopify/customer/hooks"
-import { CustomerApiError } from "@/lib/shopify/customer/client"
+import { useAuth } from "@/context/AuthContext"
 import { AccountHome } from "@/ui/account/AccountHome"
 import { LoginCard } from "@/ui/account/LoginCard"
 import { Screen } from "@/ui/layout/Screen"
@@ -13,17 +12,17 @@ import { Card } from "@/ui/surfaces/Card"
 import { H3, Text } from "@/ui/primitives/Typography"
 
 export default function AccountScreen() {
-  const { status, customer, refresh, logout, isFetchingCustomer, error } = useCustomerSession()
+  const { status, customer, reloadCustomer, logout, isFetchingCustomer, error } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
     try {
-      await refresh()
+      await reloadCustomer()
     } finally {
       setRefreshing(false)
     }
-  }, [refresh])
+  }, [reloadCustomer])
 
   const goToLogin = useCallback(() => router.push("/account/login" as const), [])
   const goToOrders = useCallback(() => router.push("/account/orders" as const), [])
@@ -31,7 +30,7 @@ export default function AccountScreen() {
 
   const isLoading = status === "loading"
   const showLogin = status === "unauthenticated"
-  const customerError = error instanceof CustomerApiError ? error : null
+  const customerError = status === "authenticated" && !customer ? error : undefined
 
   return (
     <Screen>
@@ -49,15 +48,13 @@ export default function AccountScreen() {
           <Card padding="lg" className="gap-3">
             <H3 className="text-[20px] leading-[26px]">Account data unavailable</H3>
             <Text className="text-secondary text-[15px]">
-              We authenticated you, but the Shopify Customer Account API is returning a 404 error. Double-check that new
-              customer accounts are enabled for this store and try again later.
+              We authenticated you, but the Shopify Customer Account API is not returning account data. Double-check
+              that new customer accounts are enabled for this store and try again later.
             </Text>
-            <Text className="text-secondary text-[13px]">
-              Technical detail: {customerError.message || "Customer API responded with 404"}
-            </Text>
+            <Text className="text-secondary text-[13px]">Technical detail: {customerError}</Text>
           </Card>
         </PageScrollView>
-      ) : (
+      ) : customer ? (
         <AccountHome
           customer={customer}
           onViewOrders={goToOrders}
@@ -66,7 +63,7 @@ export default function AccountScreen() {
           refreshing={refreshing || isFetchingCustomer}
           onLogout={logout}
         />
-      )}
+      ) : null}
     </Screen>
   )
 }

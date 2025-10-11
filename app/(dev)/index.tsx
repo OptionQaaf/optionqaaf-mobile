@@ -1,27 +1,14 @@
 import { useCallback, useState } from "react"
 
-import { startLogin } from "@/lib/shopify/customer/auth"
-import { customerQuery } from "@/lib/shopify/customer/client"
-import { CustomerApiError } from "@/lib/shopify/customer/errors"
-import {
-  getCustomerApiConfigOverride,
-  getCustomerApiEndpoint,
-  getOpenIdConfigOverride,
-} from "@/lib/shopify/customer/discovery"
-import { useCustomerSession } from "@/lib/shopify/customer/hooks"
-import { caapiSmokeTest } from "@/lib/shopify/customer/smoke"
+import { useAuth } from "@/context/AuthContext"
+import { getCustomerAuthConfig } from "@/lib/config/customerAuth"
+import { discoverCustomerAPI } from "@/lib/customerAuth/discovery"
+import { getMe, CustomerApiError, InvalidTokenError } from "@/lib/customerApi"
+import type { Customer } from "@/lib/customerApi"
 import { Screen } from "@/ui/layout/Screen"
 import { H1, Text } from "@/ui/primitives/Typography"
 import { Link } from "expo-router"
 import { Pressable, View } from "react-native"
-
-const HEALTH_CHECK_QUERY = /* GraphQL */ `
-  query DevCustomerProbe {
-    customer {
-      id
-    }
-  }
-`
 
 type HealthState = {
   status: number | null
@@ -31,42 +18,41 @@ type HealthState = {
 }
 
 export default function DevHome() {
-  const openIdOverride = getOpenIdConfigOverride()
-  const customerOverride = getCustomerApiConfigOverride()
-  const session = useCustomerSession()
-  const sessionStatus = session.status
-  const refreshSession = session.refresh
+  const config = getCustomerAuthConfig()
+  const openIdOverride = config.overrides.authorizationEndpoint || config.overrides.openIdConfigurationUrl
+  const customerOverride = config.overrides.customerApiEndpoint
+  const { status: sessionStatus, loginWithOTP, reloadCustomer } = useAuth()
   const [endpoint, setEndpoint] = useState<string | null>(null)
   const [health, setHealth] = useState<HealthState | null>(null)
   const [isChecking, setIsChecking] = useState(false)
   const [smoke, setSmoke] = useState<{
     loading: boolean
-    customer?: { id: string; firstName: string | null; lastName: string | null }
+    customer?: Customer
     error?: string
   } | null>(null)
 
   const runHealthCheck = useCallback(async () => {
     setIsChecking(true)
     try {
-      const url = await getCustomerApiEndpoint()
-      setEndpoint(url)
+      const discovery = await discoverCustomerAPI()
+      setEndpoint(discovery.graphqlApi)
       if (sessionStatus !== "authenticated") {
         setHealth({ status: null, errors: [], note: "Log in to run the GraphQL probe." })
         return
       }
-      const result = await customerQuery<{ customer: { id: string | null } | null }>(HEALTH_CHECK_QUERY)
-      const messages = Array.isArray(result.errors)
-        ? (result.errors.map((entry) => entry?.message).filter(Boolean) ?? [])
-        : []
+      const result = await getMe()
+      const messages: string[] = []
       setHealth({
         status: 200,
         errors: messages,
-        note: !result.data?.customer ? "Customer query returned no data (is the account logged in?)" : undefined,
+        note: !result ? "Customer query returned no data (is the account logged in?)" : undefined,
       })
     } catch (error) {
       if (error instanceof CustomerApiError) {
         const messages = Array.isArray(error.errors)
-          ? (error.errors as { message?: string }[]).map((entry) => entry?.message).filter(Boolean)
+          ? (error.errors as { message?: string }[])
+              .map((entry) => entry?.message)
+              .filter((msg): msg is string => typeof msg === "string")
           : []
         setHealth({
           status: error.status ?? null,
@@ -76,6 +62,13 @@ export default function DevHome() {
             error.status === 404
               ? "Enable Customer accounts (new) and ensure Protected customer data access is granted (Level 1/2)."
               : undefined,
+        })
+      } else if (error instanceof InvalidTokenError) {
+        setHealth({
+          status: 401,
+          errors: ["Access token rejected"],
+          errorMessage: error.message,
+          note: "Re-authenticate to refresh the token.",
         })
       } else {
         setHealth({
@@ -92,15 +85,15 @@ export default function DevHome() {
   const runSmokeTest = useCallback(async () => {
     setSmoke({ loading: true })
     try {
-      await startLogin()
-      await refreshSession()
-      const customer = await caapiSmokeTest()
+      await loginWithOTP()
+      await reloadCustomer()
+      const customer = await getMe()
       setSmoke({ loading: false, customer })
     } catch (error) {
       const message = error instanceof Error ? error.message : "Smoke test failed"
       setSmoke({ loading: false, error: message })
     }
-  }, [refreshSession])
+  }, [loginWithOTP, reloadCustomer])
 
   return (
     <Screen>
@@ -114,14 +107,12 @@ export default function DevHome() {
         </Link>
         <View className="mt-4 gap-1">
           <Text className="font-geist-semibold">Discovery overrides</Text>
-          <Text className="text-secondary text-[14px]">OpenID: {openIdOverride ? "enabled" : "disabled"}</Text>
-          {openIdOverride ? (
-            <Text className="text-secondary text-[13px]">authorize → {openIdOverride.authorization_endpoint}</Text>
-          ) : null}
-          <Text className="text-secondary text-[14px]">Customer API: {customerOverride ? "enabled" : "disabled"}</Text>
-          {customerOverride ? (
-            <Text className="text-secondary text-[13px]">graphql → {customerOverride.graphql_api}</Text>
-          ) : null}
+          <Text className="text-secondary text-[14px]">OpenID override: {openIdOverride ? "enabled" : "disabled"}</Text>
+          {openIdOverride ? <Text className="text-secondary text-[13px]">source → {openIdOverride}</Text> : null}
+          <Text className="text-secondary text-[14px]">
+            Customer API override: {customerOverride ? "enabled" : "disabled"}
+          </Text>
+          {customerOverride ? <Text className="text-secondary text-[13px]">graphql → {customerOverride}</Text> : null}
         </View>
         <View className="mt-4 gap-1">
           <Text className="font-geist-semibold">Health check</Text>

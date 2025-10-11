@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react"
 import { ActivityIndicator, RefreshControl, View } from "react-native"
 import { router } from "expo-router"
 
-import { useCustomerSession } from "@/lib/shopify/customer/hooks"
+import { useAuth } from "@/context/AuthContext"
 import { OrderRow } from "@/ui/account/AccountHome"
 import { LoginCard } from "@/ui/account/LoginCard"
 import { Screen } from "@/ui/layout/Screen"
@@ -11,20 +11,23 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { H2, Muted } from "@/ui/primitives/Typography"
 
 export default function AccountOrdersScreen() {
-  const { status, customer, refresh, isFetchingCustomer } = useCustomerSession()
+  const { status, customer, reloadCustomer, isFetchingCustomer } = useAuth()
   const [refreshing, setRefreshing] = useState(false)
 
-  const orders = useMemo(() => (customer?.orders?.nodes ?? []).filter(Boolean), [customer?.orders?.nodes])
+  const orders = useMemo(
+    () => (customer?.orders?.edges ?? []).map((edge) => edge?.node).filter(Boolean),
+    [customer?.orders?.edges],
+  )
   const toLogin = useCallback(() => router.replace("/account/login" as const), [])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
     try {
-      await refresh()
+      await reloadCustomer()
     } finally {
       setRefreshing(false)
     }
-  }, [refresh])
+  }, [reloadCustomer])
 
   if (status === "loading") {
     return (

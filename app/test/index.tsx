@@ -18,16 +18,6 @@ export default function TestIndex() {
       </View>
 
       <View style={{ gap: 8 }}>
-        <Text style={{ fontWeight: "600" }}>Customer Account API</Text>
-        <Link href="/test/customer-login" style={{ color: "#2563eb", fontSize: 16 }}>
-          → Login flow (PKCE)
-        </Link>
-        <Link href="/test/customer-account" style={{ color: "#2563eb", fontSize: 16 }}>
-          → Account data preview
-        </Link>
-      </View>
-
-      <View style={{ gap: 8 }}>
         <Text style={{ fontWeight: "600" }}>Product & Cart (enter a valid product handle)</Text>
         <TextInput
           value={handle}
