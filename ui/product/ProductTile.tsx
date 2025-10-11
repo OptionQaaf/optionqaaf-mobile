@@ -20,6 +20,7 @@ type Props = {
   imageRatio?: number
   variant?: "card" | "plain"
   priority?: "low" | "normal" | "high"
+  rounded?: "none" | "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "full"
 }
 
 export function ProductTile({
@@ -37,9 +38,12 @@ export function ProductTile({
   imageRatio = 1,
   variant = "card",
   priority,
+  rounded = "none",
 }: Props) {
   const pad = padding === "lg" ? "p-4" : padding === "sm" ? "p-2.5" : "p-3"
   const cardChrome = variant === "card" ? "bg-surface" : ""
+  const roundedClass =
+    rounded === "none" ? "" : rounded === "full" ? "rounded-full" : `rounded-${rounded}`
   const targetW = width ? Math.round(width) : undefined
   const targetH = targetW ? Math.round(targetW * imageRatio) : undefined
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
@@ -48,7 +52,7 @@ export function ProductTile({
 
   return (
     <Pressable onPress={onPress} className={cn("active:opacity-95", className)} style={width ? { width } : undefined}>
-      <View className={cn(cardChrome, "overflow-hidden")}>
+      <View className={cn(cardChrome, roundedClass, "overflow-hidden")}>
         <View style={{ aspectRatio: imageRatio, backgroundColor: "#F5F5F7", overflow: "hidden" }}>
           <Image
             source={{ uri: src }}

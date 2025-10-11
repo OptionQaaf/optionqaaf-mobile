@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { RefreshControl, View } from "react-native"
 
-import type { CustomerAccountSnapshot } from "@/lib/shopify/customer/types"
+import type { Customer, Order, Address } from "@/lib/customerApi"
 import { formatMoney } from "@/lib/shopify/money"
 import { Button } from "@/ui/primitives/Button"
 import { H2, H3, Muted, Text } from "@/ui/primitives/Typography"
@@ -9,7 +9,7 @@ import { Card } from "@/ui/surfaces/Card"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 
 export type AccountHomeProps = {
-  customer: CustomerAccountSnapshot
+  customer: Customer
   onViewOrders: () => void
   onViewAddresses: () => void
   onRefresh: () => Promise<void>
@@ -29,11 +29,10 @@ export function AccountHome({
 }: AccountHomeProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
-  const fullName = customer?.displayName || "Account"
-  const email = customer?.emailAddress?.emailAddress || "—"
-  const tags = Array.isArray(customer?.tags) ? customer?.tags.filter(Boolean) : []
-  const orders = (customer?.orders?.nodes ?? []).filter(Boolean)
-  const addresses = (customer?.addresses?.nodes ?? []).filter(Boolean)
+  const fullName = [customer?.firstName, customer?.lastName].filter(Boolean).join(" ") || "Account"
+  const email = customer?.email || "—"
+  const orders = (customer?.orders?.edges ?? []).map((edge) => edge?.node).filter(Boolean)
+  const addresses = (customer?.addresses?.edges ?? []).map((edge) => edge?.node).filter(Boolean)
   const defaultAddress = customer?.defaultAddress || null
 
   const onLogoutPress = async () => {
@@ -56,15 +55,6 @@ export function AccountHome({
         <View className="gap-1">
           <H2 className="text-[24px] leading-[32px]">{fullName}</H2>
           <Text className="text-secondary text-[16px]">{email}</Text>
-          {tags && tags.length > 0 ? (
-            <View className="flex-row flex-wrap gap-2 pt-2">
-              {tags.map((tag) => (
-                <View key={tag} className="rounded-full bg-muted px-3 py-1">
-                  <Text className="text-[12px] uppercase tracking-wide text-secondary">{tag}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
         </View>
         {defaultAddress ? (
           <View className="rounded-xl border border-border px-4 py-3 gap-1">
@@ -94,7 +84,7 @@ export function AccountHome({
           <Muted className="text-[14px]">You haven’t placed any orders yet.</Muted>
         ) : (
           <View className="gap-4">
-            {orders.slice(0, 3).map((order: any) => (
+            {orders.slice(0, 3).map((order) => (
               <OrderRow key={order.id} order={order} />
             ))}
             {orders.length > 3 ? (
@@ -112,7 +102,7 @@ export function AccountHome({
           <Muted className="text-[14px]">Add an address at checkout to save it here.</Muted>
         ) : (
           <View className="gap-4">
-            {addresses.slice(0, 3).map((address: any) => (
+            {addresses.slice(0, 3).map((address) => (
               <AddressRow key={address.id} address={address} />
             ))}
             {addresses.length > 3 ? (
@@ -128,16 +118,25 @@ export function AccountHome({
 }
 
 type OrderRowProps = {
-  order: any
+  order: Order
+}
+
+function humanizeStatus(value?: string | null): string | null {
+  if (!value) return null
+  return value.replace(/_/g, " ")
 }
 
 export function OrderRow({ order }: OrderRowProps) {
-  const name = typeof order?.name === "string" && order.name.length > 0 ? order.name : (order?.id ?? "Order")
+  const name =
+    (typeof order?.name === "string" && order.name.length > 0)
+      ? order.name
+      : order?.number
+        ? `Order #${order.number}`
+        : order?.id ?? "Order"
   const processedAt = order?.processedAt ? formatter.format(new Date(order.processedAt)) : "Processing"
-  const money = order?.totalPriceSet?.presentmentMoney ?? null
-  const total = formatMoney(money ?? null)
-  const financial = order?.financialStatus ? order.financialStatus.replace(/_/g, " ") : null
-  const fulfillment = order?.fulfillmentStatus ? order.fulfillmentStatus.replace(/_/g, " ") : null
+  const total = formatMoney(order?.totalPrice ?? null)
+  const financial = humanizeStatus(order?.financialStatus)
+  const fulfillment = humanizeStatus(order?.fulfillmentStatus)
   const status = [financial, fulfillment].filter(Boolean).join(" · ") || "Pending"
 
   return (
@@ -155,25 +154,24 @@ export function OrderRow({ order }: OrderRowProps) {
 }
 
 type AddressRowProps = {
-  address: any
+  address: Address
 }
 
 export function AddressRow({ address }: AddressRowProps) {
-  const fullName = [address?.firstName, address?.lastName].filter(Boolean).join(" ")
-  const lines = (address?.formatted ?? []).filter(Boolean)
+  const fullName =
+    [address?.firstName, address?.lastName].filter(Boolean).join(" ") || address?.name || "Unnamed"
+  const lines = [address?.address1, address?.address2].filter((line): line is string => Boolean(line))
   const locale = [address?.city, address?.province, address?.zip].filter(Boolean).join(", ")
   const country = address?.country
 
   return (
     <View className="rounded-xl border border-border px-4 py-3 gap-1">
       <Text className="text-[16px] font-geist-semibold">{fullName || "Unnamed"}</Text>
-      {(lines.length > 0 ? lines : [address?.address1, address?.address2].filter(Boolean)).map(
-        (line: string, idx: number) => (
-          <Text key={`${address.id}-line-${idx}`} className="text-[14px] text-secondary">
-            {line}
-          </Text>
-        ),
-      )}
+      {lines.map((line, idx) => (
+        <Text key={`${address.id}-line-${idx}`} className="text-[14px] text-secondary">
+          {line}
+        </Text>
+      ))}
       {locale ? <Text className="text-[14px] text-secondary">{locale}</Text> : null}
       {country ? <Muted className="text-[13px] uppercase">{country}</Muted> : null}
     </View>

@@ -1,5 +1,5 @@
 import { useCartQuery, useEnsureCart, useSyncCartChanges, useUpdateDiscountCodes } from "@/features/cart/api"
-import { useCustomerSession } from "@/lib/shopify/customer/hooks"
+import { useAuth } from "@/context/AuthContext"
 import { convertAmount } from "@/features/currency/rates"
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { usePrefs } from "@/store/prefs"
@@ -32,7 +32,7 @@ export default function CartScreen() {
   const insets = useSafeAreaInsets()
   const { currency: prefCurrencyState } = usePrefs()
   const { show } = useToast()
-  const { status: customerStatus } = useCustomerSession()
+  const { status: customerStatus } = useAuth()
 
   // Ensure there is a cart as early as possible (for codes, etc.)
   const ensure = useEnsureCart()

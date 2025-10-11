@@ -25,15 +25,16 @@ export function useCollectionsSummary(handles: string[], take = 3) {
           const res = await getCollectionProducts({ handle, pageSize: 1, after: null }, locale)
           const collection = res.collection
           if (!collection) return null
-          return {
+          const summary: CollectionSummary = {
             handle,
             title: collection.title ?? handle,
             image: (collection.image?.url as string | undefined) ?? undefined,
           }
+          return summary
         }),
       )
 
-      return results.filter((item): item is CollectionSummary => Boolean(item))
+      return results.filter((item): item is CollectionSummary => item !== null)
     },
   })
 }
