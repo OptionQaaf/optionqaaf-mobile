@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import {
-  Animated,
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Pressable, Text as RNText, View, useWindowDimensions, type LayoutChangeEvent } from "react-native"
+import Animated, {
   Easing,
-  Pressable,
-  Text as RNText,
-  View,
-  useWindowDimensions,
-  type LayoutChangeEvent,
-} from "react-native"
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated"
 
 type Props = {
   text?: string
@@ -33,8 +33,31 @@ export function RibbonMarquee({ text = "OPTIONQAAF", speed = DEFAULT_SPEED, them
   const [units, setUnits] = useState(6)
   const [segmentW, setSegmentW] = useState(0)
 
-  const tx = useRef(new Animated.Value(0)).current
-  const loopRef = useRef<Animated.CompositeAnimation | null>(null)
+  const tx = useSharedValue(0)
+
+  const { duration, startValue, endValue } = useMemo(() => {
+    const numericSpeed =
+      typeof speed === "number" && Number.isFinite(speed) ? speed : DEFAULT_SPEED
+    const magnitude = Math.abs(numericSpeed)
+    const direction = magnitude === 0 ? 1 : Math.sign(numericSpeed) || 1
+    const effectivePxps =
+      magnitude === 0
+        ? DEFAULT_SPEED
+        : magnitude < 1
+          ? magnitude * DEFAULT_SPEED
+          : magnitude
+    const travel = segmentW
+    const ms =
+      travel > 0 && Number.isFinite(effectivePxps) && effectivePxps > 0
+        ? (travel / effectivePxps) * 1000
+        : 0
+
+    return {
+      duration: ms,
+      startValue: direction >= 0 ? 0 : -travel,
+      endValue: direction >= 0 ? -travel : 0,
+    }
+  }, [segmentW, speed])
 
   // measure the rendered row and keep adding units until it comfortably exceeds the screen width
   const handleMeasure = useCallback(
@@ -54,36 +77,32 @@ export function RibbonMarquee({ text = "OPTIONQAAF", speed = DEFAULT_SPEED, them
     setSegmentW(0)
   }, [unit, screenW])
 
-  useEffect(() => () => loopRef.current?.stop(), [])
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }],
+  }))
 
   useEffect(() => {
-    loopRef.current?.stop()
-    tx.stopAnimation()
-    if (!segmentW) {
-      loopRef.current = null
+    cancelAnimation(tx)
+
+    if (!segmentW || !Number.isFinite(duration) || duration <= 0) {
+      tx.value = startValue
       return
     }
 
-    const magnitude = Math.abs(speed)
-    const effectivePxps =
-      magnitude === 0 ? DEFAULT_SPEED : magnitude < 1 ? magnitude * DEFAULT_SPEED : magnitude
-    const dir = magnitude === 0 ? 1 : Math.sign(speed)
-    const duration = (segmentW / effectivePxps) * 1000
-
-    tx.setValue(dir >= 0 ? 0 : -segmentW)
-    loopRef.current = Animated.loop(
-      Animated.timing(tx, {
-        toValue: dir >= 0 ? -segmentW : 0,
+    tx.value = startValue
+    tx.value = withRepeat(
+      withTiming(endValue, {
         duration,
         easing: Easing.linear,
-        useNativeDriver: true,
-        isInteraction: false,
       }),
-      // @ts-ignore older RN types
-      { resetBeforeIteration: true },
+      -1,
+      false,
     )
-    loopRef.current.start()
-  }, [segmentW, speed])
+
+    return () => {
+      cancelAnimation(tx)
+    }
+  }, [duration, endValue, segmentW, startValue, tx])
 
   const textStyle = {
     color: colorFg,
@@ -111,7 +130,7 @@ export function RibbonMarquee({ text = "OPTIONQAAF", speed = DEFAULT_SPEED, them
     <Pressable onPress={onPress} style={{ backgroundColor: colorBg }}>
       {/* ribbon */}
       <View style={{ height, overflow: "hidden" }}>
-        <Animated.View style={{ flexDirection: "row", transform: [{ translateX: tx }] }}>
+        <Animated.View style={[{ flexDirection: "row" }, animatedStyle]}>
           <SegmentRow onLayout={shouldMeasure ? (e) => handleMeasure(e.nativeEvent.layout.width) : undefined} />
           {/* duplicate back-to-back, so the screen is always filled */}
           <SegmentRow />
