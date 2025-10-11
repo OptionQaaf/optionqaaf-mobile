@@ -1,3 +1,4 @@
+import { ShopifyAuthProvider } from "@/features/auth/useShopifyAuth"
 import { DrawerProvider } from "@/features/navigation/Drawer"
 import { hydrateCartId } from "@/store/cartId"
 import { FontProvider } from "@/theme/FontProvider"
@@ -42,26 +43,28 @@ export default function RootLayout() {
   }, [fontsReady, cartReady])
 
   return (
-    <QueryClientProvider client={client}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider>
-          <FontProvider onReady={() => setFontsReady(true)}>
-            <DrawerProvider>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  animation: "fade",
-                  animationDuration: 240,
-                  gestureEnabled: false,
-                }}
-              >
-                <Stack.Screen name="products/[handle]" options={{ gestureEnabled: true }} />
-              </Stack>
-              <ToastHost />
-            </DrawerProvider>
-          </FontProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    </QueryClientProvider>
+    <ShopifyAuthProvider>
+      <QueryClientProvider client={client}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <SafeAreaProvider>
+            <FontProvider onReady={() => setFontsReady(true)}>
+              <DrawerProvider>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    animation: "fade",
+                    animationDuration: 240,
+                    gestureEnabled: false,
+                  }}
+                >
+                  <Stack.Screen name="products/[handle]" options={{ gestureEnabled: true }} />
+                </Stack>
+                <ToastHost />
+              </DrawerProvider>
+            </FontProvider>
+          </SafeAreaProvider>
+        </GestureHandlerRootView>
+      </QueryClientProvider>
+    </ShopifyAuthProvider>
   )
 }

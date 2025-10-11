@@ -41,6 +41,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.87.1
         version: 5.87.1(react@19.1.0)
+      buffer:
+        specifier: ^6.0.3
+        version: 6.0.3
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -125,6 +128,9 @@ importers:
       react-native-gesture-handler:
         specifier: ~2.28.0
         version: 2.28.0(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0)
+      react-native-get-random-values:
+        specifier: ^1.11.0
+        version: 1.11.0(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))
       react-native-mmkv:
         specifier: ^3
         version: 3.3.1(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0)
@@ -1153,6 +1159,7 @@ packages:
   '@graphql-tools/prisma-loader@8.0.17':
     resolution: {integrity: sha512-fnuTLeQhqRbA156pAyzJYN0KxCjKYRU5bz1q/SKOwElSnAU4k7/G1kyVsWLh7fneY78LoMNH5n+KlFV8iQlnyg==}
     engines: {node: '>=16.0.0'}
+    deprecated: 'This package was intended to be used with an older versions of Prisma.\nThe newer versions of Prisma has a different approach to GraphQL integration.\nTherefore, this package is no longer needed and has been deprecated and removed.\nLearn more: https://www.prisma.io/graphql'
     peerDependencies:
       graphql: ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0
 
@@ -2253,6 +2260,9 @@ packages:
   buffer@5.7.1:
     resolution: {integrity: sha512-EHcyIPBQ4BSGlvjB16k5KgAJ27CIsHY/2JBmCRReo48y9rQ3MaUzWX3KVlBa4U7MyX02HdVj0K7C3WaB3ju7FQ==}
 
+  buffer@6.0.3:
+    resolution: {integrity: sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==}
+
   bytes@3.1.2:
     resolution: {integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==}
     engines: {node: '>= 0.8'}
@@ -3146,6 +3156,9 @@ packages:
 
   exponential-backoff@3.1.2:
     resolution: {integrity: sha512-8QxYTVXUkuy7fIIoitQkPwGonB8F3Zj8eEO8Sqg9Zv/bkI7RJAzowee4gr81Hak/dUTpA2Z7VfQgoijjPNlUZA==}
+
+  fast-base64-decode@1.0.0:
+    resolution: {integrity: sha512-qwaScUgUGBYeDNRnbc/KyllVU88Jk1pRHPStuF/lO7B0/RTRLj7U0lkdTAutlBblY08rwZDff6tNU9cjv6j//Q==}
 
   fast-deep-equal@3.1.3:
     resolution: {integrity: sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q==}
@@ -4811,6 +4824,11 @@ packages:
     peerDependencies:
       react: '*'
       react-native: '*'
+
+  react-native-get-random-values@1.11.0:
+    resolution: {integrity: sha512-4BTbDbRmS7iPdhYLRcz3PGFIpFJBwNZg9g42iwa2P6FOv9vZj/xJc678RZXnLNZzd0qd7Q3CCF6Yd+CU2eoXKQ==}
+    peerDependencies:
+      react-native: '>=0.56'
 
   react-native-is-edge-to-edge@1.2.1:
     resolution: {integrity: sha512-FLbPWl/MyYQWz+KwqOZsSyj2JmLKglHatd3xLZWskXOpRaio4LfEDEz8E/A6uD8QoTHW6Aobw1jbEwK7KMgR7Q==}
@@ -8639,6 +8657,11 @@ snapshots:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
+  buffer@6.0.3:
+    dependencies:
+      base64-js: 1.5.1
+      ieee754: 1.2.1
+
   bytes@3.1.2: {}
 
   call-bind-apply-helpers@1.0.2:
@@ -9708,6 +9731,8 @@ snapshots:
       - utf-8-validate
 
   exponential-backoff@3.1.2: {}
+
+  fast-base64-decode@1.0.0: {}
 
   fast-deep-equal@3.1.3: {}
 
@@ -11431,6 +11456,11 @@ snapshots:
       hoist-non-react-statics: 3.3.2
       invariant: 2.2.4
       react: 19.1.0
+      react-native: 0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0)
+
+  react-native-get-random-values@1.11.0(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0)):
+    dependencies:
+      fast-base64-decode: 1.0.0
       react-native: 0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0)
 
   react-native-is-edge-to-edge@1.2.1(react-native@0.81.4(@babel/core@7.28.4)(@types/react@19.1.13)(react@19.1.0))(react@19.1.0):
