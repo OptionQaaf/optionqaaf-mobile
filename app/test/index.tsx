@@ -1,10 +1,10 @@
 // app/test/index.tsx
-import { Link, router } from "expo-router";
-import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Link, router } from "expo-router"
+import { useState } from "react"
+import { Pressable, Text, TextInput, View } from "react-native"
 
 export default function TestIndex() {
-  const [handle, setHandle] = useState("");
+  const [handle, setHandle] = useState("")
 
   return (
     <View style={{ flex: 1, padding: 16, gap: 16 }}>
@@ -18,6 +18,16 @@ export default function TestIndex() {
       </View>
 
       <View style={{ gap: 8 }}>
+        <Text style={{ fontWeight: "600" }}>Customer Account API</Text>
+        <Link href="/test/customer-login" style={{ color: "#2563eb", fontSize: 16 }}>
+          → Login flow (PKCE)
+        </Link>
+        <Link href="/test/customer-account" style={{ color: "#2563eb", fontSize: 16 }}>
+          → Account data preview
+        </Link>
+      </View>
+
+      <View style={{ gap: 8 }}>
         <Text style={{ fontWeight: "600" }}>Product & Cart (enter a valid product handle)</Text>
         <TextInput
           value={handle}
@@ -25,7 +35,10 @@ export default function TestIndex() {
           placeholder="e.g. black-denim-jacket"
           autoCapitalize="none"
           style={{
-            borderWidth: 1, borderColor: "#e5e7eb", padding: 12, borderRadius: 8,
+            borderWidth: 1,
+            borderColor: "#e5e7eb",
+            padding: 12,
+            borderRadius: 8,
           }}
         />
         <View style={{ flexDirection: "row", gap: 12 }}>
@@ -45,10 +58,8 @@ export default function TestIndex() {
       </View>
 
       <View style={{ marginTop: 24 }}>
-        <Text style={{ opacity: 0.6 }}>
-          Tip: start with /test/ping to confirm your Storefront token and version.
-        </Text>
+        <Text style={{ opacity: 0.6 }}>Tip: start with /test/ping to confirm your Storefront token and version.</Text>
       </View>
     </View>
-  );
+  )
 }

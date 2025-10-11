@@ -236,7 +236,7 @@ const { data: recommended } = useRecommendedProducts(product.id)
 
 - `EXPO_PUBLIC_SHOPIFY_DOMAIN`
 - `EXPO_PUBLIC_SHOPIFY_SHOP_ID`
-- `EXPO_PUBLIC_SHOPIFY_CUSTOMER_CLIENT_ID`
+- `EXPO_PUBLIC_SHOPIFY_CLIENT_ID`
 
 ### How to test the login flow
 
@@ -247,17 +247,22 @@ const { data: recommended } = useRecommendedProducts(product.id)
 
 ### Resetting the session
 
-- Use the **Log out** button on the account home screen, or run `pnpm reset-project` during development to clear MMKV storage.
+- Use the **Log out** button on the account home screen, or run `pnpm reset-project` during development to clear MMKV
+  storage.
 
 ### Shopify customer-account checklist
 
 - Store setting: Admin -> Settings -> Customer accounts -> enable Customer accounts (new).
-- Partner Dashboard: API access -> Protected customer data Level 1; add Level 2 fields (name/email/phone/address) if you use them. On dev stores, selecting fields enables testing without formal review.
-- Env: `EXPO_PUBLIC_SHOPIFY_DOMAIN`, `EXPO_PUBLIC_SHOPIFY_SHOP_ID`, `EXPO_PUBLIC_SHOPIFY_CUSTOMER_CLIENT_ID`, optional `EXPO_PUBLIC_SHOPIFY_CUSTOMER_REDIRECT_URI`.
-- Sanity check: curl the discovered `/.well-known/customer-account-api`, then POST `{ customer { id } }` to `graphql_api` with the bearer token. A quick probe:
+- Partner Dashboard: API access -> Protected customer data Level 1; add Level 2 fields (name/email/phone/address) if you
+  use them. On dev stores, selecting fields enables testing without formal review.
+- Env: `EXPO_PUBLIC_SHOPIFY_SHOP_DOMAIN`, `EXPO_PUBLIC_SHOPIFY_CLIENT_ID`, optional overrides for
+  `EXPO_PUBLIC_SHOPIFY_AUTH_SCHEME`, discovery endpoints, or GraphQL endpoint.
+- Sanity check: curl the discovered `/.well-known/customer-account-api`, then POST `{ customer { id } }` to
+  `graphql_api` with the bearer token. A quick probe:
   - `curl https://{shop-domain}/.well-known/customer-account-api`
   - `curl -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d '{"query":"{ customer { id } }"}' https://{graphql-url}`
-- Interpret the result: HTTP 200 with `errors[]` means data is redacted until permissions are approved; 404 means the endpoint or store setup needs attention.
+- Interpret the result: HTTP 200 with `errors[]` means data is redacted until permissions are approved; 404 means the
+  endpoint or store setup needs attention.
 
 ---
 

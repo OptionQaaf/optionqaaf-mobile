@@ -1,175 +1,166 @@
-import { GraphQLClient } from "graphql-request"
+import { SHOPIFY_API_VERSION } from "../env"
+import { getCustomerApiEndpoint } from "./discovery"
+import { CUSTOMER_CLIENT_ID, SHOP_DOMAIN_HEADER, SHOP_ID } from "./env"
+import { CustomerApiError } from "./errors"
+import { getValidAccessToken, updateStoredCustomerSession } from "./tokens"
 
-import { getCustomerApiEndpoint } from "@/lib/shopify/customer/discovery"
-import { SHOPIFY_DOMAIN, SHOPIFY_SHOP_ID } from "@/lib/shopify/env"
-
-export class CustomerApiError extends Error {
-  constructor(message: string, public status?: number, public cause?: unknown, public invalidToken?: boolean) {
-    super(message)
-    this.name = "CustomerApiError"
-  }
+export type GraphQLResponse<T> = {
+  data?: T
+  errors?: Array<{ message?: string; [key: string]: any }>
 }
 
-let memoizedEndpoint: string | null = null
-let memoizedShopDomain: string | null = null
-let loggedGraphEndpoint = false
+type ExecuteOptions = {
+  attempt?: number
+  forceEndpointRefresh?: boolean
+  forceTokenRefresh?: boolean
+  operationName?: string
+}
 
-export async function createCustomerGqlClient(accessToken: string, shopDomain: string) {
-  if (!memoizedEndpoint || memoizedShopDomain !== shopDomain) {
-    memoizedEndpoint = await getCustomerApiEndpoint()
-    memoizedShopDomain = shopDomain
+async function executeCustomerGraphQL<T>(
+  query: string,
+  variables?: Record<string, unknown>,
+  options?: ExecuteOptions,
+): Promise<{ json: GraphQLResponse<T>; endpoint: string }> {
+  const attempt = options?.attempt ?? 0
+  const endpoint = await getCustomerApiEndpoint({ forceRefresh: options?.forceEndpointRefresh })
+
+  await updateStoredCustomerSession((current) => ({ ...current, graphqlEndpoint: endpoint }))
+
+  const { accessToken } = await getValidAccessToken({ forceRefresh: options?.forceTokenRefresh })
+
+  const payload: Record<string, unknown> = {
+    query,
+    variables: variables ?? {},
   }
-  if (typeof __DEV__ !== "undefined" && __DEV__ && !loggedGraphEndpoint) {
-    console.log("[CustomerAuth] GraphQL endpoint:", memoizedEndpoint)
-    loggedGraphEndpoint = true
+  if (options?.operationName) {
+    payload.operationName = options.operationName
   }
-  const originDomain = SHOPIFY_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, "")
-  const client = new GraphQLClient(memoizedEndpoint!, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "Shopify-Shop-Id": SHOPIFY_SHOP_ID,
-      Origin: `https://${originDomain}`,
-      "User-Agent": "OptionQaafMobile/1.0 (ReactNative)",
-      ...(typeof __DEV__ !== "undefined" && __DEV__ ? { "Shopify-GraphQL-Cost-Debug": "1" } : {}),
-    },
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`,
+    "Shopify-Api-Client-Id": CUSTOMER_CLIENT_ID,
+    "Shopify-Shop-Id": String(SHOP_ID),
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  }
+  if (SHOPIFY_API_VERSION) {
+    headers["Shopify-Api-Version"] = SHOPIFY_API_VERSION
+  }
+  if (SHOP_DOMAIN_HEADER) {
+    headers["Shopify-Shop-Domain"] = SHOP_DOMAIN_HEADER
+  }
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
   })
-  return client
-}
 
-let inflight: Promise<unknown> | null = null
-
-async function enqueue<T>(task: () => Promise<T>): Promise<T> {
-  const prev = inflight
-  const current = (async () => {
-    try {
-      if (prev) {
-        await prev.catch(() => {})
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    if (res.status === 401 || res.status === 403) {
+      if (attempt >= 1) {
+        throw new CustomerApiError(`[CAAPI] ${res.status} ${res.statusText}`, res.status, text ? [{ message: text }] : undefined, endpoint)
       }
-      return await task()
-    } finally {
-      if (inflight === current) inflight = null
+      return executeCustomerGraphQL<T>(query, variables, {
+        ...options,
+        attempt: attempt + 1,
+        forceTokenRefresh: true,
+      })
     }
-  })()
-  inflight = current
-  return current
-}
 
-type GraphQLErrorShape = { message?: string; extensions?: { code?: string }; [key: string]: any }
-
-function isThrottleResponse(error: any): { throttled: boolean; retryAfter?: number } {
-  const status = error?.response?.status
-  if (status === 429) {
-    const retryHeader = error?.response?.headers?.get?.("retry-after")
-    const retryAfter = retryHeader ? Number(retryHeader) * 1000 : undefined
-    return { throttled: true, retryAfter }
-  }
-  if (status === 200 || status === undefined) {
-    const errors: GraphQLErrorShape[] | undefined = error?.response?.errors
-    if (Array.isArray(errors)) {
-      const throttled = errors.some((e) =>
-        typeof e?.message === "string" && e.message.toLowerCase().includes("throttled"),
-      )
-      const throttledCode = errors.some((e) => e?.extensions?.code === "THROTTLED")
-      if (throttled || throttledCode) {
-        return { throttled: true }
+    if (res.status === 404) {
+      if (typeof __DEV__ === "undefined" || __DEV__) {
+        console.warn("[CAAPI] HTTP error", res.status, "endpoint:", endpoint, "body:", text)
       }
-    }
-  }
-  return { throttled: false }
-}
-
-function logCostExtensions(extensions: any) {
-  if (typeof __DEV__ === "undefined" || !__DEV__) return
-  if (extensions?.cost) {
-    console.log("[CustomerAPI] cost", extensions.cost)
-  }
-}
-
-function detectInvalidToken(
-  status: number | undefined,
-  errors: GraphQLErrorShape[] | undefined,
-  message: string | undefined,
-): boolean {
-  if (status === 401) return true
-  if (Array.isArray(errors)) {
-    for (const entry of errors) {
-      const code = String(entry?.extensions?.code ?? "").toUpperCase()
-      if (code === "UNAUTHORIZED" || code === "INVALID_TOKEN" || code === "TOKEN_INVALID") return true
-      const msg = String(entry?.message ?? "").toLowerCase()
-      if (msg.includes("invalid token") || msg.includes("invalid_token")) return true
-    }
-  }
-  if (typeof message === "string") {
-    const lower = message.toLowerCase()
-    if (lower.includes("invalid token") || lower.includes("invalid_token")) return true
-  }
-  return false
-}
-
-type RawResult<T> = { data: T; extensions?: any }
-
-export async function callCustomerApi<T>(fn: () => Promise<RawResult<T>>): Promise<T> {
-  const start = Date.now()
-  const attempt = async (): Promise<T> => {
-    try {
-      const result = await fn()
-      logCostExtensions(result?.extensions)
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.log(`[ShopifyCustomer] ${Date.now() - start}ms`)
-      }
-      return result.data
-    } catch (error: any) {
-      const { throttled, retryAfter } = isThrottleResponse(error)
-      if (throttled) throw { throttled: true, error, retryAfter }
-      const duration = Date.now() - start
-      const status = error?.response?.status ?? error?.status
-      const responseErrors: GraphQLErrorShape[] | undefined = error?.response?.errors
-      const details = responseErrors?.map((e: any) => e.message).filter(Boolean).join("; ") || error?.message
-      const invalidToken = detectInvalidToken(status, responseErrors, details)
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.warn(
-          `[ShopifyCustomer] failed in ${duration}ms${status ? ` (${status})` : ""}: ${details || "Customer API request failed"}`,
+      if (attempt >= 1) {
+        throw new CustomerApiError(
+          "[CAAPI] 404 Not Found (check discovery source and Shopify-Shop-Id)",
+          res.status,
+          text ? [{ message: text }] : undefined,
+          endpoint,
         )
-        if (status === 404) {
-          const res = error?.response
-          const headers: Record<string, string> = {}
-          if (res?.headers?.forEach) {
-            res.headers.forEach((value: string, key: string) => {
-              headers[key] = value
-            })
-          }
-          console.warn("[CustomerAPI] 404 url", res?.url ?? "unknown")
-          console.warn("[CustomerAPI] 404 headers", headers)
-          const body = res?.data ?? error?.response?.body ?? error?.response?.error ?? null
-          if (body) console.warn("[CustomerAPI] 404 body", body)
-        }
       }
-      throw new CustomerApiError(details || "Customer API request failed", status, error, invalidToken)
+      return executeCustomerGraphQL<T>(query, variables, {
+        ...options,
+        attempt: attempt + 1,
+        forceEndpointRefresh: true,
+      })
     }
+
+    throw new CustomerApiError(
+      `[CAAPI] ${res.status} ${res.statusText}`,
+      res.status,
+      text ? [{ message: text }] : undefined,
+      endpoint,
+    )
   }
 
-  const maxRetries = 3
-  let delay = 800
-  for (let attemptIndex = 0; attemptIndex < maxRetries; attemptIndex += 1) {
-    try {
-      return await enqueue(attempt)
-    } catch (err: any) {
-      if (err?.throttled) {
-        const jitter = Math.random() * 200
-        const wait = err.retryAfter ?? delay + jitter
-        if (typeof __DEV__ !== "undefined" && __DEV__) {
-          console.warn(`[CustomerAPI] throttled – retrying after ${Math.round(wait)}ms`)
-        }
-        await new Promise((resolve) => setTimeout(resolve, wait))
-        delay *= 2
-        if (attemptIndex === maxRetries - 1) {
-          throw new CustomerApiError("Customer API throttled", 429, err.error)
-        }
-        continue
-      }
-      throw err
-    }
+  let json: GraphQLResponse<T>
+  try {
+    json = (await res.json()) as GraphQLResponse<T>
+  } catch {
+    throw new CustomerApiError("[CAAPI] Invalid JSON response", res.status, undefined, endpoint)
   }
-  throw new CustomerApiError("Customer API throttled", 429)
+
+  return { json, endpoint }
 }
+
+export async function customerQuery<T = any>(
+  query: string,
+  variables?: Record<string, any>,
+): Promise<GraphQLResponse<T>> {
+  const { json } = await executeCustomerGraphQL<T>(query, variables)
+  return json
+}
+
+type FetchGraphQL = <TResult, TVariables = Record<string, unknown>>(
+  operationName: string,
+  query: string,
+  variables?: TVariables,
+) => Promise<TResult>
+
+export type CustomerGraphQLClient = {
+  fetchGraphQL: FetchGraphQL
+}
+
+function buildGraphQLError<T>(
+  endpoint: string,
+  body: GraphQLResponse<T>,
+  status = 200,
+): CustomerApiError {
+  const message =
+    body.errors
+      ?.map((err) => err?.message)
+      .filter(Boolean)
+      .join("; ") || "Customer GraphQL request failed"
+  return new CustomerApiError(message, status, body.errors, endpoint)
+}
+
+export async function createCustomerGraphQLClient(): Promise<CustomerGraphQLClient> {
+  return {
+    fetchGraphQL: async (operationName, query, variables) => {
+      const { json, endpoint } = await executeCustomerGraphQL<any>(
+        query,
+        variables as Record<string, unknown> | undefined,
+        { operationName },
+      )
+
+      if (json.errors && json.errors.length > 0) {
+        throw buildGraphQLError(endpoint, json)
+      }
+
+      if (!json.data) {
+        throw buildGraphQLError(endpoint, json)
+      }
+
+      return json.data as any
+    },
+  }
+}
+
+export async function invalidateSessionEndpoints(): Promise<void> {
+  await updateStoredCustomerSession((current) => current)
+}
+
+export { CustomerApiError }
