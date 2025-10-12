@@ -123,8 +123,17 @@ export async function getValidAccessToken(): Promise<string | null> {
 
   const rt = await sget(K.RT)
   if (!rt) return null
-  await refreshToken(rt)
-  return (await sget(K.AT)) || null
+  try {
+    await refreshToken(rt)
+    return (await sget(K.AT)) || at || null
+  } catch (err: any) {
+    const code = err?.code
+    if (code === "invalid_grant") {
+      return null
+    }
+    // network or transient failure — keep existing token so UI stays authenticated
+    return at
+  }
 }
 
 export async function refreshToken(refreshToken: string): Promise<void> {
@@ -134,21 +143,37 @@ export async function refreshToken(refreshToken: string): Promise<void> {
   body.set("client_id", CLIENT_ID)
   body.set("refresh_token", refreshToken)
 
-  const res = await fetch(openId.token_endpoint, {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      Origin: ORIGIN_HEADER,
-      "User-Agent": USER_AGENT,
-      "Shopify-Shop-Id": "85072904499",
-    },
-    body,
-  })
+  let res: Response
+  try {
+    res = await fetch(openId.token_endpoint, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        Origin: ORIGIN_HEADER,
+        "User-Agent": USER_AGENT,
+        "Shopify-Shop-Id": "85072904499",
+      },
+      body,
+    })
+  } catch (networkError: any) {
+    const err = new Error("Refresh failed: network error")
+    ;(err as any).code = "network"
+    err.cause = networkError
+    throw err
+  }
 
   if (!res.ok) {
-    await logoutLocal()
     const text = await res.text().catch(() => "")
-    throw new Error(`Refresh failed: ${res.status} ${text}`)
+    const err = new Error(`Refresh failed: ${res.status} ${text}`)
+    if (res.status === 400 || res.status === 401) {
+      ;(err as any).code = "invalid_grant"
+      err.cause = text
+      await logoutLocal()
+    } else {
+      ;(err as any).code = "refresh_failed"
+      err.cause = text
+    }
+    throw err
   }
 
   const json = (await res.json()) as TokenResponse & { refresh_token: string }

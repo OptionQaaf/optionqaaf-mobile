@@ -56,6 +56,32 @@ function OrderDetailContent() {
     if (statusPageUrl) Linking.openURL(statusPageUrl).catch(() => {})
   }, [statusPageUrl])
 
+  const orderStatusLabel = useMemo(() => {
+    const status = data?.latestFulfillmentStatus ?? data?.fulfillments?.[0]?.status ?? null
+    return formatStatus(status)
+  }, [data])
+
+  const handleLinePress = useCallback(
+    async (item: (typeof data)["lineItems"][number]) => {
+      const productId = item.productId
+      if (!productId) {
+        show({ title: "Product unavailable", type: "info" })
+        return
+      }
+      try {
+        const handle = await Products.getProductHandleById(productId)
+        if (!handle) {
+          show({ title: "Product unavailable", type: "info" })
+          return
+        }
+        router.push(`/products/${handle}` as const)
+      } catch (err) {
+        show({ title: "Product unavailable", type: "info" })
+      }
+    },
+    [router, show],
+  )
+
   if (isLoading && !data) {
     return (
       <View className="flex-1 items-center justify-center">
@@ -80,29 +106,6 @@ function OrderDetailContent() {
   const tax = moneyOrFallback(data.totalTax)
   const shipping = moneyOrFallback(data.totalShipping)
   const refunded = moneyOrFallback(data.totalRefunded)
-
-  const orderStatusLabel = formatStatus(data.latestFulfillmentStatus ?? data.fulfillments[0]?.status ?? null)
-
-  const handleLinePress = useCallback(
-    async (item: (typeof data.lineItems)[number]) => {
-      const productId = item.productId
-      if (!productId) {
-        show({ title: "Product unavailable", type: "info" })
-        return
-      }
-      try {
-        const handle = await Products.getProductHandleById(productId)
-        if (!handle) {
-          show({ title: "Product unavailable", type: "info" })
-          return
-        }
-        router.push(`/products/${handle}` as const)
-      } catch (err) {
-        show({ title: "Product unavailable", type: "info" })
-      }
-    },
-    [router, show],
-  )
 
   return (
     <ScrollView
