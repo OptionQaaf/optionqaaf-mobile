@@ -1,4 +1,5 @@
 import { ShopifyAuthProvider } from "@/features/auth/useShopifyAuth"
+import { AuthGate } from "@/features/auth/AuthGate"
 import { DrawerProvider } from "@/features/navigation/Drawer"
 import { hydrateCartId } from "@/store/cartId"
 import { FontProvider } from "@/theme/FontProvider"
@@ -49,16 +50,18 @@ export default function RootLayout() {
           <SafeAreaProvider>
             <FontProvider onReady={() => setFontsReady(true)}>
               <DrawerProvider>
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    animation: "fade",
-                    animationDuration: 240,
-                    gestureEnabled: false,
-                  }}
-                >
-                  <Stack.Screen name="products/[handle]" options={{ gestureEnabled: true }} />
-                </Stack>
+                <AuthGate>
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      animation: "fade",
+                      animationDuration: 240,
+                      gestureEnabled: false,
+                    }}
+                  >
+                    <Stack.Screen name="products/[handle]" options={{ gestureEnabled: true }} />
+                  </Stack>
+                </AuthGate>
                 <ToastHost />
               </DrawerProvider>
             </FontProvider>

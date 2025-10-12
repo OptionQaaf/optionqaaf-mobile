@@ -1,5 +1,13 @@
 import { qk } from "@/lib/shopify/queryKeys"
-import { addLines, createCart, getCart, removeLines, updateDiscountCodes, updateLines } from "@/lib/shopify/services/cart"
+import {
+  addLines,
+  createCart,
+  getCart,
+  removeLines,
+  updateBuyerIdentity,
+  updateDiscountCodes,
+  updateLines,
+} from "@/lib/shopify/services/cart"
 import { useCartId } from "@/store/cartId"
 import { currentLocale } from "@/store/prefs"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -33,18 +41,54 @@ export function useEnsureCart() {
 
 export function useAddToCart() {
   const locale = currentLocale()
-  const { cartId } = useCartId()
+  const { cartId, setCartId } = useCartId()
   const qc = useQueryClient()
 
   return useMutation({
     mutationFn: async (payload: { merchandiseId: string; quantity: number }) => {
-      if (!cartId) throw new Error("Cart not initialized")
-      const res = await addLines(cartId, [payload], locale)
-      return res.cartLinesAdd?.cart ?? null
+      const primeCart = (id: string, cart: any | null | undefined) => {
+        if (cart) qc.setQueryData(qk.cart(id) as any, cart)
+      }
+
+      const ensureCartId = async () => {
+        const existing = useCartId.getState().cartId
+        if (existing) return existing
+        const created = await createCart({}, locale)
+        const newId = created.cartCreate?.cart?.id
+        if (!newId) throw new Error("Failed to create cart")
+        setCartId(newId)
+        primeCart(newId, created.cartCreate?.cart ?? null)
+        return newId
+      }
+
+      const addTo = async (id: string) => {
+        const res = await addLines(id, [payload], locale)
+        primeCart(id, res.cartLinesAdd?.cart)
+        return res.cartLinesAdd?.cart ?? null
+      }
+
+      let id = cartId ?? (await ensureCartId())
+
+      try {
+        return await addTo(id)
+      } catch (error: any) {
+        const message = String(error?.message || "")
+        if (!message.toLowerCase().includes("cart") || !message.toLowerCase().includes("exist")) throw error
+
+        // Shopify purged the cart (likely after checkout). Start fresh once.
+        qc.removeQueries({ queryKey: qk.cart(id) as any })
+        setCartId(null)
+
+        const created = await createCart({}, locale)
+        const newId = created.cartCreate?.cart?.id
+        if (!newId) throw error
+        setCartId(newId)
+        primeCart(newId, created.cartCreate?.cart ?? null)
+        id = newId
+        return await addTo(newId)
+      }
     },
-    onSuccess: () => {
-      if (cartId) qc.invalidateQueries({ queryKey: qk.cart(cartId) as any })
-    },
+    onSuccess: () => {},
   })
 }
 
@@ -176,6 +220,28 @@ export function useUpdateDiscountCodes() {
       if (!cartId) throw new Error("Cart not initialized")
       const res = await updateDiscountCodes(cartId, codes, locale)
       return res.cartDiscountCodesUpdate?.cart ?? null
+    },
+    onSuccess: (cart) => {
+      if (!cartId) return
+      const key = qk.cart(cartId) as any
+      if (cart) {
+        qc.setQueryData(key, cart)
+      }
+      qc.invalidateQueries({ queryKey: key })
+    },
+  })
+}
+
+export function useAttachCartToCustomer() {
+  const locale = currentLocale()
+  const { cartId } = useCartId()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: { customerAccessToken: string }) => {
+      if (!cartId) throw new Error("Cart not initialized")
+      const res = await updateBuyerIdentity(cartId, { customerAccessToken: payload.customerAccessToken }, locale)
+      return res.cartBuyerIdentityUpdate?.cart ?? null
     },
     onSuccess: () => {
       if (cartId) qc.invalidateQueries({ queryKey: qk.cart(cartId) as any })

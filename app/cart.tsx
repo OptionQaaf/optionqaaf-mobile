@@ -1,4 +1,11 @@
-import { useCartQuery, useEnsureCart, useSyncCartChanges, useUpdateDiscountCodes } from "@/features/cart/api"
+import {
+  useAttachCartToCustomer,
+  useCartQuery,
+  useEnsureCart,
+  useSyncCartChanges,
+  useUpdateDiscountCodes,
+} from "@/features/cart/api"
+import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { convertAmount } from "@/features/currency/rates"
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { usePrefs } from "@/store/prefs"
@@ -8,12 +15,15 @@ import { Screen } from "@/ui/layout/Screen"
 import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { Animated, MOTION } from "@/ui/motion/motion"
 import { MenuBar } from "@/ui/nav/MenuBar"
+import { Button } from "@/ui/primitives/Button"
+import { Input } from "@/ui/primitives/Input"
 import { Price } from "@/ui/product/Price"
 import { QuantityStepper } from "@/ui/product/QuantityStepper"
+import { Card } from "@/ui/surfaces/Card"
 import { BlurView } from "expo-blur"
 import { Image } from "expo-image"
 import { router } from "expo-router"
-import { Trash2 } from "lucide-react-native"
+import { Trash2, X } from "lucide-react-native"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Alert, FlatList, PixelRatio, Platform, Text, View } from "react-native"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
@@ -31,6 +41,10 @@ export default function CartScreen() {
   const insets = useSafeAreaInsets()
   const { currency: prefCurrencyState } = usePrefs()
   const { show } = useToast()
+  const { isAuthenticated, initializing: authInitializing, login, getToken } = useShopifyAuth()
+  const [loginPending, setLoginPending] = useState(false)
+  const { mutateAsync: attachBuyerToCustomer, isPending: attachingBuyer } = useAttachCartToCustomer()
+  const [buyerLinked, setBuyerLinked] = useState(false)
 
   // Ensure there is a cart as early as possible (for codes, etc.)
   const ensure = useEnsureCart()
@@ -41,7 +55,109 @@ export default function CartScreen() {
 
   const { data: cart, isLoading, isFetching, isError, refetch } = useCartQuery()
   const sync = useSyncCartChanges()
-  const updateCodes = useUpdateDiscountCodes()
+  const { mutateAsync: updateDiscountCodesAsync, isPending: updatingDiscounts } = useUpdateDiscountCodes()
+  const [codeInput, setCodeInput] = useState("")
+
+  useEffect(() => {
+    if (authInitializing) return
+    if (!isAuthenticated) {
+      setBuyerLinked(false)
+      return
+    }
+    if (!cart?.id) return
+    if (cart?.buyerIdentity?.customer?.id) {
+      setBuyerLinked(true)
+      return
+    }
+    if (attachingBuyer || buyerLinked) return
+
+    let cancelled = false
+    ;(async () => {
+      const token = await getToken()
+      if (!token || cancelled) return
+      try {
+        await attachBuyerToCustomer({ customerAccessToken: token })
+        if (!cancelled) setBuyerLinked(true)
+      } catch (err: any) {
+        if (!cancelled) {
+          show({ title: err?.message || "Could not link your account to this cart.", type: "danger" })
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    attachingBuyer,
+    attachBuyerToCustomer,
+    authInitializing,
+    buyerLinked,
+    cart?.buyerIdentity?.customer?.id,
+    cart?.id,
+    getToken,
+    isAuthenticated,
+    show,
+  ])
+
+  const promptLogin = useCallback(async () => {
+    if (loginPending) return false
+    setLoginPending(true)
+    let success = false
+    try {
+      await login()
+      success = true
+    } catch (err: any) {
+      const message = err?.message
+      if (message && message !== "Login cancelled/failed") {
+        show({ title: message, type: "danger" })
+      }
+    } finally {
+      setLoginPending(false)
+    }
+    return success
+  }, [login, loginPending, show])
+
+  const discountCodes = useMemo(() => {
+    const raw = (cart?.discountCodes ?? []) as { code?: string | null; applicable?: boolean | null }[]
+    return raw
+      .filter((d) => typeof d?.code === "string" && Boolean(d.code?.trim().length))
+      .map((d) => ({ code: (d.code as string).trim(), applicable: d.applicable ?? null }))
+  }, [cart?.discountCodes])
+
+  const handleApplyDiscount = useCallback(async () => {
+    const input = codeInput.trim()
+    if (!input) return
+    const normalized = input.toUpperCase()
+    const existing = discountCodes.map((d) => d.code)
+    const alreadyApplied = existing.some((c) => c.toUpperCase() === normalized)
+    if (alreadyApplied) {
+      show({ title: "Code already applied", type: "info" })
+      setCodeInput("")
+      return
+    }
+    try {
+      await updateDiscountCodesAsync([...existing, normalized])
+      setCodeInput("")
+      show({ title: "Discount applied", type: "success" })
+    } catch (err: any) {
+      show({ title: err?.message || "Could not apply that code", type: "danger" })
+    }
+  }, [codeInput, discountCodes, show, updateDiscountCodesAsync])
+
+  const handleRemoveDiscount = useCallback(
+    async (code: string) => {
+      const existing = discountCodes.map((d) => d.code)
+      const next = existing.filter((c) => c.toUpperCase() !== code.toUpperCase())
+      try {
+        await updateDiscountCodesAsync(next)
+        show({ title: "Discount removed", type: "info" })
+      } catch (err: any) {
+        show({ title: err?.message || "Could not remove that code", type: "danger" })
+      }
+    },
+    [discountCodes, show, updateDiscountCodesAsync],
+  )
 
   // Local model for snappy UX
   const [localLines, setLocalLines] = useState<LineNode[]>([])
@@ -78,7 +194,7 @@ export default function CartScreen() {
 
   // Adopt server snapshot or merge with pending edits
   useEffect(() => {
-    const nodes = (cart?.lines?.nodes ?? []) as LineNode[]
+    const nodes = dedupeLines(((cart?.lines?.nodes ?? []) as LineNode[]).filter(Boolean) as LineNode[])
     const hasPending = pendingRemoves.current.size > 0 || pendingUpdates.current.size > 0
     if (awaitingRefresh.current) awaitingRefresh.current = false
 
@@ -88,13 +204,16 @@ export default function CartScreen() {
       const merged = nodes
         .filter((l) => !removeSet.has(l.id))
         .map((l) => (updateMap.has(l.id) ? { ...l, quantity: updateMap.get(l.id)! } : l))
-      setLocalLines(merged)
-      setDirty(true)
+      setLocalLines(dedupeLines(merged))
       return
     }
     // No pending → adopt server unless user is mid-edit "dirty"
-    if (!dirty) setLocalLines(nodes)
-  }, [cart, dirty])
+    if (!dirty) {
+      setLocalLines(nodes)
+    } else if (!isFetching) {
+      setDirty(false)
+    }
+  }, [cart, dirty, isFetching])
 
   useEffect(() => {
     return () => {
@@ -108,8 +227,9 @@ export default function CartScreen() {
 
   // Derived money (compact & consistent)
   // Derived money (compact & consistent)
-  const { subBefore, subAfter, discount, total, hasItems } = useMemo(() => {
+  const { subBefore, subAfter, discount, total, tax, hasItems } = useMemo(() => {
     const serverTotal = n(cart?.cost?.totalAmount?.amount, NaN)
+    const taxAmount = n(cart?.cost?.totalTaxAmount?.amount, 0)
 
     let subBeforeDiscounts = 0 // compareAt × qty
     let subAfterDiscounts = 0 // actual line cost (or unit price) × qty
@@ -129,30 +249,59 @@ export default function CartScreen() {
     const resolvedTotal = dirty ? subAfterDiscounts : Number.isFinite(serverTotal) ? serverTotal : subAfterDiscounts
 
     const savings = Math.max(0, subBeforeDiscounts - subAfterDiscounts)
-
     return {
       subBefore: subBeforeDiscounts,
       subAfter: subAfterDiscounts,
       discount: savings,
       total: resolvedTotal,
+      tax: taxAmount,
       hasItems: itemCount > 0,
     }
   }, [cart, dirty, localLines])
 
   // Handlers
   const onCheckout = useCallback(async () => {
+    if (!hasItems || attachingBuyer) return
+
+    if (isAuthenticated && !cart?.buyerIdentity?.customer?.id) {
+      const token = await getToken()
+      if (token) {
+        try {
+          await attachBuyerToCustomer({ customerAccessToken: token })
+          setBuyerLinked(true)
+        } catch (err: any) {
+          show({ title: err?.message || "Could not link your account to this cart.", type: "danger" })
+          return
+        }
+      }
+    }
+
     await flush()
     const url = cart?.checkoutUrl
-    if (!url) return Alert.alert("Checkout unavailable", "Missing checkout URL")
+    if (!url) {
+      Alert.alert("Checkout unavailable", "Missing checkout URL")
+      return
+    }
 
-    router.push({ pathname: "/checkout", params: { url } } as any)
-  }, [cart?.checkoutUrl, flush])
+    router.push({ pathname: "/checkout", params: { url, cartId: cart?.id ?? "" } } as any)
+  }, [
+    attachingBuyer,
+    attachBuyerToCustomer,
+    cart?.buyerIdentity?.customer?.id,
+    cart?.checkoutUrl,
+    cart?.id,
+    flush,
+    getToken,
+    hasItems,
+    isAuthenticated,
+    show,
+  ])
 
   const onDelete = useCallback(
     (lineId: string) => {
       pendingRemoves.current.add(lineId)
       pendingUpdates.current.delete(lineId)
-      setLocalLines((prev) => prev.filter((l) => l.id !== lineId))
+      setLocalLines((prev) => dedupeLines(prev.filter((l) => l.id !== lineId)))
       setDirty(true)
       scheduleSync()
     },
@@ -164,11 +313,11 @@ export default function CartScreen() {
       if (q <= 0) {
         pendingRemoves.current.add(lineId)
         pendingUpdates.current.delete(lineId)
-        setLocalLines((prev) => prev.filter((l) => l.id !== lineId))
+        setLocalLines((prev) => dedupeLines(prev.filter((l) => l.id !== lineId)))
       } else {
         pendingRemoves.current.delete(lineId)
         pendingUpdates.current.set(lineId, q)
-        setLocalLines((prev) => prev.map((l) => (l.id === lineId ? { ...l, quantity: q, cost: undefined } : l)))
+        setLocalLines((prev) => dedupeLines(prev.map((l) => (l.id === lineId ? { ...l, quantity: q, cost: undefined } : l))))
       }
       setDirty(true)
       scheduleSync()
@@ -302,6 +451,22 @@ export default function CartScreen() {
     <Screen bleedBottom>
       <MenuBar />
 
+      {!authInitializing && !isAuthenticated ? (
+        <View className="px-4 pt-4">
+          <Card padding="md" className="gap-3">
+            <View className="gap-1">
+              <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Sign in for faster checkout</Text>
+              <Text className="text-[#475569] text-[13px] leading-[18px]">
+                We’ll save your addresses and keep this cart synced across devices.
+              </Text>
+            </View>
+            <Button variant="outline" size="md" fullWidth onPress={promptLogin} isLoading={loginPending}>
+              Sign in
+            </Button>
+          </Card>
+        </View>
+      ) : null}
+
       {/* Error */}
       {errorState ? (
         <CenteredState
@@ -348,12 +513,63 @@ export default function CartScreen() {
                 style={{ backgroundColor: "#fff" }}
               >
                 <View className="p-3 border border-border rounded-2xl bg-surface gap-2">
+                  <View className="gap-2">
+                    {discountCodes.length > 0 ? (
+                      <View className="gap-2">
+                        {discountCodes.map((code) => (
+                          <View
+                            key={code.code}
+                            className="flex-row items-center justify-between rounded-xl border border-border bg-[#f8fafc] px-3 py-2"
+                          >
+                            <View className="flex-1 pr-3 gap-[2px]">
+                              <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{code.code}</Text>
+                              {code.applicable === false ? (
+                                <Text className="text-[#dc2626] text-[11px]">Not applicable</Text>
+                              ) : null}
+                            </View>
+                            <PressableOverlay
+                              onPress={() => handleRemoveDiscount(code.code)}
+                              disabled={updatingDiscounts}
+                              className="h-8 w-8 items-center justify-center rounded-full"
+                              accessibilityLabel={`Remove discount ${code.code}`}
+                            >
+                              <X size={16} color="#475569" />
+                            </PressableOverlay>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+
+                    <View className="flex-row items-center gap-3">
+                      <Input
+                        value={codeInput}
+                        onChangeText={setCodeInput}
+                        placeholder="Add promo code"
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        size="md"
+                        className="flex-1"
+                      />
+                      <Button
+                        variant="outline"
+                        size="md"
+                        onPress={handleApplyDiscount}
+                        disabled={updatingDiscounts || !codeInput.trim()}
+                        isLoading={updatingDiscounts}
+                      >
+                        Apply
+                      </Button>
+                    </View>
+                  </View>
+
                   {(() => {
                     const showUSD = prefCurrency !== "USD"
                     const subDisp = convertAmount(subBefore, currency, prefCurrency)
                     const subUSD = convertAmount(subBefore, currency, "USD")
                     const discDisp = convertAmount(discount, currency, prefCurrency)
                     const discUSD = convertAmount(discount, currency, "USD")
+                    const taxDisp = convertAmount(tax, currency, prefCurrency)
+                    const taxUSD = convertAmount(tax, currency, "USD")
                     const totDisp = convertAmount(total, currency, prefCurrency)
                     const totUSD = convertAmount(total, currency, "USD")
                     return (
@@ -364,6 +580,14 @@ export default function CartScreen() {
                             alt={showUSD ? formatCurrencyText(subUSD, "USD") : undefined}
                           />
                         </Row>
+                        {tax > 0 ? (
+                          <Row label="Taxes">
+                            <DualAmount
+                              main={formatCurrencyText(taxDisp, prefCurrency)}
+                              alt={showUSD ? formatCurrencyText(taxUSD, "USD") : undefined}
+                            />
+                          </Row>
+                        ) : null}
                         {discount > 0 ? (
                           <Row label="Discounts">
                             <DualAmount
@@ -385,13 +609,16 @@ export default function CartScreen() {
                     )
                   })()}
 
-                  <PressableOverlay
+                  <Button
+                    size="lg"
+                    fullWidth
                     onPress={onCheckout}
-                    disabled={!hasItems}
-                    className={`mt-3 py-4 rounded-2xl ${hasItems ? "bg-neutral-900" : "bg-neutral-300"}`}
+                    isLoading={attachingBuyer}
+                    disabled={!hasItems || attachingBuyer}
+                    className="mt-3 bg-neutral-900"
                   >
-                    <Text className="text-center text-white font-geist-semibold text-[16px]">Checkout</Text>
-                  </PressableOverlay>
+                    Checkout
+                  </Button>
                 </View>
               </View>
             </SafeAreaView>
@@ -592,4 +819,14 @@ function setQueryParam(url: string, key: string, value: string): string {
     }
     return fragment !== undefined ? `${nextBase}#${fragment}` : nextBase
   }
+}
+
+function dedupeLines(list: LineNode[]): LineNode[] {
+  const seen = new Map<string, LineNode>()
+  for (const line of list) {
+    if (!line || typeof line.id !== "string" || !line.id) continue
+    const existing = seen.get(line.id)
+    seen.set(line.id, existing ? { ...existing, ...line } : line)
+  }
+  return Array.from(seen.values())
 }

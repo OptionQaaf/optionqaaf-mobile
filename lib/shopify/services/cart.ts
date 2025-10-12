@@ -1,7 +1,12 @@
 import { callShopify, shopifyClient, ShopifyError } from "@/lib/shopify/client"
 import {
+  CartBuyerIdentityUpdateDocument,
+  type CartBuyerIdentityUpdateMutation,
+  type CartBuyerIdentityInput,
   CartCreateDocument,
   type CartCreateMutation,
+  CartDiscountCodesUpdateDocument,
+  type CartDiscountCodesUpdateMutation,
   CartLinesAddDocument,
   type CartLinesAddMutation,
   CartLinesRemoveDocument,
@@ -10,8 +15,6 @@ import {
   type CartLinesUpdateMutation,
   CartQueryDocument,
   type CartQueryQuery,
-  CartDiscountCodesUpdateDocument,
-  type CartDiscountCodesUpdateMutation,
 } from "@/lib/shopify/gql/graphql"
 
 function assertNoUserErrors<T extends { userErrors?: { message: string }[] }>(payload: T) {
@@ -105,6 +108,23 @@ export async function updateDiscountCodes(
       language: locale?.language as any,
     })
     assertNoUserErrors(res.cartDiscountCodesUpdate!)
+    return res
+  })
+}
+
+export async function updateBuyerIdentity(
+  cartId: string,
+  buyerIdentity: CartBuyerIdentityInput,
+  locale?: { country?: string; language?: string },
+) {
+  return callShopify<CartBuyerIdentityUpdateMutation>(async () => {
+    const res = await shopifyClient.request(CartBuyerIdentityUpdateDocument, {
+      cartId,
+      buyerIdentity,
+      country: locale?.country as any,
+      language: locale?.language as any,
+    })
+    assertNoUserErrors(res.cartBuyerIdentityUpdate!)
     return res
   })
 }

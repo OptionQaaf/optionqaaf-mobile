@@ -4,6 +4,7 @@ import { fetchOpenIdConfig } from "@/lib/shopify/customer/discovery"
 import { SHOPIFY_CUSTOMER_CLIENT_ID as CLIENT_ID, SHOPIFY_CUSTOMER_REDIRECT_URI as REDIRECT } from "@/lib/shopify/env"
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { AppState } from "react-native"
+import { useCartId } from "@/store/cartId"
 
 // Minimal types
 type Ctx = {
@@ -13,12 +14,14 @@ type Ctx = {
   logout: () => Promise<void>
   silentSignIn: () => Promise<boolean>
   getToken: () => Promise<string | null>
+  initializing: boolean
 }
 
 const AuthCtx = createContext<Ctx | null>(null)
 
 export function ShopifyAuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
+  const [initializing, setInitializing] = useState(true)
   const isAuthenticated = !!token
 
   const login = useCallback(async () => {
@@ -30,6 +33,7 @@ export function ShopifyAuthProvider({ children }: { children: React.ReactNode })
   const logout = useCallback(async () => {
     await logoutShopify()
     setToken(null)
+    useCartId.getState().setCartId(null)
   }, [])
 
   // Silent sign-in using prompt=none (no UI). Returns true if session found.
@@ -78,7 +82,15 @@ export function ShopifyAuthProvider({ children }: { children: React.ReactNode })
 
   // initial check on mount
   useEffect(() => {
+    let mounted = true
     silentSignIn()
+      .catch(() => false)
+      .finally(() => {
+        if (mounted) setInitializing(false)
+      })
+    return () => {
+      mounted = false
+    }
   }, [silentSignIn])
 
   const value = useMemo<Ctx>(
@@ -89,8 +101,9 @@ export function ShopifyAuthProvider({ children }: { children: React.ReactNode })
       logout,
       silentSignIn,
       getToken,
+      initializing,
     }),
-    [isAuthenticated, token, login, logout, silentSignIn, getToken],
+    [isAuthenticated, token, login, logout, silentSignIn, getToken, initializing],
   )
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>

@@ -94,6 +94,13 @@ fragment CartCommon on Cart {
   id
   totalQuantity
   checkoutUrl
+  buyerIdentity {
+    email
+    customer {
+      id
+      displayName
+    }
+  }
   discountCodes {
     code
     applicable
