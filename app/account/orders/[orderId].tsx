@@ -62,7 +62,7 @@ function OrderDetailContent() {
   }, [data])
 
   const handleLinePress = useCallback(
-    async (item: (typeof data)["lineItems"][number]) => {
+    async (item: NonNullable<typeof data>["lineItems"][number]) => {
       const productId = item.productId
       if (!productId) {
         show({ title: "Product unavailable", type: "info" })
