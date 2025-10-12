@@ -510,7 +510,7 @@ export default function CollectionScreen() {
     return (
       <Screen bleedBottom bleedTop>
         <View className="flex-1 bg-white">
-          <MenuBar variant="dark" floating />
+          <MenuBar floating />
           <PageScrollView contentContainerStyle={{ paddingBottom: 16 }} contentContainerClassName="bg-white">
             <View className="pt-0">
               {/* Metaobject sections drive the composed landing */}
@@ -547,7 +547,7 @@ export default function CollectionScreen() {
   return (
     <Screen bleedTop bleedBottom>
       <View className="flex-1 bg-white">
-        <MenuBar variant="light" floating />
+        <MenuBar floating />
 
         <PageScrollView
           scrollEventThrottle={16}

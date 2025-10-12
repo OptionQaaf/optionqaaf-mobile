@@ -7,8 +7,8 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { router } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useEffect, useRef } from "react"
-import { DeviceEventEmitter, Linking, View } from "react-native"
 import type { ScrollView } from "react-native"
+import { DeviceEventEmitter, Linking, View } from "react-native"
 
 const ABSOLUTE_RE = /^(https?:|mailto:|tel:|sms:)/i
 
@@ -34,7 +34,7 @@ export default function Home() {
     <Screen bleedTop bleedBottom>
       <StatusBar style="dark" />
       <View className="flex-1">
-        <MenuBar variant="light" floating />
+        <MenuBar floating />
 
         {isLoading ? (
           <PageScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 0 }}>

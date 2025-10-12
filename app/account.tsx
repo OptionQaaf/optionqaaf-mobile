@@ -66,6 +66,7 @@ function AccountContent() {
         title: "Wishlist",
         body: "All the products you’ve bookmarked.",
         Icon: Heart,
+        path: "/account/wishlist" as const,
       },
       {
         title: "Addresses",

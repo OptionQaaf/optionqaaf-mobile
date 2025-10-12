@@ -2,7 +2,10 @@ import { useAddToCart, useEnsureCart } from "@/features/cart/api"
 import { useProduct } from "@/features/pdp/api"
 import { useRecommendedProducts } from "@/features/recommendations/api"
 import { useSearch } from "@/features/search/api"
+import type { WishlistItem } from "@/store/wishlist"
+import { useWishlist } from "@/store/wishlist"
 import { useToast } from "@/ui/feedback/Toast"
+import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { AppFooter } from "@/ui/layout/AppFooter"
 import { Screen } from "@/ui/layout/Screen"
 import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
@@ -18,7 +21,8 @@ import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { VariantDropdown } from "@/ui/product/VariantDropdown"
 import { router, useLocalSearchParams } from "expo-router"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { Star } from "lucide-react-native"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
@@ -31,6 +35,8 @@ export default function ProductScreen() {
   const ensure = useEnsureCart()
   const add = useAddToCart()
   const { show } = useToast()
+  const wishlistItems = useWishlist((s) => s.items)
+  const toggleWishlist = useWishlist((s) => s.toggle)
 
   const options: { name: string; values: string[] }[] = (product as any)?.options ?? []
   const variants: any[] = (product as any)?.variants?.nodes ?? []
@@ -135,6 +141,34 @@ export default function ProductScreen() {
     ((selectedVariant as any)?.image?.url as string | undefined) ||
     ((product as any)?.featuredImage?.url as string | undefined)
 
+  const productId = (product as any)?.id as string | undefined
+  const isWishlisted = productId ? wishlistItems.some((item) => item.productId === productId) : false
+
+  const wishlistData = useMemo<WishlistItem | null>(() => {
+    if (!productId) return null
+    return {
+      productId,
+      handle: h,
+      title: (product as any)?.title ?? "",
+      vendor: (product as any)?.vendor ?? null,
+      price: Number.isFinite(priceAmount) ? { amount: priceAmount, currencyCode } : null,
+      imageUrl: images[0] ?? null,
+      variantTitle: (selectedVariant as any)?.title ?? null,
+    }
+  }, [productId, h, product, priceAmount, currencyCode, images, selectedVariant])
+
+  const handleWishlistPress = useCallback(() => {
+    if (!wishlistData) {
+      show({ title: "Product unavailable", type: "danger" })
+      return
+    }
+    toggleWishlist(wishlistData)
+    show({
+      title: isWishlisted ? "Removed from wishlist" : "Added to wishlist",
+      type: isWishlisted ? "info" : "success",
+    })
+  }, [wishlistData, toggleWishlist, isWishlisted, show])
+
   if (isLoading) {
     return (
       <Screen bleedTop bleedBottom>
@@ -166,10 +200,26 @@ export default function ProductScreen() {
               height={Math.max(600, Math.min(720, Math.round(width * 1.1)))}
             />
 
-            <View className="px-4 py-4">
-              <Text className="text-[18px] font-extrabold text-primary mb-1">{(product as any)?.title}</Text>
-              <Text className="text-secondary mb-1">{(product as any)?.vendor}</Text>
-              {!available ? <Text className="text-brand font-geist-semibold">Out of stock</Text> : null}
+            <View className="px-4 py-4 flex-row items-start justify-between gap-4">
+              <View className="flex-1">
+                <Text className="text-[18px] font-extrabold text-primary mb-1">{(product as any)?.title}</Text>
+                <Text className="text-secondary mb-1">{(product as any)?.vendor}</Text>
+                {!available ? <Text className="text-brand font-geist-semibold">Out of stock</Text> : null}
+              </View>
+              {wishlistData ? (
+                <PressableOverlay
+                  accessibilityLabel={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+                  onPress={handleWishlistPress}
+                  className="h-10 w-10 rounded-3xl bg-[#f1f5f9] items-center justify-center"
+                >
+                  <Star
+                    size={22}
+                    color={isWishlisted ? "#f59e0b" : "#1f2937"}
+                    fill={isWishlisted ? "#f59e0b" : "transparent"}
+                    strokeWidth={1.5}
+                  />
+                </PressableOverlay>
+              ) : null}
             </View>
 
             {/* options */}

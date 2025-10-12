@@ -10,7 +10,7 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { Image } from "expo-image"
-import { router, useLocalSearchParams, useRouter } from "expo-router"
+import { useLocalSearchParams, useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo } from "react"
 import { ActivityIndicator, Linking, RefreshControl, ScrollView, Text, View } from "react-native"
 
@@ -32,6 +32,7 @@ export default function OrderDetailScreen() {
 
 function OrderDetailContent() {
   const params = useLocalSearchParams<{ orderId?: string }>()
+  const router = useRouter()
   const orderId = useMemo(() => {
     const raw = params.orderId
     if (Array.isArray(raw)) return raw.length ? decodeURIComponent(raw[0]) : null
