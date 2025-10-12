@@ -8,4 +8,6 @@ export const qk = {
   collectionsSummary: (handles: string | string[], params?: object) =>
     ["collections", "summary", handles, params] as const,
   customerProfile: () => ["customer", "profile"] as const,
+  customerOrders: (pageSize: number) => ["customer", "orders", pageSize] as const,
+  customerOrder: (orderId: string) => ["customer", "order", orderId] as const,
 }

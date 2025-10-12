@@ -60,6 +60,7 @@ function AccountContent() {
         title: "Orders",
         body: "Track deliveries, returns, and receipts.",
         Icon: Package,
+        path: "/account/orders" as const,
       },
       {
         title: "Wishlist",
@@ -130,7 +131,7 @@ function AccountContent() {
     >
       <View className="px-5 pt-6 pb-4 gap-7">
         <Card padding="lg" className="gap-5">
-          <View className="flex-row items-start gap-4">
+          <View className="flex-row items-center gap-4">
             <View
               className="h-14 w-14 rounded-full items-center justify-center"
               style={{ backgroundColor: avatar.color }}
@@ -138,7 +139,7 @@ function AccountContent() {
               <Text className="text-white font-geist-semibold text-[18px]">{avatar.initials}</Text>
             </View>
             <View className="flex-1 gap-2">
-              <View className="flex-row items-start gap-3">
+              <View className="flex-row items-center gap-3">
                 <View className="flex-1 gap-1">
                   <Text className="text-[#0f172a] font-geist-semibold text-[18px]">
                     {profile?.displayName || (isLoading ? "Loading account…" : "Your account")}
@@ -161,15 +162,20 @@ function AccountContent() {
 
         <Section title="Quick access">
           <View className="gap-3">
-            {quickLinks.map((link) => (
-              <AccountLink
-                key={link.title}
-                title={link.title}
-                description={link.body}
-                icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
-                onPress={() => handleComingSoon(link.title)}
-              />
-            ))}
+            {quickLinks.map((link) => {
+              const onPress = link.path
+                ? () => router.push(link.path)
+                : () => handleComingSoon(link.title)
+              return (
+                <AccountLink
+                  key={link.title}
+                  title={link.title}
+                  description={link.body}
+                  icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
+                  onPress={onPress}
+                />
+              )
+            })}
           </View>
         </Section>
 

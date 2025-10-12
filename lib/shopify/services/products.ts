@@ -1,4 +1,5 @@
 import { callShopify, shopifyClient } from "@/lib/shopify/client"
+import { gql } from "graphql-tag"
 import {
   CollectionByHandleDocument,
   type CollectionByHandleQuery,
@@ -46,4 +47,23 @@ export async function searchProducts(
       language: locale?.language as any,
     }),
   )
+}
+
+const PRODUCT_HANDLE_BY_ID_DOCUMENT = gql`
+  query ProductHandleById($id: ID!) {
+    product(id: $id) {
+      handle
+    }
+  }
+`
+
+type ProductHandleByIdQuery = {
+  product?: { handle?: string | null } | null
+}
+
+export async function getProductHandleById(id: string): Promise<string | null> {
+  const data = await callShopify<ProductHandleByIdQuery>(() =>
+    shopifyClient.request(PRODUCT_HANDLE_BY_ID_DOCUMENT, { id }),
+  )
+  return data.product?.handle ?? null
 }
