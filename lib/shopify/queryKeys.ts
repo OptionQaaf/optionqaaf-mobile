@@ -7,4 +7,5 @@ export const qk = {
   cart: (cartId: string | null) => ["cart", cartId] as const,
   collectionsSummary: (handles: string | string[], params?: object) =>
     ["collections", "summary", handles, params] as const,
+  customerProfile: () => ["customer", "profile"] as const,
 }

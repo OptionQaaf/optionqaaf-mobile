@@ -1,5 +1,5 @@
-import { ShopifyAuthProvider } from "@/features/auth/useShopifyAuth"
 import { AuthGate } from "@/features/auth/AuthGate"
+import { ShopifyAuthProvider } from "@/features/auth/useShopifyAuth"
 import { DrawerProvider } from "@/features/navigation/Drawer"
 import { hydrateCartId } from "@/store/cartId"
 import { FontProvider } from "@/theme/FontProvider"
@@ -47,10 +47,10 @@ export default function RootLayout() {
     <ShopifyAuthProvider>
       <QueryClientProvider client={client}>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <SafeAreaProvider>
-            <FontProvider onReady={() => setFontsReady(true)}>
-              <DrawerProvider>
-                <AuthGate>
+          <AuthGate>
+            <SafeAreaProvider>
+              <FontProvider onReady={() => setFontsReady(true)}>
+                <DrawerProvider>
                   <Stack
                     screenOptions={{
                       headerShown: false,
@@ -61,11 +61,11 @@ export default function RootLayout() {
                   >
                     <Stack.Screen name="products/[handle]" options={{ gestureEnabled: true }} />
                   </Stack>
-                </AuthGate>
-                <ToastHost />
-              </DrawerProvider>
-            </FontProvider>
-          </SafeAreaProvider>
+                  <ToastHost />
+                </DrawerProvider>
+              </FontProvider>
+            </SafeAreaProvider>
+          </AuthGate>
         </GestureHandlerRootView>
       </QueryClientProvider>
     </ShopifyAuthProvider>

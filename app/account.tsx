@@ -1,31 +1,24 @@
-import { AuthGate, SignInPrompt } from "@/features/auth/AuthGate"
+import { useCustomerProfile } from "@/features/account/api"
+import { avatarFromProfile } from "@/features/account/avatar"
+import { AccountSignInFallback } from "@/features/account/SignInFallback"
+import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
-import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { useToast } from "@/ui/feedback/Toast"
+import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
-import { Card } from "@/ui/surfaces/Card"
 import { Button } from "@/ui/primitives/Button"
+import { Card } from "@/ui/surfaces/Card"
 import { useRouter } from "expo-router"
-import { Package, Heart, MapPin, Settings2, ShieldCheck, CreditCard, LogOut, UserRound } from "lucide-react-native"
-import { useCallback, useMemo, type ReactNode } from "react"
-import { ScrollView, Text, View } from "react-native"
+import { CreditCard, Heart, LogOut, MapPin, Package, Pencil, Settings2, ShieldCheck } from "lucide-react-native"
+import { useCallback, useEffect, useMemo, type ReactNode } from "react"
+import { RefreshControl, ScrollView, Text, View } from "react-native"
 
 export default function AccountScreen() {
   const router = useRouter()
 
   return (
-    <AuthGate
-      requireAuth
-      fallback={
-        <SignInPrompt
-          title="Sign in to your account"
-          description="Unlock your orders, wishlist, and saved checkout details in one place."
-          buttonLabel="Sign in with Shopify"
-          onSuccess={() => router.replace("/account" as const)}
-        />
-      }
-    >
+    <AuthGate requireAuth fallback={<AccountSignInFallback onSuccess={() => router.replace("/account" as const)} />}>
       <Screen bleedBottom>
         <MenuBar />
         <AccountContent />
@@ -36,8 +29,19 @@ export default function AccountScreen() {
 
 function AccountContent() {
   const router = useRouter()
-  const { logout } = useShopifyAuth()
+  const { logout, isAuthenticated } = useShopifyAuth()
   const { show } = useToast()
+  const {
+    data: profile,
+    isLoading,
+    error,
+    isRefetching,
+    refetch,
+  } = useCustomerProfile({
+    enabled: isAuthenticated,
+  })
+
+  const avatar = useMemo(() => avatarFromProfile(profile), [profile])
 
   const handleLogout = useCallback(async () => {
     try {
@@ -92,27 +96,66 @@ function AccountContent() {
     [],
   )
 
+  useEffect(() => {
+    if (error) {
+      const message = error instanceof Error ? error.message : "Could not load profile"
+      show({ title: message, type: "danger" })
+    }
+  }, [error, show])
+
+  const memberSince = useMemo(() => {
+    if (!profile?.creationDate) return null
+    const date = new Date(profile.creationDate)
+    if (Number.isNaN(date.getTime())) return null
+    try {
+      return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date)
+    } catch {
+      return date.toISOString().split("T")[0]
+    }
+  }, [profile?.creationDate])
+
+  const contactLine = useMemo(() => {
+    if (profile?.email) return profile.email
+    if (profile?.phone) return profile.phone
+    return isLoading ? "Loading profile…" : "Keep your contact details in sync across devices."
+  }, [profile?.email, profile?.phone, isLoading])
+
   const handleComingSoon = useCallback((label: string) => show({ title: `${label} coming soon`, type: "info" }), [show])
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 32 }} className="bg-[#f8fafc]">
+    <ScrollView
+      contentContainerStyle={{ paddingBottom: 32 }}
+      className="bg-[#f8fafc]"
+      refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} tintColor="#111827" />}
+    >
       <View className="px-5 pt-6 pb-4 gap-7">
         <Card padding="lg" className="gap-5">
-          <View className="flex-row items-center gap-4">
-            <View className="h-14 w-14 rounded-full bg-[#111827] items-center justify-center">
-              <UserRound color="#f8fafc" size={24} strokeWidth={2} />
+          <View className="flex-row items-start gap-4">
+            <View
+              className="h-14 w-14 rounded-full items-center justify-center"
+              style={{ backgroundColor: avatar.color }}
+            >
+              <Text className="text-white font-geist-semibold text-[18px]">{avatar.initials}</Text>
             </View>
-            <View className="flex-1 gap-1">
-              <Text className="text-[#0f172a] font-geist-semibold text-[18px]">Your account</Text>
-              <Text className="text-[#475569] text-[14px] leading-[20px]">
-                Orders, wishlist, and saved details stay in sync across devices.
-              </Text>
+            <View className="flex-1 gap-2">
+              <View className="flex-row items-start gap-3">
+                <View className="flex-1 gap-1">
+                  <Text className="text-[#0f172a] font-geist-semibold text-[18px]">
+                    {profile?.displayName || (isLoading ? "Loading account…" : "Your account")}
+                  </Text>
+                  <Text className="text-[#475569] text-[14px] leading-[20px]">{contactLine}</Text>
+                  {memberSince ? (
+                    <Text className="text-[#94a3b8] text-[12px] leading-[18px]">Member since {memberSince}</Text>
+                  ) : null}
+                </View>
+                <PressableOverlay
+                  onPress={() => router.push("/account/edit" as const)}
+                  className="h-10 w-10 rounded-2xl bg-[#e2e8f0] items-center justify-center"
+                >
+                  <Pencil size={18} color="#0f172a" />
+                </PressableOverlay>
+              </View>
             </View>
-          </View>
-          <View className="flex-row gap-3">
-            <AccountStat label="Orders" value="—" />
-            <AccountStat label="Wishlist" value="—" />
-            <AccountStat label="Rewards" value="—" />
           </View>
         </Card>
 
@@ -164,15 +207,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <Text className="text-[#0f172a] font-geist-semibold text-[16px]">{title}</Text>
       {children}
     </View>
-  )
-}
-
-function AccountStat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card padding="md" className="flex-1 gap-1 bg-[#f8fafc]">
-      <Text className="text-[#64748b] text-[12px] uppercase tracking-[1.5px]">{label}</Text>
-      <Text className="text-[#0f172a] text-[20px] font-geist-semibold">{value}</Text>
-    </Card>
   )
 }
 

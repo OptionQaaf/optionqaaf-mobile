@@ -40,6 +40,8 @@ type SignInPromptProps = {
   description?: string
   buttonLabel?: string
   onSuccess?: () => void
+  bleedTopImage?: boolean
+  showBackgroundImage?: boolean
 }
 
 export function SignInPrompt({
@@ -47,6 +49,8 @@ export function SignInPrompt({
   description = "Customer-only features need a quick login with your Shopify account.",
   buttonLabel = "Sign in",
   onSuccess,
+  bleedTopImage = false,
+  showBackgroundImage = true,
 }: SignInPromptProps) {
   const { login } = useShopifyAuth()
   const { show } = useToast()
@@ -66,20 +70,24 @@ export function SignInPrompt({
     }
   }, [login, onSuccess, pending, show])
 
+  const edges: ("top" | "bottom" | "left" | "right")[] = bleedTopImage ? ["bottom"] : ["top", "bottom"]
+
   return (
-    <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1 }} className="bg-[#f8fafc]">
-      <Image
-        source={require("@/assets/images/hero-blur.png")}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 180,
-          opacity: 0.25,
-        }}
-        contentFit="cover"
-      />
+    <SafeAreaView edges={edges} style={{ flex: 1 }} className={bleedTopImage ? "bg-transparent" : "bg-[#f8fafc]"}>
+      {showBackgroundImage ? (
+        <Image
+          source={require("@/assets/images/hero-blur.png")}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 180,
+            opacity: 0.25,
+          }}
+          contentFit="cover"
+        />
+      ) : null}
 
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
         <View className="flex-1 justify-between gap-8 px-5 pt-10 pb-8">
