@@ -1,4 +1,5 @@
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
+import { getOrderStatusStyle } from "@/features/account/account.services"
 import { useCustomerOrder } from "@/features/account/orders/api"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { Products } from "@/lib/shopify"
@@ -56,9 +57,9 @@ function OrderDetailContent() {
     if (statusPageUrl) Linking.openURL(statusPageUrl).catch(() => {})
   }, [statusPageUrl])
 
-  const orderStatusLabel = useMemo(() => {
+  const orderStatusStyle = useMemo(() => {
     const status = data?.latestFulfillmentStatus ?? data?.fulfillments?.[0]?.status ?? null
-    return formatStatus(status)
+    return getOrderStatusStyle(status)
   }, [data])
 
   const handleLinePress = useCallback(
@@ -116,7 +117,8 @@ function OrderDetailContent() {
       <Card padding="lg" className="gap-3">
         <Text className="text-[#0f172a] font-geist-semibold text-[18px]">{data.name}</Text>
         <Text className="text-[#64748b] text-[13px]">Placed {formatDate(data.createdAt)}</Text>
-        <Badge label={orderStatusLabel} tone="accent" />
+        <Badge label={orderStatusStyle.label} bg={orderStatusStyle.bg} color={orderStatusStyle.color} />
+        <Text className="text-[#64748b] text-[12px]">{formatDateWithTime(data.createdAt)}</Text>
         <Text className="text-[#0f172a] font-geist-semibold text-[20px] mt-4">{totalPrice}</Text>
         {data.confirmationNumber ? (
           <Text className="text-[#64748b] text-[13px]">Confirmation {data.confirmationNumber}</Text>
@@ -201,24 +203,57 @@ function OrderDetailContent() {
         <Card padding="lg" className="gap-3">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Fulfillment</Text>
           <View className="gap-4">
-            {data.fulfillments.map((fulfillment) => (
-              <View key={fulfillment.id} className="gap-2">
-                <Text className="text-[#475569] text-[13px]">
-                  {formatStatus(fulfillment.status)} • {fulfillment.createdAt ? formatDate(fulfillment.createdAt) : "—"}
-                </Text>
-                {fulfillment.trackingInfo.length ? (
-                  <View className="gap-2">
-                    {fulfillment.trackingInfo.map((track, idx) => (
-                      <Text key={`${fulfillment.id}-track-${idx}`} className="text-[#64748b] text-[12px]">
-                        {track.company ? `${track.company} ` : ""}
-                        {track.number ?? ""}
-                        {track.url ? ` • ${track.url}` : ""}
-                      </Text>
-                    ))}
+            {data.fulfillments.map((fulfillment) => {
+              const statusStyle = getOrderStatusStyle(fulfillment.status)
+              return (
+                <View key={fulfillment.id} className="gap-3">
+                  <View className="flex-row items-center justify-between">
+                    <Badge label={statusStyle.label} bg={statusStyle.bg} color={statusStyle.color} />
+                    <Text className="text-[#475569] text-[12px]">
+                      {fulfillment.createdAt ? formatDateWithTime(fulfillment.createdAt) : "—"}
+                    </Text>
                   </View>
-                ) : null}
-              </View>
-            ))}
+
+                  {(() => {
+                    const statusUpper = (fulfillment.status ?? "").toUpperCase()
+                    const tracks = fulfillment.trackingInfo.filter((track) => !!track.url)
+                    if (statusUpper !== "SUCCESS" || tracks.length === 0) return null
+                    return (
+                      <View className="gap-2">
+                        {tracks.map((track, idx) => {
+                          const handlePress = () => {
+                            if (track.url) {
+                              Linking.openURL(track.url).catch(() =>
+                                show({ title: "Unable to open tracking link", type: "danger" }),
+                              )
+                            }
+                          }
+                          return (
+                            <PressableOverlay
+                              key={`${fulfillment.id}-track-${idx}`}
+                              onPress={handlePress}
+                              className="rounded-xl border border-border bg-[#f1f5f9] px-3 py-2"
+                            >
+                              <View className="flex-row items-center justify-between">
+                                <View className="gap-[2px] flex-1 pr-3">
+                                  <Text className="text-[#0f172a] font-geist-medium text-[13px]">
+                                    Tracking {track.number ?? "info"}
+                                  </Text>
+                                  <Text className="text-[#64748b] text-[12px]">
+                                    {track.company ?? "No carrier"} • Tap to view
+                                  </Text>
+                                </View>
+                                <Text className="text-brand font-geist-medium text-[12px]">Open</Text>
+                              </View>
+                            </PressableOverlay>
+                          )
+                        })}
+                      </View>
+                    )
+                  })()}
+                </View>
+              )
+            })}
           </View>
         </Card>
       ) : null}
@@ -300,6 +335,16 @@ function moneyOrFallback(value?: { amount: number; currencyCode: string } | null
   return formatMoney({ amount: value.amount.toFixed(2), currencyCode: value.currencyCode })
 }
 
+function formatDateWithTime(value: string): string {
+  try {
+    const date = new Date(value)
+    if (!Number.isFinite(date.getTime())) return value
+    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date)
+  } catch {
+    return value
+  }
+}
+
 function formatDate(value: string): string {
   try {
     const date = new Date(value)
@@ -310,20 +355,12 @@ function formatDate(value: string): string {
   }
 }
 
-function formatStatus(value?: string | null): string {
-  if (!value) return "Processing"
-  return value
-    .toLowerCase()
-    .split(/[_\s]+/)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ")
-}
-
-function Badge({ label, tone }: { label: string; tone: "neutral" | "accent" }) {
-  const toneClasses = tone === "accent" ? "bg-[#e0f2fe] text-[#0369a1]" : "bg-[#e2e8f0] text-[#475569]"
+function Badge({ label, bg, color }: { label: string; bg: string; color: string }) {
   return (
-    <View className={`px-2 py-[2px] rounded-full ${toneClasses}`}>
-      <Text className="text-[11px] font-geist-medium">{label}</Text>
+    <View className="px-2 py-1 rounded-full" style={{ backgroundColor: bg }}>
+      <Text className="text-[11px] font-geist-medium" style={{ color }}>
+        {label}
+      </Text>
     </View>
   )
 }

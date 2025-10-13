@@ -66,6 +66,7 @@ export function ShopifyAuthProvider({ children }: { children: React.ReactNode })
     } catch {
       /* ignore */
     }
+    setToken(null)
     return false
   }, [])
 
@@ -85,9 +86,11 @@ export function ShopifyAuthProvider({ children }: { children: React.ReactNode })
             setToken(t)
             return
           }
-          await silentSignIn()
+          const success = await silentSignIn()
+          if (!success) setToken(null)
         } catch {
           // swallow; silentSignIn already handles failure logging via toast elsewhere if needed
+          setToken(null)
         }
       }
     })

@@ -1,3 +1,4 @@
+import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import {
   useAttachCartToCustomer,
   useCartQuery,
@@ -5,7 +6,6 @@ import {
   useSyncCartChanges,
   useUpdateDiscountCodes,
 } from "@/features/cart/api"
-import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { convertAmount } from "@/features/currency/rates"
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { usePrefs } from "@/store/prefs"
@@ -25,7 +25,7 @@ import { Image } from "expo-image"
 import { router } from "expo-router"
 import { Trash2, X } from "lucide-react-native"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Alert, FlatList, PixelRatio, Platform, Text, View } from "react-native"
+import { Alert, FlatList, KeyboardAvoidingView, PixelRatio, Platform, Text, View } from "react-native"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 /** ──────────────────────────────────────────────────────────────
@@ -317,7 +317,9 @@ export default function CartScreen() {
       } else {
         pendingRemoves.current.delete(lineId)
         pendingUpdates.current.set(lineId, q)
-        setLocalLines((prev) => dedupeLines(prev.map((l) => (l.id === lineId ? { ...l, quantity: q, cost: undefined } : l))))
+        setLocalLines((prev) =>
+          dedupeLines(prev.map((l) => (l.id === lineId ? { ...l, quantity: q, cost: undefined } : l))),
+        )
       }
       setDirty(true)
       scheduleSync()
@@ -450,181 +452,193 @@ export default function CartScreen() {
   return (
     <Screen bleedBottom>
       <MenuBar />
+      <KeyboardAvoidingView
+        behavior={Platform.select({ ios: "padding", android: "height" })}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={(insets?.top ?? 0) + 72}
+      >
+        {!authInitializing && !isAuthenticated ? (
+          <View className="px-4 pt-4">
+            <Card padding="md" className="gap-3">
+              <View className="gap-1">
+                <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Sign in for faster checkout</Text>
+                <Text className="text-[#475569] text-[13px] leading-[18px]">
+                  We’ll save your addresses and keep this cart synced across devices.
+                </Text>
+              </View>
+              <Button variant="outline" size="md" fullWidth onPress={promptLogin} isLoading={loginPending}>
+                Sign in
+              </Button>
+            </Card>
+          </View>
+        ) : null}
 
-      {!authInitializing && !isAuthenticated ? (
-        <View className="px-4 pt-4">
-          <Card padding="md" className="gap-3">
-            <View className="gap-1">
-              <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Sign in for faster checkout</Text>
-              <Text className="text-[#475569] text-[13px] leading-[18px]">
-                We’ll save your addresses and keep this cart synced across devices.
-              </Text>
-            </View>
-            <Button variant="outline" size="md" fullWidth onPress={promptLogin} isLoading={loginPending}>
-              Sign in
-            </Button>
-          </Card>
-        </View>
-      ) : null}
-
-      {/* Error */}
-      {errorState ? (
-        <CenteredState
-          title="Something went wrong"
-          body="Please try again."
-          actionLabel="Retry"
-          onAction={() => refetch()}
-        />
-      ) : null}
-
-      {/* Initial loading */}
-      {loadingState ? <SkeletonList /> : null}
-
-      {/* Content */}
-      {!loadingState && !errorState ? (
-        <>
-          <FlatList
-            {...verticalScrollProps}
-            data={localLines}
-            keyExtractor={(l) => l.id}
-            renderItem={({ item }) => <LineItem item={item} />}
-            extraData={localLines.length}
-            ListEmptyComponent={<EmptyCart />}
-            contentContainerStyle={{ padding: 16, paddingBottom: listBottomPad }}
-            keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
-            scrollIndicatorInsets={{ bottom: listBottomPad }}
-            showsVerticalScrollIndicator={false}
-            removeClippedSubviews
-            initialNumToRender={8}
-            windowSize={7}
-            updateCellsBatchingPeriod={50}
-            maxToRenderPerBatch={10}
+        {/* Error */}
+        {errorState ? (
+          <CenteredState
+            title="Something went wrong"
+            body="Please try again."
+            actionLabel="Retry"
+            onAction={() => refetch()}
           />
+        ) : null}
 
-          {/* Floating sync pill */}
-          {sync.isPending ? <SyncPill /> : null}
+        {/* Initial loading */}
+        {loadingState ? <SkeletonList /> : null}
 
-          {/* Sticky summary */}
-          <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "#fff" }}>
-            <SafeAreaView edges={["bottom"]} style={{ backgroundColor: "#fff" }}>
-              <View
-                onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}
-                className="px-4 py-3 border-t border-border"
-                style={{ backgroundColor: "#fff" }}
-              >
-                <View className="p-3 border border-border rounded-2xl bg-surface gap-2">
-                  <View className="gap-2">
-                    {discountCodes.length > 0 ? (
+        {/* Content */}
+        {!loadingState && !errorState ? (
+          <>
+            <FlatList
+              {...verticalScrollProps}
+              data={localLines}
+              keyExtractor={(l) => l.id}
+              renderItem={({ item }) => <LineItem item={item} />}
+              extraData={localLines.length}
+              ListEmptyComponent={<EmptyCart />}
+              contentContainerStyle={{ padding: 16, paddingBottom: listBottomPad }}
+              keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
+              scrollIndicatorInsets={{ bottom: listBottomPad }}
+              showsVerticalScrollIndicator={false}
+              removeClippedSubviews
+              initialNumToRender={8}
+              windowSize={7}
+              updateCellsBatchingPeriod={50}
+              maxToRenderPerBatch={10}
+            />
+
+            {/* Floating sync pill */}
+            {sync.isPending ? <SyncPill /> : null}
+
+            {/* Sticky summary */}
+            <KeyboardAvoidingView
+              behavior={Platform.select({ ios: "padding", android: "height" })}
+              style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}
+              keyboardVerticalOffset={(insets?.top ?? 0) + 32}
+            >
+              <View style={{ backgroundColor: "#fff" }}>
+                <SafeAreaView edges={["bottom"]} style={{ backgroundColor: "#fff" }}>
+                  <View
+                    onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}
+                    className="px-4 py-3 border-t border-border"
+                    style={{ backgroundColor: "#fff" }}
+                  >
+                    <View className="p-3 border border-border rounded-2xl bg-surface gap-2">
                       <View className="gap-2">
-                        {discountCodes.map((code) => (
-                          <View
-                            key={code.code}
-                            className="flex-row items-center justify-between rounded-xl border border-border bg-[#f8fafc] px-3 py-2"
-                          >
-                            <View className="flex-1 pr-3 gap-[2px]">
-                              <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{code.code}</Text>
-                              {code.applicable === false ? (
-                                <Text className="text-[#dc2626] text-[11px]">Not applicable</Text>
-                              ) : null}
-                            </View>
-                            <PressableOverlay
-                              onPress={() => handleRemoveDiscount(code.code)}
-                              disabled={updatingDiscounts}
-                              className="h-8 w-8 items-center justify-center rounded-full"
-                              accessibilityLabel={`Remove discount ${code.code}`}
-                            >
-                              <X size={16} color="#475569" />
-                            </PressableOverlay>
+                        {discountCodes.length > 0 ? (
+                          <View className="gap-2">
+                            {discountCodes.map((code) => (
+                              <View
+                                key={code.code}
+                                className="flex-row items-center justify-between rounded-xl border border-border bg-[#f8fafc] px-3 py-2"
+                              >
+                                <View className="flex-1 pr-3 gap-[2px]">
+                                  <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{code.code}</Text>
+                                  {code.applicable === false ? (
+                                    <Text className="text-[#dc2626] text-[11px]">Not applicable</Text>
+                                  ) : null}
+                                </View>
+                                <PressableOverlay
+                                  onPress={() => handleRemoveDiscount(code.code)}
+                                  disabled={updatingDiscounts}
+                                  className="h-8 w-8 items-center justify-center rounded-full"
+                                  accessibilityLabel={`Remove discount ${code.code}`}
+                                >
+                                  <X size={16} color="#475569" />
+                                </PressableOverlay>
+                              </View>
+                            ))}
                           </View>
-                        ))}
-                      </View>
-                    ) : null}
+                        ) : null}
 
-                    <View className="flex-row items-center gap-3">
-                      <Input
-                        value={codeInput}
-                        onChangeText={setCodeInput}
-                        placeholder="Add promo code"
-                        autoCapitalize="characters"
-                        autoCorrect={false}
-                        size="md"
-                        className="flex-1"
-                      />
+                        <View className="flex-row items-center gap-3">
+                          <Input
+                            value={codeInput}
+                            onChangeText={setCodeInput}
+                            placeholder="Add promo code"
+                            autoCapitalize="characters"
+                            autoCorrect={false}
+                            size="md"
+                            className="flex-1"
+                            returnKeyType="done"
+                          />
+                          <Button
+                            variant="outline"
+                            size="md"
+                            onPress={handleApplyDiscount}
+                            disabled={updatingDiscounts || !codeInput.trim()}
+                            isLoading={updatingDiscounts}
+                          >
+                            Apply
+                          </Button>
+                        </View>
+                      </View>
+
+                      {(() => {
+                        const showUSD = prefCurrency !== "USD"
+                        const subDisp = convertAmount(subBefore, currency, prefCurrency)
+                        const subUSD = convertAmount(subBefore, currency, "USD")
+                        const discDisp = convertAmount(discount, currency, prefCurrency)
+                        const discUSD = convertAmount(discount, currency, "USD")
+                        const taxDisp = convertAmount(tax, currency, prefCurrency)
+                        const taxUSD = convertAmount(tax, currency, "USD")
+                        const totDisp = convertAmount(total, currency, prefCurrency)
+                        const totUSD = convertAmount(total, currency, "USD")
+                        return (
+                          <>
+                            <Row label="Subtotal">
+                              <DualAmount
+                                main={formatCurrencyText(subDisp, prefCurrency)}
+                                alt={showUSD ? formatCurrencyText(subUSD, "USD") : undefined}
+                              />
+                            </Row>
+                            {tax > 0 ? (
+                              <Row label="Taxes">
+                                <DualAmount
+                                  main={formatCurrencyText(taxDisp, prefCurrency)}
+                                  alt={showUSD ? formatCurrencyText(taxUSD, "USD") : undefined}
+                                />
+                              </Row>
+                            ) : null}
+                            {discount > 0 ? (
+                              <Row label="Discounts">
+                                <DualAmount
+                                  main={`-${formatCurrencyText(discDisp, prefCurrency)}`}
+                                  alt={showUSD ? `-${formatCurrencyText(discUSD, "USD")}` : undefined}
+                                  tone="danger"
+                                />
+                              </Row>
+                            ) : null}
+                            <Divider />
+                            <Row label="Total">
+                              <DualAmount
+                                main={formatCurrencyText(totDisp, prefCurrency)}
+                                alt={showUSD ? formatCurrencyText(totUSD, "USD") : undefined}
+                                emphasize
+                              />
+                            </Row>
+                          </>
+                        )
+                      })()}
+
                       <Button
-                        variant="outline"
-                        size="md"
-                        onPress={handleApplyDiscount}
-                        disabled={updatingDiscounts || !codeInput.trim()}
-                        isLoading={updatingDiscounts}
+                        size="lg"
+                        fullWidth
+                        onPress={onCheckout}
+                        isLoading={attachingBuyer}
+                        disabled={!hasItems || attachingBuyer}
+                        className="mt-3 bg-neutral-900"
                       >
-                        Apply
+                        Checkout
                       </Button>
                     </View>
                   </View>
-
-                  {(() => {
-                    const showUSD = prefCurrency !== "USD"
-                    const subDisp = convertAmount(subBefore, currency, prefCurrency)
-                    const subUSD = convertAmount(subBefore, currency, "USD")
-                    const discDisp = convertAmount(discount, currency, prefCurrency)
-                    const discUSD = convertAmount(discount, currency, "USD")
-                    const taxDisp = convertAmount(tax, currency, prefCurrency)
-                    const taxUSD = convertAmount(tax, currency, "USD")
-                    const totDisp = convertAmount(total, currency, prefCurrency)
-                    const totUSD = convertAmount(total, currency, "USD")
-                    return (
-                      <>
-                        <Row label="Subtotal">
-                          <DualAmount
-                            main={formatCurrencyText(subDisp, prefCurrency)}
-                            alt={showUSD ? formatCurrencyText(subUSD, "USD") : undefined}
-                          />
-                        </Row>
-                        {tax > 0 ? (
-                          <Row label="Taxes">
-                            <DualAmount
-                              main={formatCurrencyText(taxDisp, prefCurrency)}
-                              alt={showUSD ? formatCurrencyText(taxUSD, "USD") : undefined}
-                            />
-                          </Row>
-                        ) : null}
-                        {discount > 0 ? (
-                          <Row label="Discounts">
-                            <DualAmount
-                              main={`-${formatCurrencyText(discDisp, prefCurrency)}`}
-                              alt={showUSD ? `-${formatCurrencyText(discUSD, "USD")}` : undefined}
-                              tone="danger"
-                            />
-                          </Row>
-                        ) : null}
-                        <Divider />
-                        <Row label="Total">
-                          <DualAmount
-                            main={formatCurrencyText(totDisp, prefCurrency)}
-                            alt={showUSD ? formatCurrencyText(totUSD, "USD") : undefined}
-                            emphasize
-                          />
-                        </Row>
-                      </>
-                    )
-                  })()}
-
-                  <Button
-                    size="lg"
-                    fullWidth
-                    onPress={onCheckout}
-                    isLoading={attachingBuyer}
-                    disabled={!hasItems || attachingBuyer}
-                    className="mt-3 bg-neutral-900"
-                  >
-                    Checkout
-                  </Button>
-                </View>
+                </SafeAreaView>
               </View>
-            </SafeAreaView>
-          </View>
-        </>
-      ) : null}
+            </KeyboardAvoidingView>
+          </>
+        ) : null}
+      </KeyboardAvoidingView>
     </Screen>
   )
 }

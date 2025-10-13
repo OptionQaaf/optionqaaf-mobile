@@ -131,7 +131,6 @@ export async function getValidAccessToken(): Promise<string | null> {
     if (code === "invalid_grant") {
       return null
     }
-    // network or transient failure — keep existing token so UI stays authenticated
     return at
   }
 }
