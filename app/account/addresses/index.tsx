@@ -9,7 +9,7 @@ import { Button } from "@/ui/primitives/Button"
 import { Text } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
 import { useRouter } from "expo-router"
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { ActivityIndicator, RefreshControl, ScrollView, View } from "react-native"
 
 export default function AccountAddressesScreen() {
@@ -33,7 +33,8 @@ function AddressesContent() {
   const { show } = useToast()
   const { data: profile, isLoading, isRefetching, refetch, error } = useCustomerProfile()
   const { mutateAsync: setDefault, isPending: settingDefault } = useSetDefaultCustomerAddress()
-  const { mutateAsync: removeAddress, isPending: deletingAddress } = useDeleteCustomerAddress()
+  const { mutateAsync: removeAddress } = useDeleteCustomerAddress()
+  const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null)
 
   const defaultId = profile?.defaultAddress?.id ?? null
 
@@ -66,12 +67,15 @@ function AddressesContent() {
 
   const handleRemove = useCallback(
     async (addressId: string) => {
+      setDeletingAddressId(addressId)
       try {
         await removeAddress(addressId)
         show({ title: "Address deleted", type: "success" })
       } catch (err: any) {
         const message = err?.message || "Could not delete that address"
         show({ title: message, type: "danger" })
+      } finally {
+        setDeletingAddressId(null)
       }
     },
     [removeAddress, show],
@@ -121,7 +125,7 @@ function AddressesContent() {
                 variant="ghost"
                 size="sm"
                 onPress={() => handleRemove(address.id)}
-                isLoading={deletingAddress}
+                isLoading={deletingAddressId === address.id}
                 className="flex-1"
               >
                 Remove
@@ -131,7 +135,7 @@ function AddressesContent() {
         </Card>
       )
     },
-    [defaultId, deletingAddress, handleEdit, handleRemove, handleSetDefault, settingDefault],
+    [defaultId, deletingAddressId, handleEdit, handleRemove, handleSetDefault, settingDefault],
   )
 
   useEffect(() => {

@@ -1,7 +1,6 @@
 import type { AddressFormData } from "@/features/account/addresses/AddressForm"
 
 const GOOGLE_PLACES_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_KEY
-const COUNTRY_FILTER = process.env.EXPO_PUBLIC_PLACES_COUNTRY
 
 if (!GOOGLE_PLACES_KEY) {
   throw new Error("Missing EXPO_PUBLIC_GOOGLE_PLACES_KEY")
@@ -123,13 +122,11 @@ export async function placesAutocomplete(input: string, sessionToken: string, si
     key: GOOGLE_PLACES_KEY,
     sessiontoken: sessionToken,
     types: "address",
-    components: COUNTRY_FILTER ? `country:${COUNTRY_FILTER}` : undefined,
   })
 
-  const response = await fetch(
-    `https://maps.googleapis.com/maps/api/place/autocomplete/json?${params.toString()}`,
-    { signal },
-  )
+  const response = await fetch(`https://maps.googleapis.com/maps/api/place/autocomplete/json?${params.toString()}`, {
+    signal,
+  })
   await handleGoogleError(response)
   const data = (await response.json()) as GoogleAutocompleteResponse
   validateStatus(data.status, data.error_message)
@@ -140,7 +137,11 @@ export async function placesAutocomplete(input: string, sessionToken: string, si
   }))
 }
 
-export async function placeDetails(placeId: string, sessionToken: string, signal?: AbortSignal): Promise<PlaceDetailsResult> {
+export async function placeDetails(
+  placeId: string,
+  sessionToken: string,
+  signal?: AbortSignal,
+): Promise<PlaceDetailsResult> {
   const params = buildParams({
     place_id: placeId,
     key: GOOGLE_PLACES_KEY,
@@ -148,10 +149,9 @@ export async function placeDetails(placeId: string, sessionToken: string, signal
     fields: "address_component,geometry/location,formatted_address,name",
   })
 
-  const response = await fetch(
-    `https://maps.googleapis.com/maps/api/place/details/json?${params.toString()}`,
-    { signal },
-  )
+  const response = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?${params.toString()}`, {
+    signal,
+  })
   await handleGoogleError(response)
   const data = (await response.json()) as GooglePlaceDetailsResponse
   validateStatus(data.status, data.error_message)
@@ -172,17 +172,18 @@ export async function placeDetails(placeId: string, sessionToken: string, signal
   }
 }
 
-export async function reverseGeocodeGoogle(lat: number, lng: number, signal?: AbortSignal): Promise<PlaceDetailsResult> {
+export async function reverseGeocodeGoogle(
+  lat: number,
+  lng: number,
+  signal?: AbortSignal,
+): Promise<PlaceDetailsResult> {
   const params = buildParams({
     latlng: `${lat},${lng}`,
     key: GOOGLE_PLACES_KEY,
     result_type: "street_address|premise|subpremise|route",
   })
 
-  const response = await fetch(
-    `https://maps.googleapis.com/maps/api/geocode/json?${params.toString()}`,
-    { signal },
-  )
+  const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params.toString()}`, { signal })
   await handleGoogleError(response)
   const data = (await response.json()) as GoogleGeocodeResponse
   validateStatus(data.status, data.error_message)
