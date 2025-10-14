@@ -1,4 +1,3 @@
-import { PlacesInput, type PlacePick } from "./PlacesInput"
 import { placeDetails, reverseGeocodeGoogle } from "@/lib/maps/places"
 import { useToast } from "@/ui/feedback/Toast"
 import { Button } from "@/ui/primitives/Button"
@@ -9,6 +8,7 @@ import * as Location from "expo-location"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Platform, ScrollView, Switch, View } from "react-native"
 import type { MapPressEvent, Region } from "react-native-maps"
+import { PlacesInput, type PlacePick } from "./PlacesInput"
 
 let ReactNativeMapsModule: typeof import("react-native-maps") | undefined
 let reactNativeMapsError: unknown
@@ -338,15 +338,12 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
                 </MapViewComponent>
               ) : (
                 <View className="flex-1 items-center justify-center px-6">
-                  <Text className="text-center text-[#475569] text-[13px] leading-[18px]">
-                    {mapUnavailableMessage}
-                  </Text>
+                  <Text className="text-center text-[#475569] text-[13px] leading-[18px]">{mapUnavailableMessage}</Text>
                 </View>
               )}
             </View>
             <Text className="text-[#64748b] text-[13px] leading-[18px]">
-              Tap on the map to drop a pin or use your current location. We’ll fill in as many address
-              fields as we can.
+              Tap on the map to drop a pin or use your current location. We’ll fill in as many address fields as we can.
             </Text>
             <Button variant="outline" onPress={handleUseCurrentLocation} isLoading={isLocating}>
               Use current location
