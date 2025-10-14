@@ -132,6 +132,22 @@ const CUSTOMER_ORDER_QUERY = /* GraphQL */ `
             url
             company
           }
+          fulfillmentLineItems(first: $lineItemLimit) {
+            edges {
+              node {
+                quantity
+                lineItem {
+                  id
+                }
+              }
+            }
+          }
+        }
+      }
+      unfulfilledLineItems(first: $lineItemLimit) {
+        nodes {
+          id
+          quantity
         }
       }
     }
@@ -198,9 +214,20 @@ type GraphQLOrder = {
             company?: Maybe<string>
           }[]
         >
+        fulfillmentLineItems?: Maybe<{
+          edges?: Maybe<
+            {
+              node?: Maybe<{
+                quantity?: Maybe<number>
+                lineItem?: Maybe<GraphQLOrderLine>
+              }>
+            }[]
+          >
+        }>
       }[]
     >
   }>
+  unfulfilledLineItems?: Maybe<{ nodes?: Maybe<(GraphQLOrderLine | null)[]> }>
 }
 
 type GraphQLCustomerAddress = {
@@ -289,8 +316,14 @@ export type OrderDetail = OrderSummary & {
       url: string | null
       company: string | null
     }>
+    lineItems: Array<{
+      lineItemId: string
+      quantity: number
+    }>
   }>
   lineItems: OrderLineItem[]
+  fulfilledLineItemQuantities: Record<string, number>
+  unfulfilledLineItemQuantities: Record<string, number>
 }
 
 function toMoneyValue(m?: Maybe<Money>): MoneyValue | null {
@@ -364,22 +397,52 @@ function normalizeDetail(order: Maybe<GraphQLOrder>): OrderDetail | null {
   const lineItems =
     order?.lineItems?.nodes?.map(normalizeLineItem).filter((item): item is OrderLineItem => !!item) ?? []
 
+  const fulfilledQuantityMap = new Map<string, number>()
+
   const fulfillments =
-    order?.fulfillments?.nodes?.map((node) => {
-      if (!node?.id) return null
-      const tracking =
-        node.trackingInformation?.map((info) => ({
-          number: info?.number ?? null,
-          url: info?.url ?? null,
-          company: info?.company ?? null,
-        })) ?? []
-      return {
-        id: node.id,
-        createdAt: node.createdAt ?? null,
-        status: node.status ?? null,
-        trackingInfo: tracking,
-      }
-    }).filter((f): f is OrderDetail["fulfillments"][number] => !!f) ?? []
+    order?.fulfillments?.nodes
+      ?.map((node) => {
+        if (!node?.id) return null
+        const tracking =
+          node.trackingInformation?.map((info) => ({
+            number: info?.number ?? null,
+            url: info?.url ?? null,
+            company: info?.company ?? null,
+          })) ?? []
+
+        const fulfillmentLineItems =
+          node.fulfillmentLineItems?.edges
+            ?.map((edge) => {
+              const lineItemId = edge?.node?.lineItem?.id
+              if (!lineItemId) return null
+              const quantity = Number(edge?.node?.quantity ?? 0)
+              if (!Number.isFinite(quantity) || quantity <= 0) return null
+              fulfilledQuantityMap.set(
+                lineItemId,
+                (fulfilledQuantityMap.get(lineItemId) ?? 0) + quantity,
+              )
+              return { lineItemId, quantity }
+            })
+            .filter((item): item is { lineItemId: string; quantity: number } => !!item) ?? []
+
+        return {
+          id: node.id,
+          createdAt: node.createdAt ?? null,
+          status: node.status ?? null,
+          trackingInfo: tracking,
+          lineItems: fulfillmentLineItems,
+        }
+      })
+      .filter((f): f is OrderDetail["fulfillments"][number] => !!f) ?? []
+
+  const unfulfilledQuantityMap = new Map<string, number>()
+
+  order?.unfulfilledLineItems?.nodes?.forEach((node) => {
+    if (!node?.id) return
+    const quantity = Number(node.quantity ?? 0)
+    if (!Number.isFinite(quantity) || quantity <= 0) return
+    unfulfilledQuantityMap.set(node.id, quantity)
+  })
 
   return {
     ...summary,
@@ -391,6 +454,8 @@ function normalizeDetail(order: Maybe<GraphQLOrder>): OrderDetail | null {
     shippingAddress: normalizeAddress(order?.shippingAddress),
     fulfillments,
     lineItems,
+    fulfilledLineItemQuantities: Object.fromEntries(fulfilledQuantityMap.entries()),
+    unfulfilledLineItemQuantities: Object.fromEntries(unfulfilledQuantityMap.entries()),
   }
 }
 
