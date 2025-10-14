@@ -3,6 +3,7 @@ import { getOrderStatusStyle } from "@/features/account/account.services"
 import { useCustomerOrder } from "@/features/account/orders/api"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { Products } from "@/lib/shopify"
+import type { OrderDetail } from "@/lib/shopify/customer/orders"
 import { formatMoney } from "@/lib/shopify/money"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -14,6 +15,12 @@ import { Image } from "expo-image"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo } from "react"
 import { ActivityIndicator, Linking, RefreshControl, ScrollView, Text, View } from "react-native"
+
+type SegmentedLineItem = { item: OrderDetail["lineItems"][number]; quantity: number }
+type SegmentedLineItems = {
+  fulfilled: SegmentedLineItem[]
+  unfulfilled: SegmentedLineItem[]
+}
 
 export default function OrderDetailScreen() {
   const router = useRouter()
@@ -62,6 +69,26 @@ function OrderDetailContent() {
     return getOrderStatusStyle(status)
   }, [data])
 
+  const segmentedLineItems = useMemo<SegmentedLineItems>(() => {
+    if (!data) return { fulfilled: [] as SegmentedLineItem[], unfulfilled: [] as SegmentedLineItem[] }
+
+    const fulfilled: SegmentedLineItem[] = []
+    const unfulfilled: SegmentedLineItem[] = []
+
+    data.lineItems.forEach((item) => {
+      const totalQuantity = Number.isFinite(item.quantity) ? item.quantity : 0
+      if (totalQuantity <= 0) return
+
+      const fulfilledQuantity = data.fulfilledLineItemQuantities[item.id] ?? 0
+
+      if (fulfilledQuantity > 0) {
+        fulfilled.push({ item, quantity: fulfilledQuantity })
+      }
+    })
+
+    return { fulfilled, unfulfilled }
+  }, [data])
+
   const handleLinePress = useCallback(
     async (item: NonNullable<typeof data>["lineItems"][number]) => {
       const productId = item.productId
@@ -76,7 +103,7 @@ function OrderDetailContent() {
           return
         }
         router.push(`/products/${handle}` as const)
-      } catch (err) {
+      } catch {
         show({ title: "Product unavailable", type: "info" })
       }
     },
@@ -130,51 +157,121 @@ function OrderDetailContent() {
         ) : null}
       </Card>
 
-      <Card padding="lg" className="gap-3">
+      <Card padding="lg" className="gap-4">
         <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Items</Text>
-        <View className="gap-3">
-          {data.lineItems.map((item) => {
-            const subtotalLabel = item.subtotal
-              ? formatMoney({
-                  amount: item.subtotal.amount.toFixed(2),
-                  currencyCode: item.subtotal.currencyCode,
-                })
-              : null
-            return (
-              <PressableOverlay
-                key={item.id}
-                className="flex-row items-center gap-4 rounded-2xl px-3 py-2 bg-[#f1f5f9]"
-                onPress={() => handleLinePress(item)}
-              >
-                <View className="h-14 w-14 rounded-xl bg-white overflow-hidden items-center justify-center">
-                  {item.imageUrl ? (
-                    <Image
-                      source={{ uri: item.imageUrl }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <Text className="text-[#64748b] text-[12px]">×{item.quantity}</Text>
-                  )}
-                </View>
-                <View className="flex-1 gap-1">
-                  <Text className="text-[#0f172a] text-[15px] font-geist-medium" numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  {item.variantTitle ? (
-                    <Text className="text-[#64748b] text-[13px]" numberOfLines={1}>
-                      {item.variantTitle}
-                    </Text>
-                  ) : null}
-                  <Text className="text-[#64748b] text-[12px]">Qty {item.quantity}</Text>
-                </View>
-                {subtotalLabel ? (
-                  <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{subtotalLabel}</Text>
-                ) : null}
-              </PressableOverlay>
-            )
-          })}
-        </View>
+        {segmentedLineItems.fulfilled.length ? (
+          <View className="gap-3">
+            <Text className="text-[#0f172a] font-geist-medium text-[14px]">Fulfilled items</Text>
+            <View className="gap-3">
+              {segmentedLineItems.fulfilled.map(({ item, quantity }) => {
+                const segmentSubtotal = (() => {
+                  if (!item.subtotal || item.quantity <= 0) return null
+                  const unitPrice = item.subtotal.amount / item.quantity
+                  if (!Number.isFinite(unitPrice)) return null
+                  const amount = unitPrice * quantity
+                  if (!Number.isFinite(amount)) return null
+                  return formatMoney({
+                    amount: amount.toFixed(2),
+                    currencyCode: item.subtotal.currencyCode,
+                  })
+                })()
+                const totalLabel = item.quantity > quantity ? ` of ${item.quantity}` : ""
+                const statusText = totalLabel ? `Fulfilled ${quantity}${totalLabel}` : `Fulfilled ${quantity}`
+                return (
+                  <PressableOverlay
+                    key={`${item.id}-fulfilled`}
+                    className="flex-row items-center gap-4 rounded-2xl px-3 py-2 bg-[#f1f5f9]"
+                    onPress={() => handleLinePress(item)}
+                  >
+                    <View className="h-14 w-14 rounded-xl bg-white overflow-hidden items-center justify-center">
+                      {item.imageUrl ? (
+                        <Image
+                          source={{ uri: item.imageUrl }}
+                          style={{ width: "100%", height: "100%" }}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <Text className="text-[#64748b] text-[12px]">×{quantity}</Text>
+                      )}
+                    </View>
+                    <View className="flex-1 gap-1">
+                      <Text className="text-[#0f172a] text-[15px] font-geist-medium" numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      {item.variantTitle ? (
+                        <Text className="text-[#64748b] text-[13px]" numberOfLines={1}>
+                          {item.variantTitle}
+                        </Text>
+                      ) : null}
+                      <Text className="text-[#64748b] text-[12px]">{statusText}</Text>
+                    </View>
+                    {segmentSubtotal ? (
+                      <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{segmentSubtotal}</Text>
+                    ) : null}
+                  </PressableOverlay>
+                )
+              })}
+            </View>
+          </View>
+        ) : null}
+        {segmentedLineItems.unfulfilled.length ? (
+          <View className="gap-3">
+            <Text className="text-[#0f172a] font-geist-medium text-[14px]">Not fulfilled</Text>
+            <View className="gap-3">
+              {segmentedLineItems.unfulfilled.map(({ item, quantity }) => {
+                const segmentSubtotal = (() => {
+                  if (!item.subtotal || item.quantity <= 0) return null
+                  const unitPrice = item.subtotal.amount / item.quantity
+                  if (!Number.isFinite(unitPrice)) return null
+                  const amount = unitPrice * quantity
+                  if (!Number.isFinite(amount)) return null
+                  return formatMoney({
+                    amount: amount.toFixed(2),
+                    currencyCode: item.subtotal.currencyCode,
+                  })
+                })()
+                const totalLabel = item.quantity > quantity ? ` of ${item.quantity}` : ""
+                const statusText = totalLabel ? `Not fulfilled ${quantity}${totalLabel}` : `Not fulfilled ${quantity}`
+                return (
+                  <PressableOverlay
+                    key={`${item.id}-unfulfilled`}
+                    className="flex-row items-center gap-4 rounded-2xl px-3 py-2 bg-[#f1f5f9]"
+                    onPress={() => handleLinePress(item)}
+                  >
+                    <View className="h-14 w-14 rounded-xl bg-white overflow-hidden items-center justify-center">
+                      {item.imageUrl ? (
+                        <Image
+                          source={{ uri: item.imageUrl }}
+                          style={{ width: "100%", height: "100%" }}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <Text className="text-[#64748b] text-[12px]">×{quantity}</Text>
+                      )}
+                    </View>
+                    <View className="flex-1 gap-1">
+                      <Text className="text-[#0f172a] text-[15px] font-geist-medium" numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      {item.variantTitle ? (
+                        <Text className="text-[#64748b] text-[13px]" numberOfLines={1}>
+                          {item.variantTitle}
+                        </Text>
+                      ) : null}
+                      <Text className="text-[#64748b] text-[12px]">{statusText}</Text>
+                    </View>
+                    {segmentSubtotal ? (
+                      <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{segmentSubtotal}</Text>
+                    ) : null}
+                  </PressableOverlay>
+                )
+              })}
+            </View>
+          </View>
+        ) : null}
+        {!segmentedLineItems.fulfilled.length && !segmentedLineItems.unfulfilled.length ? (
+          <Text className="text-[#64748b] text-[13px]">No items</Text>
+        ) : null}
       </Card>
 
       <Card padding="lg" className="gap-3">

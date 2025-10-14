@@ -59,7 +59,25 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
    EXPO_PUBLIC_SHOPIFY_CLIENT_ID=55f5b958-3344-457c-8fc7-0d1cadee09da
    EXPO_PUBLIC_SHOPIFY_SCOPES="openid email customer-account-api:full"
    EXPO_PUBLIC_SHOPIFY_AUTH_SCHEME=shop.1234567890.app://callback
+
+   # Google Maps SDK (native maps rendering)
+   EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY=ios_native_maps_key
+   EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY=android_native_maps_key
+
+   # Google Places & Geocoding web service
+   EXPO_PUBLIC_GOOGLE_PLACES_KEY=web_services_key
+
+   # Optional: limit Places suggestions to a specific country (ISO-2, e.g. AT)
+   EXPO_PUBLIC_PLACES_COUNTRY=AT
    ```
+
+   - **Where to get the keys:** Create credentials in the [Google Cloud Console](https://console.cloud.google.com/)
+     under **APIs & Services → Credentials**. Generate three API keys:
+       - iOS key restricted to the bundle identifier (`com.optionqaaf.app.demo`) with **Maps SDK for iOS** enabled.
+       - Android key restricted to the package name + SHA-1 certificate with **Maps SDK for Android** enabled.
+       - Web services key restricted to trusted IPs/HTTP referrers with **Places API** and **Geocoding API** enabled.
+     Paste the respective keys into the environment variables above. Remember to add these values to your
+     EAS secrets before building.
 
 ---
 

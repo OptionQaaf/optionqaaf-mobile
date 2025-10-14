@@ -25,6 +25,12 @@ const CUSTOMER_PROFILE_QUERY = /* GraphQL */ `
         province
         country
         zip
+        firstName
+        lastName
+        phoneNumber
+        company
+        zoneCode
+        territoryCode
       }
       addresses(first: $addressLimit) {
         nodes {
@@ -36,6 +42,12 @@ const CUSTOMER_PROFILE_QUERY = /* GraphQL */ `
           province
           country
           zip
+          firstName
+          lastName
+          phoneNumber
+          company
+          zoneCode
+          territoryCode
         }
       }
     }
@@ -68,6 +80,12 @@ const CUSTOMER_PROFILE_UPDATE_MUTATION = /* GraphQL */ `
           province
           country
           zip
+          firstName
+          lastName
+          phoneNumber
+          company
+          zoneCode
+          territoryCode
         }
         addresses(first: $addressLimit) {
           nodes {
@@ -79,6 +97,12 @@ const CUSTOMER_PROFILE_UPDATE_MUTATION = /* GraphQL */ `
             province
             country
             zip
+            firstName
+            lastName
+            phoneNumber
+            company
+            zoneCode
+            territoryCode
           }
         }
       }
@@ -117,6 +141,12 @@ type GraphQLCustomerAddress = {
   province?: string | null
   country?: string | null
   zip?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  phoneNumber?: string | null
+  company?: string | null
+  zoneCode?: string | null
+  territoryCode?: string | null
 }
 
 export type CustomerAddress = {
@@ -128,6 +158,12 @@ export type CustomerAddress = {
   province?: string | null
   country?: string | null
   zip?: string | null
+  firstName?: string | null
+  lastName?: string | null
+  phoneNumber?: string | null
+  company?: string | null
+  zoneCode?: string | null
+  territoryCode?: string | null
 }
 
 export type CustomerProfile = {
@@ -156,6 +192,12 @@ function normalizeAddress(node: GraphQLCustomerAddress | null | undefined): Cust
     province: node.province ?? null,
     country: node.country ?? null,
     zip: node.zip ?? null,
+    firstName: node.firstName ?? null,
+    lastName: node.lastName ?? null,
+    phoneNumber: node.phoneNumber ?? null,
+    company: node.company ?? null,
+    zoneCode: node.zoneCode ?? null,
+    territoryCode: node.territoryCode ?? null,
   }
 }
 

@@ -161,15 +161,18 @@ function AccountContent() {
 
         <Section title="Quick access">
           <View className="gap-3">
-            {quickLinks.map((link) => (
-              <AccountLink
-                key={link.title}
-                title={link.title}
-                description={link.body}
-                icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
-                onPress={link.path ? () => router.push(link.path!) : () => handleComingSoon(link.title)}
-              />
-            ))}
+            {quickLinks.map((link) => {
+              const onPress = link.path ? () => router.push(link.path) : () => handleComingSoon(link.title)
+              return (
+                <AccountLink
+                  key={link.title}
+                  title={link.title}
+                  description={link.body}
+                  icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
+                  onPress={onPress}
+                />
+              )
+            })}
           </View>
         </Section>
 
