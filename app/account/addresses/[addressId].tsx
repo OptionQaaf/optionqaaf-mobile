@@ -1,4 +1,4 @@
-import { AddressForm, type AddressFormData } from "@/features/account/addresses/AddressForm"
+import { AddressForm, type AddressFormSubmitData } from "@/features/account/addresses/AddressForm"
 import { useCustomerProfile, useDeleteCustomerAddress, useUpdateCustomerAddress } from "@/features/account/api"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
@@ -53,7 +53,7 @@ function EditAddressContent() {
   const isDefault = profile?.defaultAddress?.id === address?.id
 
   const handleSubmit = useCallback(
-    async (values: AddressFormData) => {
+    async (values: AddressFormSubmitData) => {
       if (!address) return
       try {
         await updateAddress({
@@ -130,7 +130,7 @@ function EditAddressContent() {
   )
 }
 
-function formToInput(values: AddressFormData) {
+function formToInput(values: AddressFormSubmitData) {
   return {
     firstName: values.firstName.trim() || null,
     lastName: values.lastName.trim() || null,

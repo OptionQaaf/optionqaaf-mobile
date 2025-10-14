@@ -1,4 +1,4 @@
-import { AddressForm, type AddressFormData } from "@/features/account/addresses/AddressForm"
+import { AddressForm, type AddressFormSubmitData } from "@/features/account/addresses/AddressForm"
 import { useCreateCustomerAddress } from "@/features/account/api"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
@@ -30,7 +30,7 @@ function NewAddressContent() {
   const { mutateAsync: createAddress, isPending } = useCreateCustomerAddress()
 
   const handleSubmit = useCallback(
-    async (values: AddressFormData) => {
+    async (values: AddressFormSubmitData) => {
       try {
         await createAddress({
           address: formToInput(values),
@@ -49,7 +49,7 @@ function NewAddressContent() {
   return <AddressForm submitLabel="Save address" onSubmit={handleSubmit} isSubmitting={isPending} />
 }
 
-function formToInput(values: AddressFormData) {
+function formToInput(values: AddressFormSubmitData) {
   return {
     firstName: values.firstName.trim() || null,
     lastName: values.lastName.trim() || null,

@@ -1,3 +1,5 @@
+import { PlacesInput, type PlacePick } from "./PlacesInput"
+import { placeDetails, reverseGeocodeGoogle } from "@/lib/maps/places"
 import { useToast } from "@/ui/feedback/Toast"
 import { Button } from "@/ui/primitives/Button"
 import { Input } from "@/ui/primitives/Input"
@@ -22,17 +24,25 @@ export type AddressFormData = {
   defaultAddress: boolean
 }
 
+export type AddressFormSubmitData = AddressFormData & {
+  __coordinate?: { lat: number; lng: number }
+}
+
 type AddressFormProps = {
-  initialValues?: Partial<AddressFormData>
+  initialValues?: Partial<AddressFormData> & { __coordinate?: { lat: number; lng: number } }
   isSubmitting?: boolean
   submitLabel: string
-  onSubmit: (data: AddressFormData) => void
+  onSubmit: (data: AddressFormSubmitData) => void
   onDelete?: () => void
 }
 
 type FormErrors = Partial<Record<keyof AddressFormData, string>>
 
 type Coordinate = { latitude: number; longitude: number }
+
+function createPlacesSessionToken() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36)
+}
 
 const DEFAULT_REGION: Region = {
   latitude: 37.7749,
@@ -43,6 +53,7 @@ const DEFAULT_REGION: Region = {
 
 export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit, onDelete }: AddressFormProps) {
   const { show } = useToast()
+  const initialCoordinate = initialValues?.__coordinate
   const [values, setValues] = useState<AddressFormData>(() => ({
     firstName: initialValues?.firstName ?? "",
     lastName: initialValues?.lastName ?? "",
@@ -57,21 +68,81 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     defaultAddress: initialValues?.defaultAddress ?? false,
   }))
   const [errors, setErrors] = useState<FormErrors>({})
-  const [region, setRegion] = useState<Region>(DEFAULT_REGION)
-  const [selectedCoordinate, setSelectedCoordinate] = useState<Coordinate | null>(null)
+  const [region, setRegion] = useState<Region>(() =>
+    initialCoordinate
+      ? {
+          latitude: initialCoordinate.lat,
+          longitude: initialCoordinate.lng,
+          latitudeDelta: DEFAULT_REGION.latitudeDelta,
+          longitudeDelta: DEFAULT_REGION.longitudeDelta,
+        }
+      : DEFAULT_REGION,
+  )
+  const [selectedCoordinate, setSelectedCoordinate] = useState<Coordinate | null>(() =>
+    initialCoordinate ? { latitude: initialCoordinate.lat, longitude: initialCoordinate.lng } : null,
+  )
+  const [geo, setGeo] = useState<{ lat: number; lng: number } | undefined>(initialCoordinate)
   const [isLocating, setIsLocating] = useState(false)
 
   useEffect(() => {
+    if (!initialValues) return
+    const { __coordinate, ...rest } = initialValues
     setValues((prev) => ({
       ...prev,
-      ...initialValues,
+      ...rest,
       defaultAddress: initialValues?.defaultAddress ?? prev.defaultAddress,
     }))
   }, [initialValues])
 
+  useEffect(() => {
+    if (!initialCoordinate) return
+    const coordinate = { latitude: initialCoordinate.lat, longitude: initialCoordinate.lng }
+    setSelectedCoordinate(coordinate)
+    setGeo({ lat: coordinate.latitude, lng: coordinate.longitude })
+    setRegion((prev) => ({
+      latitude: coordinate.latitude,
+      longitude: coordinate.longitude,
+      latitudeDelta: prev.latitudeDelta ?? DEFAULT_REGION.latitudeDelta,
+      longitudeDelta: prev.longitudeDelta ?? DEFAULT_REGION.longitudeDelta,
+    }))
+  }, [initialCoordinate])
+
   const updateValue = useCallback(<K extends keyof AddressFormData>(key: K, value: AddressFormData[K]) => {
     setValues((prev) => ({ ...prev, [key]: value }))
     setErrors((prev) => ({ ...prev, [key]: undefined }))
+  }, [])
+
+  const applyAddress = useCallback(
+    (address: Partial<AddressFormData> | undefined) => {
+      if (!address) return
+      const entries = Object.entries(address) as Array<
+        [keyof AddressFormData, AddressFormData[keyof AddressFormData] | undefined]
+      >
+      entries.forEach(([key, value]) => {
+        if (value !== undefined) {
+          let nextValue: AddressFormData[keyof AddressFormData] = value
+          if (key === "territoryCode" && typeof value === "string") {
+            nextValue = value.toUpperCase() as AddressFormData[keyof AddressFormData]
+          }
+          updateValue(key, nextValue as AddressFormData[keyof AddressFormData])
+        }
+      })
+    },
+    [updateValue],
+  )
+
+  const updateCoordinateState = useCallback((coordinate: Coordinate | null) => {
+    setSelectedCoordinate(coordinate)
+    setGeo(coordinate ? { lat: coordinate.latitude, lng: coordinate.longitude } : undefined)
+  }, [])
+
+  const setRegionForCoordinate = useCallback((coordinate: Coordinate) => {
+    setRegion((prev) => ({
+      latitude: coordinate.latitude,
+      longitude: coordinate.longitude,
+      latitudeDelta: prev.latitudeDelta ?? DEFAULT_REGION.latitudeDelta,
+      longitudeDelta: prev.longitudeDelta ?? DEFAULT_REGION.longitudeDelta,
+    }))
   }, [])
 
   const ensurePermission = useCallback(async () => {
@@ -86,30 +157,48 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     async (coordinate: Coordinate) => {
       try {
         setIsLocating(true)
-        const results = await Location.reverseGeocodeAsync(coordinate)
-        const best = results[0]
-        if (best) {
-          const streetParts = [best.streetNumber, best.street || best.name].filter(Boolean)
-          updateValue("address1", streetParts.join(" "))
-          updateValue("city", best.city ?? best.subregion ?? "")
-          updateValue("zoneCode", best.region ?? best.subregion ?? "")
-          updateValue("zip", best.postalCode ?? "")
-          updateValue("territoryCode", best.isoCountryCode ?? "")
+        try {
+          const result = await reverseGeocodeGoogle(coordinate.latitude, coordinate.longitude)
+          applyAddress(result.address)
+          return
+        } catch (error) {
+          console.error("reverseGeocodeGoogle", error)
         }
+
+        try {
+          const results = await Location.reverseGeocodeAsync(coordinate)
+          const best = results[0]
+          if (best) {
+            const streetParts = [best.streetNumber, best.street || best.name].filter(Boolean)
+            applyAddress({
+              address1: streetParts.join(" "),
+              city: best.city ?? best.subregion ?? "",
+              zoneCode: best.region ?? best.subregion ?? "",
+              zip: best.postalCode ?? "",
+              territoryCode: best.isoCountryCode ?? "",
+            })
+            return
+          }
+        } catch (error) {
+          console.error("expo reverseGeocode", error)
+        }
+
+        show({ title: "Could not look up that location", type: "danger" })
       } catch (error) {
+        console.error("reverseGeocode", error)
         show({ title: "Could not look up that location", type: "danger" })
       } finally {
         setIsLocating(false)
       }
     },
-    [show, updateValue],
+    [applyAddress, show],
   )
 
   const handleMapPress = useCallback(
     async (event: MapPressEvent) => {
       const coordinate = event.nativeEvent.coordinate
-      setSelectedCoordinate(coordinate)
-      setRegion((prev) => ({ ...prev, ...coordinate }))
+      updateCoordinateState(coordinate)
+      setRegionForCoordinate(coordinate)
       try {
         await ensurePermission()
         await reverseGeocode(coordinate)
@@ -117,7 +206,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
         /* handled */
       }
     },
-    [ensurePermission, reverseGeocode],
+    [ensurePermission, reverseGeocode, setRegionForCoordinate, updateCoordinateState],
   )
 
   const handleUseCurrentLocation = useCallback(async () => {
@@ -129,15 +218,37 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
       }
-      setRegion((prev) => ({ ...prev, ...coordinate, latitudeDelta: prev.latitudeDelta, longitudeDelta: prev.longitudeDelta }))
-      setSelectedCoordinate(coordinate)
+      setRegionForCoordinate(coordinate)
+      updateCoordinateState(coordinate)
       await reverseGeocode(coordinate)
     } catch (error) {
       show({ title: "Could not fetch your current location", type: "danger" })
     } finally {
       setIsLocating(false)
     }
-  }, [ensurePermission, reverseGeocode, show])
+  }, [ensurePermission, reverseGeocode, setRegionForCoordinate, show, updateCoordinateState])
+
+  const handlePickPlace = useCallback(
+    async ({ placeId, details }: PlacePick) => {
+      if (!placeId && !details) return
+      setIsLocating(true)
+      try {
+        const place = details ?? (placeId ? await placeDetails(placeId, createPlacesSessionToken()) : undefined)
+        if (!place) return
+        applyAddress(place.address)
+        if (place.coordinate) {
+          updateCoordinateState(place.coordinate)
+          setRegionForCoordinate(place.coordinate)
+        }
+      } catch (error) {
+        console.error("handlePickPlace", error)
+        show({ title: "Could not load that place", type: "danger" })
+      } finally {
+        setIsLocating(false)
+      }
+    },
+    [applyAddress, setRegionForCoordinate, show, updateCoordinateState],
+  )
 
   const submit = useCallback(() => {
     const nextErrors: FormErrors = {}
@@ -155,8 +266,11 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
       return
     }
 
-    onSubmit(values)
-  }, [onSubmit, show, values])
+    onSubmit({
+      ...values,
+      __coordinate: geo,
+    })
+  }, [geo, onSubmit, show, values])
 
   const mapRegion = useMemo(() => region, [region])
 
@@ -166,6 +280,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
         <Card padding="lg" className="gap-4">
           <View className="gap-3">
             <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Pin the address</Text>
+            <PlacesInput onPick={handlePickPlace} />
             <View className="h-64 w-full overflow-hidden rounded-2xl bg-[#e2e8f0]">
               <MapView
                 style={{ flex: 1 }}
@@ -176,7 +291,20 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
                 showsMyLocationButton={false}
                 {...(Platform.OS === "android" ? { provider: PROVIDER_GOOGLE } : {})}
               >
-                {selectedCoordinate ? <Marker coordinate={selectedCoordinate} /> : null}
+                {selectedCoordinate ? (
+                  <Marker
+                    coordinate={selectedCoordinate}
+                    draggable
+                    onDragEnd={(event) => {
+                      const coordinate = event.nativeEvent.coordinate
+                      updateCoordinateState(coordinate)
+                      setRegionForCoordinate(coordinate)
+                      reverseGeocode(coordinate).catch(() => {
+                        /* handled */
+                      })
+                    }}
+                  />
+                ) : null}
               </MapView>
             </View>
             <Text className="text-[#64748b] text-[13px] leading-[18px]">
