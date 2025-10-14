@@ -9,8 +9,8 @@ import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
-import { useRouter } from "expo-router"
-import { CreditCard, Heart, LogOut, MapPin, Package, Pencil, Settings2, ShieldCheck } from "lucide-react-native"
+import { RelativePathString, useRouter } from "expo-router"
+import { Heart, LogOut, MapPin, Package, Pencil, Settings2 } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 import { RefreshControl, ScrollView, Text, View } from "react-native"
 
@@ -54,46 +54,44 @@ function AccountContent() {
     }
   }, [logout, router, show])
 
-  const quickLinks = useMemo(
+  type LinkConfig = {
+    title: string
+    body: string
+    Icon: typeof Package
+    path: RelativePathString
+  }
+
+  const quickLinks = useMemo<LinkConfig[]>(
     () => [
       {
         title: "Orders",
         body: "Track deliveries, returns, and receipts.",
         Icon: Package,
-        path: "/account/orders" as const,
+        path: "/account/orders" as RelativePathString,
       },
       {
         title: "Wishlist",
         body: "All the products you’ve bookmarked.",
         Icon: Heart,
-        path: "/account/wishlist" as const,
+        path: "/account/wishlist" as RelativePathString,
       },
       {
         title: "Addresses",
         body: "Manage shipping and pickup spots.",
         Icon: MapPin,
-        path: "/account/addresses" as const,
-      },
-      {
-        title: "Payment & preferences",
-        body: "Update saved cards and fit preferences.",
-        Icon: CreditCard,
+        path: "/account/addresses" as RelativePathString,
       },
     ],
     [],
   )
 
-  const supportLinks = useMemo(
+  const supportLinks = useMemo<LinkConfig[]>(
     () => [
-      {
-        title: "Security",
-        body: "Review devices and sign-in history.",
-        Icon: ShieldCheck,
-      },
       {
         title: "Notifications",
         body: "Control messages, offers, and alerts.",
         Icon: Settings2,
+        path: "/account/notifications" as RelativePathString,
       },
     ],
     [],
@@ -187,7 +185,7 @@ function AccountContent() {
                 title={link.title}
                 description={link.body}
                 icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
-                onPress={() => handleComingSoon(link.title)}
+                onPress={link.path ? () => router.push(link.path) : () => handleComingSoon(link.title)}
               />
             ))}
           </View>
