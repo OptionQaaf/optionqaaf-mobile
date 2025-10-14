@@ -6,9 +6,23 @@ import { Input } from "@/ui/primitives/Input"
 import { Text } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
 import * as Location from "expo-location"
-import MapView, { Marker, PROVIDER_GOOGLE, type MapPressEvent, type Region } from "react-native-maps"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Platform, ScrollView, Switch, View } from "react-native"
+import type { MapPressEvent, Region } from "react-native-maps"
+
+let ReactNativeMapsModule: typeof import("react-native-maps") | undefined
+let reactNativeMapsError: unknown
+try {
+  ReactNativeMapsModule = require("react-native-maps")
+} catch (error) {
+  reactNativeMapsError = error
+  if (__DEV__) {
+    console.warn(
+      "react-native-maps native module is unavailable. Run `pnpm expo prebuild` and use a dev client or EAS build.",
+      error,
+    )
+  }
+}
 
 export type AddressFormData = {
   firstName: string
@@ -54,6 +68,9 @@ const DEFAULT_REGION: Region = {
 export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit, onDelete }: AddressFormProps) {
   const { show } = useToast()
   const initialCoordinate = initialValues?.__coordinate
+  const mapModule = ReactNativeMapsModule
+  const MapViewComponent = mapModule?.default
+  const MarkerComponent = mapModule?.Marker
   const [values, setValues] = useState<AddressFormData>(() => ({
     firstName: initialValues?.firstName ?? "",
     lastName: initialValues?.lastName ?? "",
@@ -273,6 +290,16 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   }, [geo, onSubmit, show, values])
 
   const mapRegion = useMemo(() => region, [region])
+  const mapUnavailableMessage = useMemo(() => {
+    if (MapViewComponent) return undefined
+    if (Platform.OS === "web") {
+      return "The map preview is not available on the web preview. Use the mobile dev client instead."
+    }
+    if (reactNativeMapsError) {
+      return "Map preview unavailable. Install the dev client (pnpm expo prebuild && pnpm expo run) to enable the native map."
+    }
+    return "Map preview unavailable on this device. Use the Option QAAF dev client or an EAS build to drop a pin."
+  }, [MapViewComponent, reactNativeMapsError])
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 48 }} className="bg-[#f8fafc]">
@@ -282,30 +309,40 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
             <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Pin the address</Text>
             <PlacesInput onPick={handlePickPlace} />
             <View className="h-64 w-full overflow-hidden rounded-2xl bg-[#e2e8f0]">
-              <MapView
-                style={{ flex: 1 }}
-                region={mapRegion}
-                onRegionChangeComplete={setRegion}
-                onPress={handleMapPress}
-                showsUserLocation={false}
-                showsMyLocationButton={false}
-                {...(Platform.OS === "android" ? { provider: PROVIDER_GOOGLE } : {})}
-              >
-                {selectedCoordinate ? (
-                  <Marker
-                    coordinate={selectedCoordinate}
-                    draggable
-                    onDragEnd={(event) => {
-                      const coordinate = event.nativeEvent.coordinate
-                      updateCoordinateState(coordinate)
-                      setRegionForCoordinate(coordinate)
-                      reverseGeocode(coordinate).catch(() => {
-                        /* handled */
-                      })
-                    }}
-                  />
-                ) : null}
-              </MapView>
+              {MapViewComponent ? (
+                <MapViewComponent
+                  style={{ flex: 1 }}
+                  region={mapRegion}
+                  onRegionChangeComplete={setRegion}
+                  onPress={handleMapPress}
+                  showsUserLocation={false}
+                  showsMyLocationButton={false}
+                  {...(Platform.OS === "android" && mapModule?.PROVIDER_GOOGLE
+                    ? { provider: mapModule.PROVIDER_GOOGLE }
+                    : {})}
+                >
+                  {selectedCoordinate && MarkerComponent ? (
+                    <MarkerComponent
+                      coordinate={selectedCoordinate}
+                      draggable
+                      onDragEnd={(event) => {
+                        const coordinate = event.nativeEvent.coordinate
+                        updateCoordinateState(coordinate)
+                        setRegionForCoordinate(coordinate)
+                        reverseGeocode(coordinate).catch(() => {
+                          /* handled */
+                        })
+                      }}
+                    />
+                  ) : null}
+                </MapViewComponent>
+              ) : (
+                <View className="flex-1 items-center justify-center px-6">
+                  <Text className="text-center text-[#475569] text-[13px] leading-[18px]">
+                    {mapUnavailableMessage}
+                  </Text>
+                </View>
+              )}
             </View>
             <Text className="text-[#64748b] text-[13px] leading-[18px]">
               Tap on the map to drop a pin or use your current location. We’ll fill in as many address
