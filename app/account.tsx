@@ -9,7 +9,7 @@ import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
-import { useRouter } from "expo-router"
+import { RelativePathString, useRouter } from "expo-router"
 import { Heart, LogOut, MapPin, Package, Pencil, Settings2 } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 import { RefreshControl, ScrollView, Text, View } from "react-native"
@@ -58,7 +58,7 @@ function AccountContent() {
     title: string
     body: string
     Icon: typeof Package
-    path?: string
+    path: RelativePathString
   }
 
   const quickLinks = useMemo<LinkConfig[]>(
@@ -67,18 +67,19 @@ function AccountContent() {
         title: "Orders",
         body: "Track deliveries, returns, and receipts.",
         Icon: Package,
-        path: "/account/orders",
+        path: "/account/orders" as RelativePathString,
       },
       {
         title: "Wishlist",
         body: "All the products you’ve bookmarked.",
         Icon: Heart,
-        path: "/account/wishlist",
+        path: "/account/wishlist" as RelativePathString,
       },
       {
         title: "Addresses",
         body: "Manage shipping and pickup spots.",
         Icon: MapPin,
+        path: "/account/addresses" as RelativePathString,
       },
     ],
     [],
@@ -90,7 +91,7 @@ function AccountContent() {
         title: "Notifications",
         body: "Control messages, offers, and alerts.",
         Icon: Settings2,
-        path: "/account/notifications",
+        path: "/account/notifications" as RelativePathString,
       },
     ],
     [],
@@ -184,7 +185,7 @@ function AccountContent() {
                 title={link.title}
                 description={link.body}
                 icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
-                onPress={link.path ? () => router.push(link.path!) : () => handleComingSoon(link.title)}
+                onPress={link.path ? () => router.push(link.path) : () => handleComingSoon(link.title)}
               />
             ))}
           </View>
