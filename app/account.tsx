@@ -72,6 +72,7 @@ function AccountContent() {
         title: "Addresses",
         body: "Manage shipping and pickup spots.",
         Icon: MapPin,
+        path: "/account/addresses" as const,
       },
       {
         title: "Payment & preferences",
@@ -164,9 +165,7 @@ function AccountContent() {
         <Section title="Quick access">
           <View className="gap-3">
             {quickLinks.map((link) => {
-              const onPress = link.path
-                ? () => router.push(link.path)
-                : () => handleComingSoon(link.title)
+              const onPress = link.path ? () => router.push(link.path) : () => handleComingSoon(link.title)
               return (
                 <AccountLink
                   key={link.title}
