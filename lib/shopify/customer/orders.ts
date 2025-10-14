@@ -144,12 +144,6 @@ const CUSTOMER_ORDER_QUERY = /* GraphQL */ `
           }
         }
       }
-      unfulfilledLineItems(first: $lineItemLimit) {
-        nodes {
-          id
-          quantity
-        }
-      }
     }
   }
 `
@@ -227,7 +221,6 @@ type GraphQLOrder = {
       }[]
     >
   }>
-  unfulfilledLineItems?: Maybe<{ nodes?: Maybe<(GraphQLOrderLine | null)[]> }>
 }
 
 type GraphQLCustomerAddress = {
@@ -323,7 +316,6 @@ export type OrderDetail = OrderSummary & {
   }>
   lineItems: OrderLineItem[]
   fulfilledLineItemQuantities: Record<string, number>
-  unfulfilledLineItemQuantities: Record<string, number>
 }
 
 function toMoneyValue(m?: Maybe<Money>): MoneyValue | null {
@@ -417,10 +409,7 @@ function normalizeDetail(order: Maybe<GraphQLOrder>): OrderDetail | null {
               if (!lineItemId) return null
               const quantity = Number(edge?.node?.quantity ?? 0)
               if (!Number.isFinite(quantity) || quantity <= 0) return null
-              fulfilledQuantityMap.set(
-                lineItemId,
-                (fulfilledQuantityMap.get(lineItemId) ?? 0) + quantity,
-              )
+              fulfilledQuantityMap.set(lineItemId, (fulfilledQuantityMap.get(lineItemId) ?? 0) + quantity)
               return { lineItemId, quantity }
             })
             .filter((item): item is { lineItemId: string; quantity: number } => !!item) ?? []
@@ -435,15 +424,6 @@ function normalizeDetail(order: Maybe<GraphQLOrder>): OrderDetail | null {
       })
       .filter((f): f is OrderDetail["fulfillments"][number] => !!f) ?? []
 
-  const unfulfilledQuantityMap = new Map<string, number>()
-
-  order?.unfulfilledLineItems?.nodes?.forEach((node) => {
-    if (!node?.id) return
-    const quantity = Number(node.quantity ?? 0)
-    if (!Number.isFinite(quantity) || quantity <= 0) return
-    unfulfilledQuantityMap.set(node.id, quantity)
-  })
-
   return {
     ...summary,
     subtotal: toMoneyValue(order?.subtotal),
@@ -455,7 +435,6 @@ function normalizeDetail(order: Maybe<GraphQLOrder>): OrderDetail | null {
     fulfillments,
     lineItems,
     fulfilledLineItemQuantities: Object.fromEntries(fulfilledQuantityMap.entries()),
-    unfulfilledLineItemQuantities: Object.fromEntries(unfulfilledQuantityMap.entries()),
   }
 }
 

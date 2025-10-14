@@ -2,8 +2,8 @@ import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { getOrderStatusStyle } from "@/features/account/account.services"
 import { useCustomerOrder } from "@/features/account/orders/api"
 import { AuthGate } from "@/features/auth/AuthGate"
-import type { OrderDetail } from "@/lib/shopify/customer/orders"
 import { Products } from "@/lib/shopify"
+import type { OrderDetail } from "@/lib/shopify/customer/orders"
 import { formatMoney } from "@/lib/shopify/money"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -80,19 +80,9 @@ function OrderDetailContent() {
       if (totalQuantity <= 0) return
 
       const fulfilledQuantity = data.fulfilledLineItemQuantities[item.id] ?? 0
-      const unfulfilledQuantity = (() => {
-        const explicit = data.unfulfilledLineItemQuantities[item.id]
-        if (typeof explicit === "number") return explicit
-        const remaining = totalQuantity - fulfilledQuantity
-        return remaining > 0 ? remaining : 0
-      })()
 
       if (fulfilledQuantity > 0) {
         fulfilled.push({ item, quantity: fulfilledQuantity })
-      }
-
-      if (unfulfilledQuantity > 0) {
-        unfulfilled.push({ item, quantity: unfulfilledQuantity })
       }
     })
 
