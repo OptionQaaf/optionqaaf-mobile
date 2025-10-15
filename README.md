@@ -52,6 +52,7 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
    ```
 
 4. **Environment Setup:** Create a `.env` file with the following:
+
    ```env
    EXPO_PUBLIC_SHOPIFY_SHOP_DOMAIN=optionqaaf.myshopify.com
    EXPO_PUBLIC_SHOPIFY_STOREFRONT_TOKEN=your_token
@@ -73,11 +74,11 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
 
    - **Where to get the keys:** Create credentials in the [Google Cloud Console](https://console.cloud.google.com/)
      under **APIs & Services → Credentials**. Generate three API keys:
-       - iOS key restricted to the bundle identifier (`com.optionqaaf.app.demo`) with **Maps SDK for iOS** enabled.
-       - Android key restricted to the package name + SHA-1 certificate with **Maps SDK for Android** enabled.
-       - Web services key restricted to trusted IPs/HTTP referrers with **Places API** and **Geocoding API** enabled.
-     Paste the respective keys into the environment variables above. Remember to add these values to your
-     EAS secrets before building.
+     - iOS key restricted to the bundle identifier (`com.optionqaaf.app`) with **Maps SDK for iOS** enabled.
+     - Android key restricted to the package name + SHA-1 certificate with **Maps SDK for Android** enabled.
+     - Web services key restricted to trusted IPs/HTTP referrers with **Places API** and **Geocoding API** enabled.
+       Paste the respective keys into the environment variables above. Remember to add these values to your EAS secrets
+       before building.
 
 ---
 
