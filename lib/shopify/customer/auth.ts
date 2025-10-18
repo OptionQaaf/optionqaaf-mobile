@@ -21,6 +21,8 @@ const K = {
   EXP: "shopify.token.exp",
 }
 
+let refreshInFlight: Promise<string | null> | null = null
+
 type TokenResponse = {
   access_token: string
   refresh_token: string
@@ -121,18 +123,27 @@ export async function getValidAccessToken(): Promise<string | null> {
   const now = Math.floor(Date.now() / 1000)
   if (at && exp - 60 > now) return at
 
-  const rt = await sget(K.RT)
-  if (!rt) return null
-  try {
-    await refreshToken(rt)
-    return (await sget(K.AT)) || at || null
-  } catch (err: any) {
-    const code = err?.code
-    if (code === "invalid_grant") {
-      return null
-    }
-    return at
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const previousToken = at || null
+      const rt = await sget(K.RT)
+      if (!rt) return null
+      try {
+        await refreshToken(rt)
+        return (await sget(K.AT)) || previousToken
+      } catch (err: any) {
+        const code = err?.code
+        if (code === "invalid_grant") {
+          return null
+        }
+        return previousToken
+      }
+    })().finally(() => {
+      refreshInFlight = null
+    })
   }
+
+  return refreshInFlight!
 }
 
 export async function refreshToken(refreshToken: string): Promise<void> {
