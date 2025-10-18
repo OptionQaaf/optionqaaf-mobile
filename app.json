@@ -39,10 +39,6 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
       "config": {
@@ -99,7 +95,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "5aa705b7-0c52-4842-8c24-e34f1fd8ffd4"
+        "projectId": "cd3febeb-f2c9-493a-9392-c41e38afad07"
       }
     }
   }
