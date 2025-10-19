@@ -19,8 +19,6 @@ export async function customerGraphQL<T>(query: string, variables?: Record<strin
       "Content-Type": "application/json",
       Origin: ORIGIN_HEADER,
       "User-Agent": USER_AGENT,
-      // Optional if your edge wants it:
-      // 'Shopify-Shop-Id': '85072904499',
     },
     body: JSON.stringify({ query, variables }),
   })

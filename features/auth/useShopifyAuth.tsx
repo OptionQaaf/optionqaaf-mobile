@@ -1,7 +1,5 @@
 // src/features/auth/useShopifyAuth.tsx
-import { exchangeToken, getValidAccessToken, logoutShopify, startLogin } from "@/lib/shopify/customer/auth"
-import { fetchOpenIdConfig } from "@/lib/shopify/customer/discovery"
-import { SHOPIFY_CUSTOMER_CLIENT_ID as CLIENT_ID, SHOPIFY_CUSTOMER_REDIRECT_URI as REDIRECT } from "@/lib/shopify/env"
+import { getValidAccessToken, logoutShopify, startLogin } from "@/lib/shopify/customer/auth"
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { AppState } from "react-native"
 import { useCartId } from "@/store/cartId"
@@ -38,33 +36,10 @@ export function ShopifyAuthProvider({ children }: { children: React.ReactNode })
 
   // Silent sign-in using prompt=none (no UI). Returns true if session found.
   const silentSignIn = useCallback(async () => {
-    const t = await getValidAccessToken()
-    if (t) {
-      setToken(t)
+    const refreshedToken = await getValidAccessToken()
+    if (refreshedToken) {
+      setToken(refreshedToken)
       return true
-    }
-
-    try {
-      const { authorization_endpoint } = await fetchOpenIdConfig()
-      const u = new URL(authorization_endpoint)
-      u.searchParams.set("scope", "openid email customer-account-api:full")
-      u.searchParams.set("client_id", CLIENT_ID)
-      u.searchParams.set("response_type", "code")
-      u.searchParams.set("redirect_uri", REDIRECT)
-      u.searchParams.set("prompt", "none")
-
-      const res = await fetch(u.toString(), { redirect: "manual" })
-      const location = res.headers.get("location") || ""
-      if (location.includes("login_required")) return false
-      const codeMatch = location.match(/[?&]code=([^&]+)/)
-      if (codeMatch?.[1]) {
-        await exchangeToken(decodeURIComponent(codeMatch[1]))
-        const token = await getValidAccessToken()
-        setToken(token)
-        return !!token
-      }
-    } catch {
-      /* ignore */
     }
     setToken(null)
     return false
@@ -81,21 +56,15 @@ export function ShopifyAuthProvider({ children }: { children: React.ReactNode })
     const sub = AppState.addEventListener("change", async (s) => {
       if (s === "active") {
         try {
-          const t = await getValidAccessToken()
-          if (t) {
-            setToken(t)
-            return
-          }
-          const success = await silentSignIn()
-          if (!success) setToken(null)
+          await silentSignIn()
         } catch {
-          // swallow; silentSignIn already handles failure logging via toast elsewhere if needed
+          // Network or unexpected failure — force logout state so UI can prompt
           setToken(null)
         }
       }
     })
     return () => sub.remove()
-  }, [])
+  }, [silentSignIn])
 
   // initial check on mount
   useEffect(() => {

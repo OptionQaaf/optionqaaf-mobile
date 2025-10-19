@@ -28,35 +28,133 @@ type TokenResponse = {
   expires_in: number
 }
 
-export async function startLogin(): Promise<void> {
+type PrepareAuthorizationOptions = {
+  prompt?: string
+  persist?: boolean
+}
+
+type PreparedAuthorization = {
+  url: URL
+  state: string
+  verifier: string
+}
+
+async function prepareAuthorizationRequest(options: PrepareAuthorizationOptions = {}): Promise<PreparedAuthorization> {
   const openId = await fetchOpenIdConfig()
 
-  // PKCE + CSRF guards
+  const { prompt, persist = true } = options
+
   const verifier = generateCodeVerifier()
   const challenge = await generateCodeChallenge(verifier)
   const state = generateState()
   const nonce = generateNonce(24)
 
-  await sset(K.CODE_VERIFIER, verifier)
-  await sset(K.STATE, state)
-  await sset(K.NONCE, nonce)
+  if (persist) {
+    await Promise.all([sset(K.CODE_VERIFIER, verifier), sset(K.STATE, state), sset(K.NONCE, nonce)])
+  }
 
-  // Build the authorize URL
-  const u = new URL(openId.authorization_endpoint)
-  u.searchParams.set("scope", "openid email customer-account-api:full") // or your env scopes
-  u.searchParams.set("client_id", CLIENT_ID)
-  u.searchParams.set("response_type", "code")
-  u.searchParams.set("redirect_uri", REDIRECT_URI) // 👈 /callback
-  u.searchParams.set("state", state)
-  u.searchParams.set("nonce", nonce)
-  u.searchParams.set("code_challenge", challenge)
-  u.searchParams.set("code_challenge_method", "S256")
+  const url = new URL(openId.authorization_endpoint)
+  url.searchParams.set("scope", "openid email customer-account-api:full")
+  url.searchParams.set("client_id", CLIENT_ID)
+  url.searchParams.set("response_type", "code")
+  url.searchParams.set("redirect_uri", REDIRECT_URI)
+  url.searchParams.set("state", state)
+  url.searchParams.set("nonce", nonce)
+  url.searchParams.set("code_challenge", challenge)
+  url.searchParams.set("code_challenge_method", "S256")
 
-  console.log("AUTHZ DEBUG → authorization_endpoint:", u.toString())
+  if (prompt) {
+    url.searchParams.set("prompt", prompt)
+  }
+
+  return { url, state, verifier }
+}
+
+let silentAuthorizePromise: Promise<string | null> | null = null
+
+async function runSilentAuthorization(): Promise<string | null> {
+  const { url, state, verifier } = await prepareAuthorizationRequest({ prompt: "none", persist: false })
+
+  let res: Response
+  try {
+    res = await fetch(url.toString(), {
+      method: "GET",
+      redirect: "manual",
+      headers: {
+        Origin: ORIGIN_HEADER,
+        "User-Agent": USER_AGENT,
+      },
+      credentials: "include",
+    })
+  } catch (networkError) {
+    console.warn("Silent authorize failed (network)", networkError)
+    return null
+  }
+
+  const location = res.headers.get("location")
+  if (!location) {
+    return null
+  }
+
+  let redirectUrl: URL
+  try {
+    redirectUrl = new URL(location)
+  } catch {
+    try {
+      redirectUrl = new URL(location, REDIRECT_URI)
+    } catch {
+      console.warn("Silent authorize failed: invalid redirect URL", location)
+      return null
+    }
+  }
+
+  const error = redirectUrl.searchParams.get("error")
+  if (error) {
+    if (error === "login_required" || error === "interaction_required") {
+      return null
+    }
+    console.warn("Silent authorize failed:", error)
+    return null
+  }
+
+  const returnedState = redirectUrl.searchParams.get("state") || ""
+  if (returnedState && returnedState !== state) {
+    console.warn("Silent authorize failed: state mismatch")
+    return null
+  }
+
+  const code = redirectUrl.searchParams.get("code")
+  if (!code) {
+    return null
+  }
+
+  try {
+    await exchangeToken(code, { verifier })
+  } catch (err) {
+    console.warn("Silent authorize failed: token exchange error", err)
+    return null
+  }
+
+  return (await sget(K.AT)) || null
+}
+
+export async function authorizeSilently(): Promise<string | null> {
+  if (!silentAuthorizePromise) {
+    silentAuthorizePromise = runSilentAuthorization().finally(() => {
+      silentAuthorizePromise = null
+    })
+  }
+  return silentAuthorizePromise
+}
+
+export async function startLogin(): Promise<void> {
+  const { url: authorizeUrl } = await prepareAuthorizationRequest()
+
+  console.log("AUTHZ DEBUG → authorization_endpoint:", authorizeUrl.toString())
   console.log("AUTHZ DEBUG → redirect_uri:", REDIRECT_URI)
 
   // Open in-app browser and wait for redirect
-  const result = await WebBrowser.openAuthSessionAsync(u.toString(), REDIRECT_URI)
+  const result = await WebBrowser.openAuthSessionAsync(authorizeUrl.toString(), REDIRECT_URI)
   if (result.type !== "success" || !result.url) throw new Error("Login cancelled/failed")
 
   const params = new URL(result.url).searchParams
@@ -70,9 +168,9 @@ export async function startLogin(): Promise<void> {
   await exchangeToken(code)
 }
 
-export async function exchangeToken(code: string): Promise<void> {
+export async function exchangeToken(code: string, options: { verifier?: string } = {}): Promise<void> {
   const openId = await fetchOpenIdConfig()
-  const verifier = (await sget(K.CODE_VERIFIER)) || ""
+  const verifier = options.verifier ?? ((await sget(K.CODE_VERIFIER)) || "")
 
   const cleanClientId = CLIENT_ID.trim()
   const cleanRedirect = REDIRECT_URI.trim()
@@ -122,17 +220,24 @@ export async function getValidAccessToken(): Promise<string | null> {
   if (at && exp - 60 > now) return at
 
   const rt = await sget(K.RT)
-  if (!rt) return null
-  try {
-    await refreshToken(rt)
-    return (await sget(K.AT)) || at || null
-  } catch (err: any) {
-    const code = err?.code
-    if (code === "invalid_grant") {
-      return null
+  if (rt) {
+    try {
+      await refreshToken(rt)
+      const refreshed = await sget(K.AT)
+      if (refreshed) return refreshed
+    } catch (err: any) {
+      const code = err?.code
+      if (code !== "invalid_grant") {
+        if (at) return at
+        return null
+      }
     }
-    return at
   }
+
+  const silentToken = await authorizeSilently()
+  if (silentToken) return silentToken
+
+  return null
 }
 
 export async function refreshToken(refreshToken: string): Promise<void> {
