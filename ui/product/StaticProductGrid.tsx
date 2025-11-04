@@ -26,7 +26,7 @@ export function StaticProductGrid<T>({
   const itemWidth = w == null ? 0 : Math.floor((w - gap * (columns - 1)) / columns)
 
   return (
-    <View onLayout={onLayout}>
+    <View onLayout={onLayout} className="mx-4">
       {w != null &&
         Array.from({ length: rows }).map((_, r) => (
           <View

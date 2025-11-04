@@ -3,6 +3,7 @@ import { gql } from "graphql-tag"
 import {
   CollectionByHandleDocument,
   type CollectionByHandleQuery,
+  type ProductCollectionSortKeys,
   ProductByHandleDocument,
   type ProductByHandleQuery,
   SearchProductsDocument,
@@ -20,7 +21,13 @@ export async function getProductByHandle(handle: string, locale?: { country?: st
 }
 
 export async function getCollectionProducts(
-  args: { handle: string; pageSize?: number; after?: string | null },
+  args: {
+    handle: string
+    pageSize?: number
+    after?: string | null
+    sortKey?: ProductCollectionSortKeys | null
+    reverse?: boolean
+  },
   locale?: { country?: string; language?: string },
 ) {
   return callShopify<CollectionByHandleQuery>(() =>
@@ -28,6 +35,8 @@ export async function getCollectionProducts(
       handle: args.handle,
       pageSize: args.pageSize ?? 24,
       after: args.after ?? null,
+      sortKey: args.sortKey ?? null,
+      reverse: args.reverse ?? null,
       country: locale?.country as any,
       language: locale?.language as any,
     }),

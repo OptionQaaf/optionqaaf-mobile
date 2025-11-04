@@ -1,6 +1,6 @@
 // ui/product/ProductTile.tsx
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
-import { Price } from "@/ui/product/Price"
+import { Price, type PriceSize } from "@/ui/product/Price"
 import { cn } from "@/ui/utils/cva"
 import { Image } from "expo-image"
 import { PixelRatio, Pressable, Text, View } from "react-native"
@@ -26,7 +26,7 @@ export function ProductTile({
   image,
   brand,
   title,
-  titleLines = 2,
+  titleLines = 1,
   price,
   compareAt,
   currency = "USD",
@@ -45,9 +45,24 @@ export function ProductTile({
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
   const src = optimizeImageUrl(image, { width: targetW, height: targetH, format: "webp", dpr }) || image
   const titleLineHeight = 20
+  const priceSize: PriceSize = (() => {
+    if (typeof targetW !== "number") {
+      if (padding === "lg") return "md"
+      if (padding === "sm") return "xs"
+      return "sm"
+    }
+    if (targetW >= 260) return "lg"
+    if (targetW >= 210) return "md"
+    if (targetW >= 170) return "sm"
+    return "xs"
+  })()
 
   return (
-    <Pressable onPress={onPress} className={cn("active:opacity-95", className)} style={width ? { width } : undefined}>
+    <Pressable
+      onPress={onPress}
+      className={cn("active:opacity-95 rounded-md overflow-hidden border-gray-200 border", className)}
+      style={width ? { width } : undefined}
+    >
       <View className={cn(cardChrome, "overflow-hidden")}>
         <View style={{ aspectRatio: imageRatio, backgroundColor: "#F5F5F7", overflow: "hidden" }}>
           <Image
@@ -62,19 +77,16 @@ export function ProductTile({
         </View>
 
         <View className={cn(pad, "gap-2")}>
-          <Text className="text-secondary text-[11px] uppercase tracking-[0.08em] font-medium" numberOfLines={1}>
-            {brand}
-          </Text>
           <View style={{ minHeight: titleLineHeight * titleLines, justifyContent: "flex-start" }}>
             <Text
-              className="text-primary text-[15px] font-semibold"
+              className="text-primary text-[12px] font-semibold"
               style={{ lineHeight: titleLineHeight }}
               numberOfLines={titleLines}
             >
               {title}
             </Text>
           </View>
-          <Price amount={price} compareAt={compareAt} currency={currency} />
+          <Price amount={price} compareAt={compareAt} currency={currency} size={priceSize} />
         </View>
       </View>
     </Pressable>

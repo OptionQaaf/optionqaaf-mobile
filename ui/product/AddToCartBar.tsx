@@ -28,7 +28,7 @@ export const AddToCartBar = forwardRef<View, Props>(function AddToCartBar({
       <SafeAreaView edges={["bottom"]}>
         <View className="px-4 py-3 flex-row items-center gap-3">
           <View className="flex-1">
-            <Price amount={price} compareAt={compareAt} currency={currency} amountClassName="text-[22px]" />
+            <Price amount={price} compareAt={compareAt} currency={currency} size="xl" />
           </View>
           <Button
             onPress={onAdd}

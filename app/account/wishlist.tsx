@@ -73,7 +73,7 @@ function WishlistContent() {
 
       <StaticProductGrid
         data={gridData}
-        gap={16}
+        gap={8}
         renderItem={(item, itemWidth) => {
           const price = item.price?.amount ?? 0
           const currency = item.price?.currencyCode ?? "USD"

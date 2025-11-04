@@ -122,7 +122,7 @@ export default function Playground() {
             { image: "https://…3", brand: "NMK", title: "Boxy Overshirt", price: 49 },
           ]}
           columns={2}
-          gap={12}
+          gap={8}
           renderItem={(item, itemWidth) => (
             <ProductTile {...item} width={itemWidth} titleLines={2} rounded="3xl" padding="md" />
           )}

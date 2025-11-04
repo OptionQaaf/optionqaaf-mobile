@@ -16,8 +16,8 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { Accordion } from "@/ui/primitives/Accordion"
 import { AddToCart } from "@/ui/product/AddToCart"
 import { AddToCartBar } from "@/ui/product/AddToCartBar"
-import ProductDescriptionNative from "@/ui/product/ProductDescriptionNative"
 import { BrandCard } from "@/ui/product/BrandCard"
+import ProductDescriptionNative from "@/ui/product/ProductDescriptionNative"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { VariantDropdown } from "@/ui/product/VariantDropdown"
@@ -280,7 +280,7 @@ export default function ProductScreen() {
               </View>
 
               {vendor ? (
-                <View className="mt-4 px-2">
+                <View className="my-2">
                   <BrandCard
                     name={vendor}
                     productCount={vendorProducts.length}
@@ -408,6 +408,7 @@ function Recommended({
       <StaticProductGrid
         data={shuffled.slice(0, 8)}
         columns={2}
+        gap={8}
         renderItem={(item: any, w: number) => (
           <ProductTile
             image={item?.featuredImage?.url ?? ""}

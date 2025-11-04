@@ -29,7 +29,7 @@ export const AddToCart = forwardRef<View, Props>(function AddToCart({
     <View ref={ref} className={["rounded-3xl bg-surface border border-border px-4 py-3", className].filter(Boolean).join(" ")}>
       <View className="flex-row items-center gap-3">
         <View className="flex-1">
-          <Price amount={price} compareAt={compareAt} currency={currency} amountClassName="text-[20px]" />
+          <Price amount={price} compareAt={compareAt} currency={currency} size="lg" />
         </View>
         <Button
           onPress={onAdd}

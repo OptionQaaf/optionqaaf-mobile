@@ -4,12 +4,14 @@ query CollectionByHandle(
   $after: String
   $country: CountryCode
   $language: LanguageCode
+  $sortKey: ProductCollectionSortKeys
+  $reverse: Boolean
 ) @inContext(country: $country, language: $language) {
   collection(handle: $handle) {
     id
     title
     image { ...Image }
-    products(first: $pageSize, after: $after) {
+    products(first: $pageSize, after: $after, sortKey: $sortKey, reverse: $reverse) {
       pageInfo {
         hasNextPage
         endCursor

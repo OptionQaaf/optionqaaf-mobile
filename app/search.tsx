@@ -32,7 +32,7 @@ export default function SearchScreen() {
 
   const { width } = useWindowDimensions()
   const padH = 16 // px-4
-  const gap = 0
+  const gap = 8
   const itemW = Math.floor((width - padH * 2 - gap) / 2)
 
   // Prefetch first screen of images for snappy appearance

@@ -75,7 +75,7 @@ export default function PDPFlat() {
   // grid width math (2 cols)
   const columns = 2
   const paddingH = 16
-  const gap = 12
+  const gap = 8
   const itemW = Math.floor((width - paddingH * 2 - gap * (columns - 1)) / columns)
   const footerNode = useMemo(() => {
     const spacer = BAR_H + insets.bottom + GAP + 24
@@ -135,7 +135,7 @@ export default function PDPFlat() {
             >
               <View className="flex-row items-center gap-3">
                 <View className="flex-1">
-                  <Price amount={48} compareAt={88} currency="USD" />
+                  <Price amount={48} compareAt={88} currency="USD" size="lg" />
                 </View>
                 <Button size="lg" className="px-6 rounded-full">
                   Add to Cart
@@ -159,7 +159,7 @@ export default function PDPFlat() {
         }
         renderItem={({ item, index }) => (
           <View style={{ width: itemW, marginLeft: index % columns ? gap : 0, marginBottom: gap }}>
-            <ProductTile {...item} width={itemW} titleLines={2} rounded="3xl" padding="md" />
+            <ProductTile {...item} width={itemW} titleLines={2} padding="md" />
           </View>
         )}
         contentContainerStyle={{ paddingHorizontal: paddingH }}
