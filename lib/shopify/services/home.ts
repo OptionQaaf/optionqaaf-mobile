@@ -87,6 +87,17 @@ export type AppHomeSection =
       endAt?: string
     }
   | {
+      kind: "image_carousel"
+      id: string
+      items: PosterCell[]
+      theme?: string
+      height?: number
+      country?: string
+      language?: string
+      startAt?: string
+      endAt?: string
+    }
+  | {
       kind: "duo_poster"
       id: string
       left?: { image?: ImageRef; url?: string }
@@ -294,6 +305,32 @@ function toSection(node: any): AppHomeSection | null {
         if (hasContent) items.push(item)
       }
       return { kind, id: node.id, items, theme, country, language, startAt, endAt }
+    }
+
+    case "image_carousel": {
+      const countRaw = Number(val(node, "count"))
+      const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.min(Math.round(countRaw), 10) : 5
+      const heightRaw = Number(val(node, "height") ?? val(node, "imageHeight"))
+      const height = Number.isFinite(heightRaw) && heightRaw > 0 ? Math.round(heightRaw) : undefined
+      const items: PosterCell[] = []
+      for (let i = 0; i < count; i += 1) {
+        const imageRef = refAt(node, "image", i)
+        const item: PosterCell = {
+          image: imgFrom(imageRef),
+          url: valAt(node, "url", i) ?? valAt(node, "link", i),
+          title: valAt(node, "title", i),
+          subtitle: valAt(node, "subtitle", i),
+          eyebrow: valAt(node, "eyebrow", i),
+          background: valAt(node, "background", i) ?? valAt(node, "bg", i),
+          foreground: valAt(node, "foreground", i) ?? valAt(node, "fg", i),
+          align: (valAt(node, "align", i) as any) ?? undefined,
+          layout: valAt(node, "layout", i) ?? undefined,
+        }
+        const hasContent = item.image
+        if (hasContent) items.push(item)
+      }
+      if (!items.length) return null
+      return { kind, id: node.id, items, theme, height, country, language, startAt, endAt }
     }
 
     case "duo_poster": {

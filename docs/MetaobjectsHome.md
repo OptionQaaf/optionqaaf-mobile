@@ -106,6 +106,13 @@ All sections respect the optional targeting/scheduling fields: `country`, `langu
 - Global optional fields: `count` (default 5, capped at 6), `theme`, gating fields.
 - Layout suggestions: `portrait`, `landscape`, `banner`, `statement`, `square`.
 
+### `image_carousel`
+- Purpose: Auto-advancing hero carousel that also supports manual swipes.
+- Required: At least one tile with an image.
+- Optional per item: `url`/`link` for tap-through navigation.
+- Global optional fields: `count` (default 5, max 10), `height` (px), `theme`, gating fields.
+- Slides auto-advance every 4.5 seconds when untouched.
+
 ### `duo_poster`
 - Purpose: Two half-width posters.
 - Required: `image` (left), `image2` (right).
@@ -185,7 +192,8 @@ Sections are filtered before rendering:
 - Media: `image`, `image2`, `image3`, `image4`, `image5`, `image6` (suffix `_2` style also accepted).
 - URLs: `url2`/`link2`, `url3`/`link3`.
 - Styling: `align`, `layout`, `background`, `foreground`, `eyebrow`, `theme`.
-- Lists: `count` (triptych/quilt item count), `speed` (marquee speed).
+- Lists: `count` (triptych/quilt/carousel item count), `speed` (marquee speed).
+- Carousel: `height` (pixel height override).
 - Commerce: `collection` (collection reference for `product_rail`).
 - Container: `sections` (on `mobile_home`).
 

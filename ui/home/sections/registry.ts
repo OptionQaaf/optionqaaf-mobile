@@ -3,6 +3,7 @@ import { DuoPoster } from "./DuoPoster"
 import { EditorialQuote } from "./EditorialQuote"
 import { HeadlinePromo } from "./HeadlinePromo"
 import { HeroPoster } from "./HeroPoster"
+import { ImageCarouselSection } from "./ImageCarouselSection/ImageCarouselSection"
 import { PosterQuilt } from "./PosterQuilt"
 import { PosterTriptych } from "./PosterTriptych"
 import { ProductRail } from "./ProductRail"
@@ -22,6 +23,7 @@ export const sectionRegistry = {
   product_rail: ProductRail,
   editorial_quote: EditorialQuote,
   brand_cloud: BrandCloud,
+  image_carousel: ImageCarouselSection,
 } as const
 
 export type SectionKind = keyof typeof sectionRegistry

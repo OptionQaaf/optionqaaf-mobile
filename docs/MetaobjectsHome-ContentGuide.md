@@ -104,6 +104,12 @@ Two-row grid with one highlight tile.
 - Same fields as Triptych (`image`, `title`, etc.).
 - ⚙️ `count` default 5, max 6. Layout hints: `portrait`, `landscape`, `banner`, `statement`, `square`.
 
+### Image Carousel — `image_carousel`
+Swipeable image carousel that also auto-advances every ~4.5s if untouched.
+- ✅ Required: at least one tile with an image.
+- ➕ Optional per tile: link (`url`/`link`) for navigation.
+- ⚙️ Optional controls: `count` (number of tiles to read, default 5, max 10), `height` (pixel height of the carousel).
+
 ### Duo Poster — `duo_poster`
 Side-by-side half-width images.
 - ✅ Required: left image (`image`), right image (`image2`).
