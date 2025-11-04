@@ -17,6 +17,7 @@ import { Accordion } from "@/ui/primitives/Accordion"
 import { AddToCart } from "@/ui/product/AddToCart"
 import { AddToCartBar } from "@/ui/product/AddToCartBar"
 import ProductDescriptionNative from "@/ui/product/ProductDescriptionNative"
+import { BrandCard } from "@/ui/product/BrandCard"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { VariantDropdown } from "@/ui/product/VariantDropdown"
@@ -30,6 +31,9 @@ export default function ProductScreen() {
   const { handle } = useLocalSearchParams<{ handle: string }>()
   const h = typeof handle === "string" ? handle : ""
   const { data: product, isLoading } = useProduct(h)
+  const vendor = ((product as any)?.vendor ?? "") as string
+  const { data: vendorSearchData, isLoading: isVendorLoading } = useSearch(vendor, 12)
+  const vendorProducts = useMemo(() => vendorSearchData?.pages?.flatMap((p) => p.nodes) ?? [], [vendorSearchData])
   const insets = useSafeAreaInsets()
   const { width } = useWindowDimensions()
   const ensure = useEnsureCart()
@@ -126,17 +130,48 @@ export default function ProductScreen() {
   }, [footerVisible, BAR_H, insets.bottom])
 
   // Common pricing + image
+  const currencyCode = String(
+    (selectedVariant as any)?.price?.currencyCode ??
+      (product as any)?.priceRange?.minVariantPrice?.currencyCode ??
+      "USD",
+  )
   const priceAmount = Number(
     (selectedVariant as any)?.price?.amount ?? (product as any)?.priceRange?.minVariantPrice?.amount ?? 0,
   )
   const compareAtAmount = (selectedVariant as any)?.compareAtPrice?.amount
     ? Number((selectedVariant as any)?.compareAtPrice?.amount)
     : undefined
-  const currencyCode = String(
-    (selectedVariant as any)?.price?.currencyCode ??
-      (product as any)?.priceRange?.minVariantPrice?.currencyCode ??
-      "USD",
-  )
+  const vendorPriceRange = useMemo(() => {
+    if (!vendorProducts.length) return null
+    let min = Number.POSITIVE_INFINITY
+    let max = Number.NEGATIVE_INFINITY
+    let currency = currencyCode
+    for (const item of vendorProducts) {
+      const amount = Number(item?.priceRange?.minVariantPrice?.amount ?? 0)
+      if (!Number.isFinite(amount)) continue
+      if (amount < min) min = amount
+      if (amount > max) max = amount
+      if (!currency && item?.priceRange?.minVariantPrice?.currencyCode) {
+        currency = String(item?.priceRange?.minVariantPrice?.currencyCode)
+      }
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return null
+    return { min, max, currency }
+  }, [vendorProducts, currencyCode])
+  const vendorPreviewImages = useMemo(() => {
+    const currentHandle = (product as any)?.handle
+    const seen = new Set<string>()
+    const list: string[] = []
+    for (const item of vendorProducts) {
+      if (currentHandle && item?.handle === currentHandle) continue
+      const url = item?.featuredImage?.url
+      if (typeof url !== "string" || !url.trim() || seen.has(url)) continue
+      seen.add(url)
+      list.push(url)
+      if (list.length >= 3) break
+    }
+    return list
+  }, [vendorProducts, product])
   const imageForAnim =
     ((selectedVariant as any)?.image?.url as string | undefined) ||
     ((product as any)?.featuredImage?.url as string | undefined)
@@ -244,6 +279,19 @@ export default function ProductScreen() {
                 </Accordion>
               </View>
 
+              {vendor ? (
+                <View className="mt-4 px-2">
+                  <BrandCard
+                    name={vendor}
+                    productCount={vendorProducts.length}
+                    images={vendorPreviewImages}
+                    priceRange={vendorPriceRange}
+                    loading={isVendorLoading && !vendorProducts.length}
+                    onPress={() => router.push(`/collections/vendors?q=${encodeURIComponent(vendor)}` as any)}
+                  />
+                </View>
+              ) : null}
+
               {/* Inline Add to Cart (pill) */}
               <Animated.View style={inlineStyle} className="mt-2">
                 <AddToCart
@@ -273,6 +321,7 @@ export default function ProductScreen() {
               productId={(product as any)?.id}
               vendor={(product as any)?.vendor}
               currentHandle={(product as any)?.handle}
+              vendorFallback={vendorProducts}
             />
           </View>
         }
@@ -318,19 +367,18 @@ function Recommended({
   productId,
   vendor,
   currentHandle,
+  vendorFallback,
 }: {
   productId?: string
   vendor?: string
   currentHandle?: string
+  vendorFallback?: any[]
 }) {
   const { data: recos } = useRecommendedProducts(productId || "")
   // Fallback to vendor-based search if Shopify returns nothing
-  const q = vendor ? vendor : ""
-  const { data: searchData } = useSearch(q, 12)
-
-  const nodes = (recos && recos.length ? recos : (searchData?.pages?.flatMap((p) => p.nodes) ?? [])).filter(
-    (p: any) => p?.handle !== currentHandle,
-  )
+  const fallback = vendorFallback ?? []
+  const baseNodes = recos && recos.length ? recos : fallback
+  const nodes = baseNodes.filter((p: any) => p?.handle !== currentHandle)
   // Deterministic shuffle per product (stable across re-renders)
   const shuffled = useMemo(() => {
     const seedStr = String(productId || currentHandle || "seed")
