@@ -357,8 +357,10 @@ try {
 } catch {}
 
 export default function CollectionScreen() {
-  const { handle } = useLocalSearchParams<{ handle: string }>()
+  const { handle, q } = useLocalSearchParams<{ handle: string; q?: string }>()
   const h = typeof handle === "string" ? handle : ""
+  const vendorName = typeof q === "string" ? q.trim() : ""
+  const isVendorLanding = h === "vendors" && !!vendorName
   // special aesthetic PLP pages for empty men/women collections
   const SPECIAL: Record<string, { homeHandle: string; title: string; searchQuery: string }> = {
     "men-1": {
@@ -375,6 +377,7 @@ export default function CollectionScreen() {
   const special = SPECIAL[h]
   const { data: specialHome } = useMobileHome(special?.homeHandle ?? "")
   const { data: specialSearch } = useSearch(special?.searchQuery ?? "", 24)
+  const vendorSearch = useSearch(isVendorLanding ? vendorName : "", 24)
   const specialSections = useMemo(() => specialHome?.sections ?? [], [specialHome?.sections])
   const specialCapsuleHandles = useMemo(() => {
     const handles: string[] = []
@@ -387,19 +390,36 @@ export default function CollectionScreen() {
   }, [specialSections])
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useCollectionProducts(h || "", 24)
   const meta = useCollectionMeta(h || "")
-  const products = (data?.pages?.flatMap((p: any) => p.nodes) ?? []) as any[]
+  const collectionProducts = (data?.pages?.flatMap((p: any) => p.nodes) ?? []) as any[]
+  const vendorProducts = useMemo(() => {
+    if (!isVendorLanding) return [] as any[]
+    const q = vendorName.toLowerCase()
+    return (vendorSearch.data?.pages?.flatMap((p: any) => p.nodes) ?? []).filter(
+      (p: any) => (p?.vendor ?? "").toLowerCase() === q,
+    )
+  }, [isVendorLanding, vendorName, vendorSearch.data])
+  const products = (isVendorLanding ? vendorProducts : collectionProducts) as any[]
   const loadedCount = products.length
-  const pageCount = data?.pages?.length ?? 0
-  const reachedCap = pageCount >= 5
+  const pageCount = isVendorLanding ? (vendorSearch.data?.pages?.length ?? 0) : (data?.pages?.length ?? 0)
+  const activeHasNextPage = isVendorLanding ? vendorSearch.hasNextPage : hasNextPage
+  const activeIsFetchingNextPage = isVendorLanding ? vendorSearch.isFetchingNextPage : isFetchingNextPage
+  const activeFetchNextPage = isVendorLanding ? vendorSearch.fetchNextPage : fetchNextPage
+  const reachedCap = isVendorLanding ? !activeHasNextPage : pageCount >= 5
 
   // derive hero image from first product if collection image not available
-  const heroImage = (meta.data?.pages?.[0]?.image as string) || products?.[0]?.featuredImage?.url || undefined
-  const title = meta.data?.pages?.[0]?.title || (h ? h.replace(/[-_]/g, " ").toUpperCase() : "Collection")
+  const heroImage = isVendorLanding
+    ? products?.[0]?.featuredImage?.url || undefined
+    : (meta.data?.pages?.[0]?.image as string) || products?.[0]?.featuredImage?.url || undefined
+  const title = isVendorLanding
+    ? vendorName
+    : meta.data?.pages?.[0]?.title || (h ? h.replace(/[-_]/g, " ").toUpperCase() : "Collection")
 
   // controls state
   const [query, setQuery] = useState("")
   const [view, setView] = useState<1 | 2>(2)
-  const [selectedVendors, setSelectedVendors] = useState<string[]>([])
+  const [selectedVendors, setSelectedVendors] = useState<string[]>(() =>
+    isVendorLanding && vendorName ? [vendorName] : [],
+  )
   const [showFilters, setShowFilters] = useState(false)
 
   // sorting/filters
@@ -409,6 +429,14 @@ export default function CollectionScreen() {
   const [onSaleOnly, setOnSaleOnly] = useState(false)
   const [filterScreen, setFilterScreen] = useState<"main" | "brand">("main")
   const [brandSearch, setBrandSearch] = useState("")
+
+  useEffect(() => {
+    if (!isVendorLanding || !vendorName) return
+    setSelectedVendors((prev) => {
+      if (prev.length === 1 && prev[0] === vendorName) return prev
+      return [vendorName]
+    })
+  }, [isVendorLanding, vendorName])
 
   // Enable LayoutAnimation on Android for smooth grid resize (kept for view toggle)
   useEffect(() => {
@@ -483,14 +511,14 @@ export default function CollectionScreen() {
     const q = query.trim()
     if (!q) return
     if (filtered.length > 0) return
-    if (!hasNextPage || isFetchingNextPage) return
+    if (!activeHasNextPage || activeIsFetchingNextPage) return
     // Safety cap to avoid unbounded fetches
     if (loadedCount >= 120) return
     const t = setTimeout(() => {
-      fetchNextPage()
+      activeFetchNextPage()
     }, 80)
     return () => clearTimeout(t)
-  }, [query, filtered.length, hasNextPage, isFetchingNextPage, loadedCount, fetchNextPage])
+  }, [query, filtered.length, activeHasNextPage, activeIsFetchingNextPage, loadedCount, activeFetchNextPage])
 
   const { width } = useWindowDimensions()
   const heroH = Math.max(280, Math.min(440, Math.round(width * 1.0)))
@@ -555,12 +583,12 @@ export default function CollectionScreen() {
             const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
             const threshold = 400
             if (
-              hasNextPage &&
+              activeHasNextPage &&
               !reachedCap &&
-              !isFetchingNextPage &&
+              !activeIsFetchingNextPage &&
               contentOffset.y + layoutMeasurement.height > contentSize.height - threshold
             ) {
-              fetchNextPage()
+              activeFetchNextPage()
             }
           }}
         >
@@ -755,7 +783,7 @@ export default function CollectionScreen() {
             />
 
             {/* Infinite loading skeletons */}
-            {isFetchingNextPage ? (
+            {activeIsFetchingNextPage ? (
               <View className="mt-3">
                 {view === 2 ? (
                   <View className="flex-row">
@@ -768,7 +796,7 @@ export default function CollectionScreen() {
                   </View>
                 )}
               </View>
-            ) : reachedCap ? (
+            ) : filtered.length > 0 && reachedCap ? (
               <View className="py-6 items-center">
                 <Text className="text-gray-500">You’ve reached the end</Text>
               </View>

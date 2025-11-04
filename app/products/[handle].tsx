@@ -287,7 +287,9 @@ export default function ProductScreen() {
                     images={vendorPreviewImages}
                     priceRange={vendorPriceRange}
                     loading={isVendorLoading && !vendorProducts.length}
-                    onPress={() => router.push(`/collections/vendors?q=${encodeURIComponent(vendor)}` as any)}
+                    onPress={() =>
+                      router.push({ pathname: "/collections/[handle]", params: { handle: "vendors", q: vendor } })
+                    }
                   />
                 </View>
               ) : null}
