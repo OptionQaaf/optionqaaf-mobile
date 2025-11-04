@@ -1,226 +1,192 @@
-# OptionQaaf Mobile Home — Shopify Metaobjects Guide
+# OptionQaaf Mobile — Metaobject Sections Guide
 
-This guide shows how to configure Shopify Metaobjects to fully control the OptionQaaf mobile home page. It includes the data model, definitions to create in Shopify, all supported section kinds, and tips for targeting and scheduling.
+This document explains how Shopify metaobjects drive the mobile Home, Men, and Women landing experiences. It covers the data model, required Shopify definitions, every supported `kind`, and the fields each section expects.
 
 ---
 
 ## Overview
 
-- The app reads a single Metaobject of type `mobile_home` (by handle, default: `app-home`).
-- That object contains a `sections` list. Each entry references a Metaobject describing one section of the home page.
-- Each section has a `kind` (what to render) and fields specific to that kind (images, links, collections, etc.).
-- Sections can be targeted by `country` and `language` and scheduled via `startAt`/`endAt`.
+- The app reads metaobjects of type `mobile_home`. Each entry corresponds to one composed landing (e.g. Home, Men, Women).
+- A `mobile_home` entry exposes a `sections` list. Each list item references a `mobile_home_section` metaobject.
+- Every section has a `kind` that maps to a React Native component plus a set of fields. Unknown kinds are ignored safely.
+- Optional gating fields (`country`, `language`, `startAt`, `endAt`) let you target locales and schedule campaigns.
 
 ---
 
 ## Data Model
 
-Top-level metaobject (type `mobile_home`):
-- `handle` (e.g., `app-home`)
-- `sections`: List of references to section metaobjects
+Top-level metaobject (`mobile_home`):
+- `handle` — Used by the app to select which landing to load (see handles below).
+- `sections` — Ordered list of metaobject references (each one must be a section).
 
-Section metaobject (flexible; single definition or one per kind):
-- Common fields: `kind`, `title`, `url` (or `link`), `theme`, `country`, `language`, `startAt`, `endAt`
-- Kind-specific fields: images (`image`, `image2`, `image3`), `align`, `speed`, `collection`, etc.
+Section metaobject (`mobile_home_section`):
+- Common fields: `kind`, `title`, `subtitle`, `url` (or `link`), `theme`, `country`, `language`, `startAt`, `endAt`.
+- Kind fields: images (`image`, `image2`, `image3`…), `speed`, `align`, `background`, `foreground`, `count`, `collection`, etc.
+- The service accepts `foo2` or `foo_2` style suffixes for second/third items (`image2`, `image_2`, …).
 
-The app ignores references that are not Metaobjects and skips unknown `kind` values gracefully.
+---
+
+## Handles & Page Mapping
+
+| App screen | Handle loaded | Notes |
+| --- | --- | --- |
+| Home tab | `app-home` (default) | Changeable via `useMobileHome("<handle>")`. |
+| Men landing | `men-home` | Configured in `app/pages/[handle].tsx`. |
+| Women landing | `women-home` | Same setup as Men. |
+
+You can create additional handles (e.g. `ramadan-home`, `summer-home`) and route to them explicitly.
 
 ---
 
 ## Step‑By‑Step Setup
 
-1) Create the Home metaobject definition
-- Shopify Admin → Settings → Custom data → Metaobjects → Add definition
-- Name: Mobile Home
-- Type (API ID): `mobile_home`
-- Fields:
-  - `sections` — Type: List of “Metaobject reference” (allows many). This holds your section entries in the order you want them rendered.
-- Save the definition.
+1. **Create the Home container metaobject**
+   - Shopify Admin → Settings → Custom data → Metaobjects → Add definition.
+   - Name: *Mobile Home*, Type/API ID: `mobile_home`.
+   - Add field `sections` = List of *Metaobject reference* (allow multiple).
 
-2) Create a Home entry (the content item)
-- Add entry for `mobile_home`
-- Handle: `app-home` (default used by the app) or your preferred handle.
-- Populate the `sections` list by referencing your section metaobjects (created in the next step) in the desired order.
+2. **Create individual Home entries**
+   - Add an entry per landing (`app-home`, `men-home`, `women-home`, etc.).
+   - Populate the `sections` list with references to the section entries you create next. Order matters.
 
-3) Create the Section metaobject definition
-- Name: Mobile Home Section
-- Type (API ID): `mobile_home_section` (you may choose any, the app reads by field keys)
-- Create the following fields exactly as keys below:
-  - `kind` — Single line text (Required)
-  - `title` — Single line text
-  - `subtitle` — Single line text (used in marquee as fallback)
-  - `url` — URL (you may also add `link` — URL; the app checks both)
-  - `theme` — Single line text (e.g., `light` or `dark`)
-  - `country` — Single line text (ISO alpha-2: `SA`, `AE`, etc.)
-  - `language` — Single line text (`EN` or `AR`)
-  - `startAt` — Date and time (ISO)
-  - `endAt` — Date and time (ISO)
-  - `image` — File (Reference → Media image)
-  - `image2` — File (Media image)
-  - `image3` — File (Media image)
-  - `url2` (or `link2`) — URL
-  - `url3` (or `link3`) — URL
-  - `align` — Single line text (`left` | `center` | `right`)
-  - `speed` — Number (for marquee speed; default 30)
-  - `collection` — Reference → Collection
-- Save the definition.
+3. **Create the Section metaobject definition**
+   - Name: *Mobile Home Section*, Type/API ID: `mobile_home_section` (ID can differ; field keys matter).
+   - Include the following fields so every kind has what it needs:
+     - `kind` — Single line text (required).
+     - `title`, `subtitle` — Single line text.
+     - `url`, `link`, `url2`, `link2`, `url3`, `link3` — URL.
+     - `theme`, `country`, `language`, `align`, `layout`, `background`, `foreground`, `eyebrow` — Single line text.
+     - `startAt`, `endAt` — Date and time.
+     - `speed`, `count` — Number.
+     - `image`, `image2`, `image3`, `image4`, `image5`, `image6` — File (Media image).
+     - `collection` — Reference → Collection.
 
-4) Create Section entries
-- For each section you want on the home page, add a new `mobile_home_section` entry and fill the fields as listed below per kind.
-- Add those entries to the `sections` list of your Home entry.
+4. **Create section entries**
+   - Add a `mobile_home_section` entry per row/feature you need.
+   - Set the `kind`, fill in the fields listed for that kind below, and attach each entry to the `sections` list of the desired landing handle.
 
 ---
 
-## Supported Section Kinds and Definition Plans
+## Supported Section Kinds
 
-Below are all supported `kind` values with required/optional fields and recommended field types.
+All sections respect the optional targeting/scheduling fields: `country`, `language`, `startAt`, `endAt`. When blank, they render globally and immediately.
 
-### 1) `hero_poster`
-- Purpose: Large hero image with optional title and link.
-- Required:
-  - `image` — File (Media image)
-- Optional:
-  - `title` — Single line text
-  - `url` — URL (link target)
-  - `theme` — Single line text (`light`/`dark`)
-  - `country`, `language` — Single line text
-  - `startAt`, `endAt` — Date and time
+### `hero_poster`
+- Purpose: Full-bleed hero card.
+- Required: `image`.
+- Optional: `title`, `url`, `theme` (`light` default; accepts `dark`), plus common gating fields.
 
-### 2) `headline_promo`
-- Purpose: Text headline/promo row with optional link.
-- Required:
-  - `title` — Single line text
-- Optional:
-  - `url` — URL
-  - `theme`, `country`, `language`, `startAt`, `endAt`
+### `headline_promo`
+- Purpose: Bold typographic headline that can deep-link.
+- Required: `title`.
+- Optional: `url`, `theme`, gating fields.
 
-### 3) `ribbon_marquee`
-- Purpose: Scrolling marquee/ribbon text.
-- Required:
-  - `title` — Single line text (or use `subtitle` if you prefer)
-- Optional:
-  - `subtitle` — Single line text (used if `title` empty)
-  - `speed` — Number (default: 30)
-  - `theme`, `url`, `country`, `language`, `startAt`, `endAt`
+### `ribbon_marquee`
+- Purpose: Animated marquee ribbon.
+- Required: `title` (or `subtitle` if you prefer to keep `title` empty).
+- Optional: `speed` (number, px/s, default 30), `theme`, `url`, gating fields.
 
-### 4) `split_banner`
-- Purpose: Banner with one image, text, and alignment.
-- Required:
-  - `image` — File (Media image)
-- Optional:
-  - `title` — Single line text
-  - `url` — URL
-  - `align` — Single line text (`left` | `center` | `right`)
-  - `theme`, `country`, `language`, `startAt`, `endAt`
+### `split_banner`
+- Purpose: Single hero with scrim and optional CTA alignment.
+- Required: `image`.
+- Optional: `title`, `url`, `align` (`left` default; accepts `center`, `right`), `theme`, gating fields.
 
-### 5) `duo_poster`
-- Purpose: Two side-by-side posters, each with its own link.
-- Required:
-  - `image` — File (Left poster)
-  - `image2` — File (Right poster)
-- Optional:
-  - `url` — URL (for left)
-  - `url2` — URL (for right)
-  - `country`, `language`, `startAt`, `endAt`
+### `poster_triptych`
+- Purpose: Up to six stacked posters rendered in a 3-up layout.
+- Required: At least one populated item (`image` or text).
+- Optional fields per item (`image`, `image2`, …):
+  - `title`, `subtitle`, `eyebrow`, `url`/`link`, `background`, `foreground`, `align`, `layout`.
+- Global optional fields: `count` (number of items to read, default 3, max 6), `theme`, gating fields.
+- Layout hints (`layout`) accept values like `portrait`, `wide`, `square`, `tall`.
 
-### 6) `trio_grid`
-- Purpose: Three-tile grid, each tile optionally linked.
-- Required:
-  - `image`, `image2`, `image3` — Files (Media images)
-- Optional:
-  - `url`, `url2`, `url3` — URL per tile
-  - `country`, `language`, `startAt`, `endAt`
+### `poster_quilt`
+- Purpose: Quilt grid (two rows, statement tile).
+- Required: Populate at least one item.
+- Optional per item (same keys as triptych).
+- Global optional fields: `count` (default 5, capped at 6), `theme`, gating fields.
+- Layout suggestions: `portrait`, `landscape`, `banner`, `statement`, `square`.
 
-### 7) `product_rail`
-- Purpose: Horizontal product carousel from a collection.
-- Required:
-  - `collection` — Reference → Collection (the app uses the handle)
-- Optional:
-  - `title` — Single line text
-  - `theme`, `country`, `language`, `startAt`, `endAt`
+### `duo_poster`
+- Purpose: Two half-width posters.
+- Required: `image` (left), `image2` (right).
+- Optional: `url` (left), `url2`/`link2` (right), gating fields.
 
-### 8) `editorial_quote`
-- Purpose: Editorial/quote block.
-- Required:
-  - `title` — Single line text (the quote text)
-- Optional:
-  - `theme`, `url`, `country`, `language`, `startAt`, `endAt`
+### `brand_cloud`
+- Purpose: Interactive brand tag cloud sourced from the storefront vendor index.
+- Optional: `title`, gating fields.
+- No images or links stored on the section—the component fetches brands dynamically. Navigation uses the tapped brand’s URL.
+
+### `trio_grid`
+- Purpose: Three-tile grid.
+- Required: `image`, `image2`, `image3`.
+- Optional: `url`, `url2`/`link2`, `url3`/`link3`, gating fields.
+
+### `product_rail`
+- Purpose: Horizontal carousel of products from a collection.
+- Required: `collection` (reference to a Shopify collection; the app reads the handle).
+- Optional: `title`, `theme`, gating fields.
+
+### `editorial_quote`
+- Purpose: Large typographic quotation/promo.
+- Required: `title` (quote text).
+- Optional: `url`, `theme`, gating fields.
 
 ---
 
 ## Targeting and Scheduling
 
-The app filters sections before rendering:
-- Country filter: If `country` is set and doesn’t match the current user country, the section is hidden.
-- Language filter: If `language` is set and doesn’t match (`EN`/`AR`), the section is hidden.
-- Scheduling: If `startAt` is set and current time is before it, hidden. If `endAt` is set and current time is after it, hidden.
-
-Current locale information is taken from the app store: `currentLocale()` in `@/store/prefs`.
+Sections are filtered before rendering:
+- If `country` is set and does not match the current locale (`currentLocale().country`), the section is hidden.
+- If `language` is set and differs from the active language (`EN`/`AR`), the section is hidden.
+- `startAt`/`endAt` gate the section to a specific time window (ISO timestamps).
 
 ---
 
-## Naming, Order, and Variations
+## Ordering, Variants, and Reuse
 
-- Use a single `mobile_home` entry with handle `app-home` for the main home.
-- You can create alternative homes (e.g., `ramadan-home`) and load by handle.
-- The order of items in the `sections` list is the render order.
-- Unknown `kind` values or non-metaobject references in `sections` are ignored.
+- The `sections` list order is exactly how sections appear in the app.
+- You can create multiple `mobile_home` entries for A/B tests or seasonal takeovers and load them by handle.
+- Unknown kinds or references that are not metaobjects are ignored gracefully, so you can stage future content without breaking the page.
 
 ---
 
 ## Images & Accessibility
 
-- Use Media images (MediaImage) for `image`, `image2`, `image3` fields.
-- Keep aspect ratios consistent by section type (hero wide; trio squares, etc.).
-- Add alt text in Shopify’s media library; the app surfaces alt text where appropriate.
+- Use Media Images for all `image` fields so Shopify returns optimized URLs and alt text.
+- Alt text is managed on the Media object; the app reuses it when available.
+- Maintain consistent aspect ratios: heroes wide, triptych mostly portrait, quilts mixed (`layout` hint controls aspect).
 
 ---
 
-## Quick Example (Minimal)
+## Quick Build Example
 
-1) Create `mobile_home` entry with handle `app-home`.
-2) Create 3 `mobile_home_section` entries:
-- A hero poster:
-  - `kind`: `hero_poster`
-  - `title`: New Arrivals
-  - `image`: [media image]
-  - `url`: https://yourstore.com/collections/new
-- A product rail:
-  - `kind`: `product_rail`
-  - `title`: Trending Now
-  - `collection`: [choose a collection]
-- A trio grid:
-  - `kind`: `trio_grid`
-  - `image`/`image2`/`image3`: [media images]
-  - `url`/`url2`/`url3`: [links]
-3) Attach these 3 entries to the `sections` list (in order) on `app-home`.
+1. Create `mobile_home_section` entries:
+   - `hero_poster` with `title`, `image`, `url`.
+   - `product_rail` with `title`, `collection`.
+   - `poster_triptych` with three images and URLs.
+2. Add them in order to the `sections` list on the `app-home` metaobject entry.
+3. Duplicate the process for `men-home`/`women-home` handles if needed.
 
 ---
 
 ## Troubleshooting
 
-- Nothing renders:
-  - Ensure the `mobile_home` entry exists and its handle matches what the app requests (default `app-home`).
-  - Ensure the `sections` field contains Metaobject references (not directly products/collections).
-  - Ensure each section has a valid `kind` listed above.
-- Product rail empty:
-  - Check that the `collection` field references a published collection with products available to the Storefront.
-- Missing images:
-  - Verify the fields are named exactly `image`/`image2`/`image3` and are “File (Media image)” types.
-- Section not visible:
-  - Check `country`, `language`, `startAt`, `endAt`—it may be filtered out by targeting or scheduling.
+- **Nothing renders**: Confirm the handle exists, `sections` is populated with metaobject references, and each entry has a supported `kind`.
+- **Section missing**: Check locale filters (`country`, `language`) and scheduling (`startAt`, `endAt`).
+- **Product rail empty**: Ensure the referenced collection is published to the Storefront API.
+- **Broken images**: Verify field keys (`image`, `image2`, …) are spelled exactly and point to Media images.
+- **Triptych/quilt layout looks odd**: Adjust `layout`, `background`, or `foreground` per tile to match creative intent.
 
 ---
 
-## Appendix — Field Keys Summary
+## Appendix — Field Key Reference
 
-Common keys (used by multiple kinds):
-- `kind`, `title`, `subtitle`, `url` (or `link`), `theme`, `country`, `language`, `startAt`, `endAt`
-- `image`, `image2`, `image3` (Media images)
-- `url2`/`link2`, `url3`/`link3`
-- `align`, `speed`, `collection`
+- Common: `kind`, `title`, `subtitle`, `url`/`link`, `theme`, `country`, `language`, `startAt`, `endAt`.
+- Media: `image`, `image2`, `image3`, `image4`, `image5`, `image6` (suffix `_2` style also accepted).
+- URLs: `url2`/`link2`, `url3`/`link3`.
+- Styling: `align`, `layout`, `background`, `foreground`, `eyebrow`, `theme`.
+- Lists: `count` (triptych/quilt item count), `speed` (marquee speed).
+- Commerce: `collection` (collection reference for `product_rail`).
+- Container: `sections` (on `mobile_home`).
 
-Root metaobject (`mobile_home`):
-- `sections` (List of Metaobject references)
-
-This guide is derived from the app’s source of truth (see references above) and lists the exact keys the app reads at runtime.
+This guide mirrors the logic in `lib/shopify/services/home.ts`, ensuring the listed keys are exactly what the app reads at runtime.
