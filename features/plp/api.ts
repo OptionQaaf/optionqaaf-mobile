@@ -1,14 +1,28 @@
 import { qk } from "@/lib/shopify/queryKeys"
+import { ProductCollectionSortKeys } from "@/lib/shopify/gql/graphql"
 import { getCollectionProducts } from "@/lib/shopify/services/products"
 import { currentLocale } from "@/store/prefs"
 import { useInfiniteQuery } from "@tanstack/react-query"
 
-export function useCollectionProducts(handle: string, pageSize = 24) {
+type CollectionProductsOptions = {
+  sortKey?: ProductCollectionSortKeys | null
+  reverse?: boolean | null
+}
+
+export function useCollectionProducts(handle: string, pageSize = 24, options?: CollectionProductsOptions) {
   const locale = currentLocale()
   return useInfiniteQuery({
-    queryKey: qk.plp(handle, { pageSize, locale }),
+    queryKey: qk.plp(handle, {
+      pageSize,
+      locale,
+      sortKey: options?.sortKey ?? null,
+      reverse: options?.reverse ?? null,
+    }),
     queryFn: async ({ pageParam }) => {
-      const res = await getCollectionProducts({ handle, pageSize, after: pageParam ?? null }, locale)
+      const res = await getCollectionProducts(
+        { handle, pageSize, after: pageParam ?? null, sortKey: options?.sortKey, reverse: options?.reverse },
+        locale,
+      )
       const page = res.collection?.products
       return {
         nodes: page?.nodes ?? [],

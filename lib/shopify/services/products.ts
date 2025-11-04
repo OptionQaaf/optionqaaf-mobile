@@ -5,6 +5,7 @@ import {
   type CollectionByHandleQuery,
   ProductByHandleDocument,
   type ProductByHandleQuery,
+  ProductCollectionSortKeys,
   SearchProductsDocument,
   type SearchProductsQuery,
 } from "@/lib/shopify/gql/graphql"
@@ -20,7 +21,13 @@ export async function getProductByHandle(handle: string, locale?: { country?: st
 }
 
 export async function getCollectionProducts(
-  args: { handle: string; pageSize?: number; after?: string | null },
+  args: {
+    handle: string
+    pageSize?: number
+    after?: string | null
+    sortKey?: ProductCollectionSortKeys | null | undefined
+    reverse?: boolean | null | undefined
+  },
   locale?: { country?: string; language?: string },
 ) {
   return callShopify<CollectionByHandleQuery>(() =>
@@ -28,6 +35,8 @@ export async function getCollectionProducts(
       handle: args.handle,
       pageSize: args.pageSize ?? 24,
       after: args.after ?? null,
+      sortKey: args.sortKey ?? null,
+      reverse: typeof args.reverse === "boolean" ? args.reverse : null,
       country: locale?.country as any,
       language: locale?.language as any,
     }),

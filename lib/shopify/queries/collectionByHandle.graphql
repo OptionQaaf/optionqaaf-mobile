@@ -2,6 +2,8 @@ query CollectionByHandle(
   $handle: String!
   $pageSize: Int!
   $after: String
+  $sortKey: ProductCollectionSortKeys
+  $reverse: Boolean
   $country: CountryCode
   $language: LanguageCode
 ) @inContext(country: $country, language: $language) {
@@ -9,7 +11,7 @@ query CollectionByHandle(
     id
     title
     image { ...Image }
-    products(first: $pageSize, after: $after) {
+    products(first: $pageSize, after: $after, sortKey: $sortKey, reverse: $reverse) {
       pageInfo {
         hasNextPage
         endCursor

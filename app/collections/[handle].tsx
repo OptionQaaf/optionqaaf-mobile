@@ -42,8 +42,8 @@ interface FilterDialogProps {
   setMinPrice: (val: string) => void
   maxPrice: string
   setMaxPrice: (val: string) => void
-  sort: "featured" | "priceAsc" | "priceDesc"
-  setSort: (val: "featured" | "priceAsc" | "priceDesc") => void
+  sort: "bestSelling" | "newest" | "priceAsc" | "priceDesc"
+  setSort: (val: "bestSelling" | "newest" | "priceAsc" | "priceDesc") => void
   query: string
   setQuery: (val: string) => void
   brandSearch: string
@@ -52,6 +52,24 @@ interface FilterDialogProps {
   filteredVendors: { name: string; count: number }[]
   vendorStats: { name: string; count: number }[]
 }
+
+const SORT_LABELS: Record<"bestSelling" | "newest" | "priceAsc" | "priceDesc", string> = {
+  bestSelling: "Best selling",
+  newest: "Newest drops",
+  priceAsc: "Budget first",
+  priceDesc: "Premium first",
+}
+
+const QUICK_FILTER_OPTIONS: {
+  key: "bestSelling" | "newest" | "priceAsc" | "priceDesc"
+  label: string
+  subLabel?: string
+}[] = [
+  { key: "bestSelling", label: SORT_LABELS.bestSelling },
+  { key: "newest", label: SORT_LABELS.newest },
+  { key: "priceAsc", label: SORT_LABELS.priceAsc, subLabel: "Low to High" },
+  { key: "priceDesc", label: SORT_LABELS.priceDesc, subLabel: "High to Low" },
+]
 
 function FilterDialog({
   visible,
@@ -220,15 +238,16 @@ function FilterDialog({
                     <Text className="text-base font-semibold text-neutral-500">Sort by</Text>
                     <View className="mt-3 flex-row flex-wrap gap-3">
                       {[
-                        { key: "featured", label: "Featured" },
-                        { key: "priceAsc", label: "Price: Low to High" },
-                        { key: "priceDesc", label: "Price: High to Low" },
+                        { key: "bestSelling", label: "Best selling" },
+                        { key: "newest", label: "Newest drops" },
+                        { key: "priceAsc", label: "Budget first (Low to High)" },
+                        { key: "priceDesc", label: "Premium first (High to Low)" },
                       ].map((opt) => {
                         const active = sort === opt.key
                         return (
                           <Pressable
                             key={opt.key}
-                            onPress={() => setSort(opt.key as "featured" | "priceAsc" | "priceDesc")}
+                            onPress={() => setSort(opt.key)}
                             className={`rounded-full border px-4 py-2 ${
                               active ? "border-[#0B0B0B] bg-[#0B0B0B]" : "border-neutral-200 bg-white"
                             }`}
@@ -249,7 +268,7 @@ function FilterDialog({
                         setSelectedVendors([])
                         setMinPrice("")
                         setMaxPrice("")
-                        setSort("featured")
+                        setSort("bestSelling")
                         setQuery("")
                         setOnSaleOnly(false)
                       }}
@@ -385,7 +404,21 @@ export default function CollectionScreen() {
     }
     return handles.slice(0, 3)
   }, [specialSections])
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useCollectionProducts(h || "", 24)
+  const [sort, setSort] = useState<"bestSelling" | "newest" | "priceAsc" | "priceDesc">("bestSelling")
+  const sortConfig = useMemo(() => {
+    switch (sort) {
+      case "newest":
+        return { sortKey: "CREATED" as const, reverse: true as const }
+      case "priceAsc":
+        return { sortKey: "PRICE" as const, reverse: false as const }
+      case "priceDesc":
+        return { sortKey: "PRICE" as const, reverse: true as const }
+      case "bestSelling":
+      default:
+        return { sortKey: "BEST_SELLING" as const, reverse: false as const }
+    }
+  }, [sort])
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useCollectionProducts(h || "", 24, sortConfig)
   const meta = useCollectionMeta(h || "")
   const products = (data?.pages?.flatMap((p: any) => p.nodes) ?? []) as any[]
   const loadedCount = products.length
@@ -403,7 +436,6 @@ export default function CollectionScreen() {
   const [showFilters, setShowFilters] = useState(false)
 
   // sorting/filters
-  const [sort, setSort] = useState<"featured" | "priceAsc" | "priceDesc">("featured")
   const [minPrice, setMinPrice] = useState<string>("")
   const [maxPrice, setMaxPrice] = useState<string>("")
   const [onSaleOnly, setOnSaleOnly] = useState(false)
@@ -422,12 +454,6 @@ export default function CollectionScreen() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
     setView(next)
   }
-
-  const vendors = useMemo(() => {
-    const set = new Set<string>()
-    for (const p of products) if (p?.vendor) set.add(p.vendor)
-    return Array.from(set).slice(0, 12)
-  }, [products])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -649,8 +675,38 @@ export default function CollectionScreen() {
               vendorStats={vendorStats}
             />
 
+            {/* Quick filter pills */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              className="mt-4"
+              contentContainerClassName="gap-2"
+            >
+              {QUICK_FILTER_OPTIONS.map((option) => {
+                const active = sort === option.key
+                return (
+                  <Pressable
+                    key={option.key}
+                    onPress={() => setSort(option.key)}
+                    className={`px-4 py-2.5 rounded-full border ${
+                      active ? "border-[#8E1A26] bg-[#8E1A26]" : "border-neutral-200 bg-white"
+                    }`}
+                  >
+                    <Text className={`text-sm font-semibold ${active ? "text-white" : "text-neutral-900"}`}>
+                      {option.label}
+                    </Text>
+                    {option.subLabel ? (
+                      <Text className={`text-xs font-medium ${active ? "text-white/80" : "text-neutral-500"}`}>
+                        {option.subLabel}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                )
+              })}
+            </ScrollView>
+
             {/* Active filters summary + Clear All */}
-            {selectedVendors.length > 0 || minPrice || maxPrice || sort !== "featured" || query ? (
+            {selectedVendors.length > 0 || minPrice || maxPrice || sort !== "bestSelling" || query ? (
               <View className="flex-row items-center flex-wrap gap-2 mt-3">
                 {query ? (
                   <View className="py-1.5 px-3 rounded-full bg-neutral-200">
@@ -669,9 +725,9 @@ export default function CollectionScreen() {
                     </Text>
                   </View>
                 ) : null}
-                {sort !== "featured" ? (
+                {sort !== "bestSelling" ? (
                   <View className="py-1.5 px-3 rounded-full bg-neutral-200">
-                    <Text className="font-semibold text-neutral-900">Sort: {sort}</Text>
+                    <Text className="font-semibold text-neutral-900">Sort: {SORT_LABELS[sort]}</Text>
                   </View>
                 ) : null}
                 <Pressable
@@ -679,7 +735,7 @@ export default function CollectionScreen() {
                     setSelectedVendors([])
                     setMinPrice("")
                     setMaxPrice("")
-                    setSort("featured")
+                    setSort("bestSelling")
                     setQuery("")
                   }}
                   className="ml-auto py-2 px-3 rounded-xl bg-neutral-100"
@@ -687,36 +743,6 @@ export default function CollectionScreen() {
                   <Text className="font-bold text-neutral-900">Clear all</Text>
                 </Pressable>
               </View>
-            ) : null}
-
-            {/* Vendor pills (only if enough options) */}
-            {vendors.length >= 4 ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                className="mt-3"
-                contentContainerClassName="gap-2.5"
-              >
-                <Pressable
-                  onPress={() => setSelectedVendors([])}
-                  className={`py-2.5 px-4 rounded-full ${selectedVendors.length === 0 ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
-                >
-                  <Text className={`${selectedVendors.length === 0 ? "text-white" : "text-neutral-900"} font-bold`}>
-                    All
-                  </Text>
-                </Pressable>
-                {vendors.map((v) => (
-                  <Pressable
-                    key={v}
-                    onPress={() => setSelectedVendors([v])}
-                    className={`py-2.5 px-4 rounded-full ${selectedVendors.includes(v) ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
-                  >
-                    <Text className={`${selectedVendors.includes(v) ? "text-white" : "text-neutral-900"} font-bold`}>
-                      {v}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
             ) : null}
           </View>
 
