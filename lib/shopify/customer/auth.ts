@@ -246,10 +246,13 @@ export async function getValidAccessToken(): Promise<string | null> {
 
 export async function refreshToken(refreshToken: string): Promise<void> {
   const openId = await fetchOpenIdConfig()
-  const body = new URLSearchParams()
-  body.set("grant_type", "refresh_token")
-  body.set("client_id", CLIENT_ID)
-  body.set("refresh_token", refreshToken)
+  const cleanClientId = CLIENT_ID.trim()
+  const cleanRefreshToken = refreshToken.trim()
+
+  const body =
+    `grant_type=refresh_token` +
+    `&client_id=${encodeURIComponent(cleanClientId)}` +
+    `&refresh_token=${encodeURIComponent(cleanRefreshToken)}`
 
   let res: Response
   try {
@@ -259,7 +262,6 @@ export async function refreshToken(refreshToken: string): Promise<void> {
         "content-type": "application/x-www-form-urlencoded",
         Origin: ORIGIN_HEADER,
         "User-Agent": USER_AGENT,
-        "Shopify-Shop-Id": "85072904499",
       },
       body,
     })
@@ -308,4 +310,13 @@ export async function logoutShopify(): Promise<void> {
 
 export async function logoutLocal(): Promise<void> {
   await Promise.all(Object.values(K).map((k) => sdel(k)))
+}
+
+// Debug helper: force the stored access-token expiration into the past so the next guarded call refreshes.
+export async function fastForwardAccessTokenExpiry(seconds = 3600): Promise<number> {
+  const storedExp = Number((await sget(K.EXP)) || 0)
+  const baseline = Number.isFinite(storedExp) && storedExp > 0 ? storedExp : Math.floor(Date.now() / 1000)
+  const newExp = baseline - seconds
+  await sset(K.EXP, String(newExp))
+  return newExp
 }

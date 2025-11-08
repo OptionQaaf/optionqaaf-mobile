@@ -3,6 +3,7 @@ import { avatarFromProfile } from "@/features/account/avatar"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
+import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
@@ -10,7 +11,7 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { RelativePathString, useRouter } from "expo-router"
-import { Heart, LogOut, MapPin, Package, Pencil, Settings2 } from "lucide-react-native"
+import { Clock, Heart, LogOut, MapPin, Package, Pencil, Settings2 } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 import { RefreshControl, ScrollView, Text, View } from "react-native"
 
@@ -123,6 +124,16 @@ function AccountContent() {
 
   const handleComingSoon = useCallback((label: string) => show({ title: `${label} coming soon`, type: "info" }), [show])
 
+  const handleDebugExpireToken = useCallback(async () => {
+    try {
+      await fastForwardAccessTokenExpiry(3600)
+      show({ title: "Fast-forwarded token expiry by 1 hour", type: "success" })
+    } catch (err: any) {
+      const message = err?.message || "Unable to fast-forward token"
+      show({ title: message, type: "danger" })
+    }
+  }, [show])
+
   return (
     <ScrollView
       contentContainerStyle={{ paddingBottom: 32 }}
@@ -190,6 +201,18 @@ function AccountContent() {
             ))}
           </View>
         </Section>
+
+        {__DEV__ ? (
+          <Button
+            variant="ghost"
+            size="lg"
+            fullWidth
+            onPress={handleDebugExpireToken}
+            leftIcon={<Clock color="#111827" size={18} strokeWidth={2} />}
+          >
+            Expire token (debug)
+          </Button>
+        ) : null}
 
         <Button
           variant="outline"
