@@ -174,7 +174,11 @@ export default function CollectionScreen() {
   const vendorHeroLoading =
     isVendorLanding && (vendorSearch.isPending || (vendorSearch.isFetching && vendorProducts.length === 0))
   const heroShouldSkeleton = !heroImage && (heroMetaLoading || vendorHeroLoading || isLoadingProducts)
-  const heroState: "image" | "skeleton" | "fallback" = heroImage ? "image" : heroShouldSkeleton ? "skeleton" : "fallback"
+  const heroState: "image" | "skeleton" | "fallback" = heroImage
+    ? "image"
+    : heroShouldSkeleton
+      ? "skeleton"
+      : "fallback"
 
   // Auto-load more pages while searching and no results found yet
   useEffect(() => {
@@ -285,7 +289,12 @@ export default function CollectionScreen() {
                 <View className="flex-1 items-center justify-end pb-6">
                   <Text
                     className="text-white font-extrabold px-4 text-center"
-                    style={{ fontSize: titleSize }}
+                    style={{
+                      fontSize: titleSize,
+                      textShadowColor: "rgba(0,0,0,0.2)",
+                      textShadowOffset: { width: 0, height: 1 },
+                      textShadowRadius: 2,
+                    }}
                     numberOfLines={2}
                   >
                     {title}
@@ -303,7 +312,12 @@ export default function CollectionScreen() {
               <View className="flex-1 px-4 pb-6 items-center justify-end" style={{ backgroundColor: "#0f172a" }}>
                 <Text
                   className="text-white font-extrabold text-center"
-                  style={{ fontSize: titleSize }}
+                  style={{
+                    fontSize: titleSize,
+                    textShadowColor: "rgba(0,0,0,0.2)",
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 2,
+                  }}
                   numberOfLines={2}
                 >
                   {title}
