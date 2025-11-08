@@ -4,6 +4,7 @@ import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
+import { Skeleton } from "@/ui/feedback/Skeleton"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
@@ -43,6 +44,7 @@ function AccountContent() {
   })
 
   const avatar = useMemo(() => avatarFromProfile(profile), [profile])
+  const showProfileSkeleton = isLoading && !profile
 
   const handleLogout = useCallback(async () => {
     try {
@@ -142,69 +144,81 @@ function AccountContent() {
     >
       <View className="px-5 pt-6 pb-4 gap-7">
         <Card padding="lg" className="gap-5">
-          <View className="flex-row items-center gap-4">
-            <View
-              className="h-14 w-14 rounded-full items-center justify-center"
-              style={{ backgroundColor: avatar.color }}
-            >
-              <Text className="text-white font-geist-semibold text-[18px]">{avatar.initials}</Text>
-            </View>
-            <View className="flex-1 gap-2">
-              <View className="flex-row items-center gap-3">
-                <View className="flex-1 gap-1">
-                  <Text className="text-[#0f172a] font-geist-semibold text-[18px]">
-                    {profile?.displayName || (isLoading ? "Loading account…" : "Your account")}
-                  </Text>
-                  <Text className="text-[#475569] text-[14px] leading-[20px]">{contactLine}</Text>
-                  {memberSince ? (
-                    <Text className="text-[#94a3b8] text-[12px] leading-[18px]">Member since {memberSince}</Text>
-                  ) : null}
+          {showProfileSkeleton ? (
+            <AccountHeaderSkeleton />
+          ) : (
+            <View className="flex-row items-center gap-4">
+              <View
+                className="h-14 w-14 rounded-full items-center justify-center"
+                style={{ backgroundColor: avatar.color }}
+              >
+                <Text className="text-white font-geist-semibold text-[18px]">{avatar.initials}</Text>
+              </View>
+              <View className="flex-1 gap-2">
+                <View className="flex-row items-center gap-3">
+                  <View className="flex-1 gap-1">
+                    <Text className="text-[#0f172a] font-geist-semibold text-[18px]">
+                      {profile?.displayName || (isLoading ? "Loading account…" : "Your account")}
+                    </Text>
+                    <Text className="text-[#475569] text-[14px] leading-[20px]">{contactLine}</Text>
+                    {memberSince ? (
+                      <Text className="text-[#94a3b8] text-[12px] leading-[18px]">Member since {memberSince}</Text>
+                    ) : null}
+                  </View>
+                  <PressableOverlay
+                    onPress={() => router.push("/account/edit" as const)}
+                    className="h-10 w-10 rounded-2xl bg-[#e2e8f0] items-center justify-center"
+                  >
+                    <Pencil size={18} color="#0f172a" />
+                  </PressableOverlay>
                 </View>
-                <PressableOverlay
-                  onPress={() => router.push("/account/edit" as const)}
-                  className="h-10 w-10 rounded-2xl bg-[#e2e8f0] items-center justify-center"
-                >
-                  <Pencil size={18} color="#0f172a" />
-                </PressableOverlay>
               </View>
             </View>
-          </View>
+          )}
         </Card>
 
         <Section title="Quick access">
           <View className="gap-3">
-            {quickLinks.map((link) => {
-              const onPress = link.path ? () => router.push(link.path) : () => handleComingSoon(link.title)
-              return (
-                <AccountLink
-                  key={link.title}
-                  title={link.title}
-                  description={link.body}
-                  icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
-                  onPress={onPress}
-                />
-              )
-            })}
+            {showProfileSkeleton
+              ? Array.from({ length: Math.max(quickLinks.length, 3) }).map((_, idx) => (
+                  <AccountLinkSkeleton key={`quick-link-skel-${idx}`} />
+                ))
+              : quickLinks.map((link) => {
+                  const onPress = link.path ? () => router.push(link.path) : () => handleComingSoon(link.title)
+                  return (
+                    <AccountLink
+                      key={link.title}
+                      title={link.title}
+                      description={link.body}
+                      icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
+                      onPress={onPress}
+                    />
+                  )
+                })}
           </View>
         </Section>
 
         <Section title="Account settings">
           <View className="gap-3">
-            {supportLinks.map((link) => (
-              <AccountLink
-                key={link.title}
-                title={link.title}
-                description={link.body}
-                icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
-                onPress={link.path ? () => router.push(link.path) : () => handleComingSoon(link.title)}
-              />
-            ))}
+            {showProfileSkeleton
+              ? Array.from({ length: Math.max(supportLinks.length, 1) }).map((_, idx) => (
+                  <AccountLinkSkeleton key={`support-link-skel-${idx}`} />
+                ))
+              : supportLinks.map((link) => (
+                  <AccountLink
+                    key={link.title}
+                    title={link.title}
+                    description={link.body}
+                    icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
+                    onPress={link.path ? () => router.push(link.path) : () => handleComingSoon(link.title)}
+                  />
+                ))}
           </View>
         </Section>
 
         {__DEV__ ? (
           <Button
-            variant="ghost"
+            variant="outline"
             size="lg"
             fullWidth
             onPress={handleDebugExpireToken}
@@ -258,5 +272,31 @@ function AccountLink({
         </View>
       </Card>
     </PressableOverlay>
+  )
+}
+
+function AccountHeaderSkeleton() {
+  return (
+    <View className="flex-row items-center gap-4">
+      <Skeleton className="h-14 w-14 rounded-full" />
+      <View className="flex-1 gap-2">
+        <Skeleton className="h-5 w-3/4 rounded-full" />
+        <Skeleton className="h-4 w-1/2 rounded-full" />
+        <Skeleton className="h-3 w-1/3 rounded-full" />
+      </View>
+      <Skeleton className="h-10 w-10 rounded-2xl" />
+    </View>
+  )
+}
+
+function AccountLinkSkeleton() {
+  return (
+    <Card padding="lg" className="flex-row items-center gap-4">
+      <Skeleton className="h-12 w-12 rounded-2xl" />
+      <View className="flex-1 gap-2">
+        <Skeleton className="h-4 w-3/5 rounded-full" />
+        <Skeleton className="h-3 w-1/2 rounded-full" />
+      </View>
+    </Card>
   )
 }

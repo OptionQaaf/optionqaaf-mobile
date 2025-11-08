@@ -169,6 +169,13 @@ export default function CollectionScreen() {
     ? vendorSearch.isPending || (vendorSearch.isFetching && products.length === 0)
     : isCollectionPending || (isCollectionFetching && products.length === 0)
 
+  const metaHasData = Boolean(meta.data?.pages?.length)
+  const heroMetaLoading = meta.isPending || (meta.isFetching && !metaHasData)
+  const vendorHeroLoading =
+    isVendorLanding && (vendorSearch.isPending || (vendorSearch.isFetching && vendorProducts.length === 0))
+  const heroShouldSkeleton = !heroImage && (heroMetaLoading || vendorHeroLoading || isLoadingProducts)
+  const heroState: "image" | "skeleton" | "fallback" = heroImage ? "image" : heroShouldSkeleton ? "skeleton" : "fallback"
+
   // Auto-load more pages while searching and no results found yet
   useEffect(() => {
     const q = searchTerm.trim()
@@ -264,8 +271,8 @@ export default function CollectionScreen() {
           }}
         >
           {/* Hero */}
-          <View className="w-full" style={{ height: heroH }}>
-            {heroImage ? (
+          <View className="w-full overflow-hidden" style={{ height: heroH }}>
+            {heroState === "image" ? (
               <ImageBackground source={{ uri: heroImage }} resizeMode="cover" className="flex-1">
                 {LinearGradient ? (
                   <LinearGradient
@@ -285,7 +292,24 @@ export default function CollectionScreen() {
                   </Text>
                 </View>
               </ImageBackground>
-            ) : null}
+            ) : heroState === "skeleton" ? (
+              <View className="flex-1 bg-[#f1f5f9] px-4 pb-6 justify-end gap-3">
+                <View className="flex-row justify-center">
+                  <Skeleton className="h-5 w-24 rounded-full bg-white/70" />
+                </View>
+                <Skeleton className="h-12 w-3/4 self-center rounded-3xl bg-white/80" />
+              </View>
+            ) : (
+              <View className="flex-1 px-4 pb-6 items-center justify-end" style={{ backgroundColor: "#0f172a" }}>
+                <Text
+                  className="text-white font-extrabold text-center"
+                  style={{ fontSize: titleSize }}
+                  numberOfLines={2}
+                >
+                  {title}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Controls container */}

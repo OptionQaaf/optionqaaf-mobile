@@ -78,12 +78,14 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
   const drawerA = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }))
   const value = useMemo(() => ({ open, close, toggle }), [])
 
+  const DISABLED_EDGE_PAN_PATHS = [/^\/products\//, /^\/checkout\//, /^\/account\//]
+  const isEdgePanDisabled = DISABLED_EDGE_PAN_PATHS.some((rx) => rx.test(pathname))
+
   return (
     <DrawerContext.Provider value={value}>
       <View style={{ flex: 1 }}>{children}</View>
 
-      {/* Left-edge pan catcher to open the drawer (disabled on PDP) */}
-      {/^\/products\//.test(pathname) ? null : (
+      {isEdgePanDisabled ? null : (
         <GestureDetector gesture={edgePan}>
           <Animated.View
             style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: EDGE_W, backgroundColor: "transparent" }}

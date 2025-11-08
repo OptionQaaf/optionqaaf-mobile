@@ -52,15 +52,13 @@ export default function RootLayout() {
               <FontProvider onReady={() => setFontsReady(true)}>
                 <DrawerProvider>
                   <Stack
-                    screenOptions={{
+                    screenOptions={({ route }) => ({
                       headerShown: false,
                       animation: "fade",
                       animationDuration: 240,
-                      gestureEnabled: false,
-                    }}
-                  >
-                    <Stack.Screen name="products/[handle]" options={{ gestureEnabled: true }} />
-                  </Stack>
+                      gestureEnabled: route.name === "products/[handle]" || route.name.startsWith("account/"),
+                    })}
+                  />
                   <ToastHost />
                 </DrawerProvider>
               </FontProvider>
