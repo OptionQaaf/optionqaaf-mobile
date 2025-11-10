@@ -56,7 +56,10 @@ export default function RootLayout() {
                       headerShown: false,
                       animation: "fade",
                       animationDuration: 240,
-                      gestureEnabled: route.name === "products/[handle]" || route.name.startsWith("account/"),
+                      gestureEnabled:
+                        route.name === "products/[handle]" ||
+                        route.name.startsWith("account/") ||
+                        route.name.startsWith("collections"),
                     })}
                   />
                   <ToastHost />

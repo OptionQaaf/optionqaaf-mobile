@@ -263,9 +263,9 @@ function AccountLink({
   onPress: () => void
 }) {
   return (
-    <PressableOverlay onPress={onPress} className="rounded-2xl">
+    <PressableOverlay onPress={onPress} className="rounded-sm">
       <Card padding="lg" className="flex-row items-center gap-4">
-        <View className="h-12 w-12 rounded-2xl bg-[#f1f5f9] items-center justify-center">{icon}</View>
+        <View className="h-12 w-12 rounded-sm bg-[#f1f5f9] items-center justify-center">{icon}</View>
         <View className="flex-1 gap-1">
           <Text className="text-[#0f172a] font-geist-semibold text-[15px]">{title}</Text>
           <Text className="text-[#475569] text-[13px] leading-[18px]">{description}</Text>
@@ -278,11 +278,11 @@ function AccountLink({
 function AccountHeaderSkeleton() {
   return (
     <View className="flex-row items-center gap-4">
-      <Skeleton className="h-14 w-14 rounded-full" />
+      <Skeleton className="h-14 w-14 rounded-md" />
       <View className="flex-1 gap-2">
-        <Skeleton className="h-5 w-3/4 rounded-full" />
-        <Skeleton className="h-4 w-1/2 rounded-full" />
-        <Skeleton className="h-3 w-1/3 rounded-full" />
+        <Skeleton className="h-5 w-3/4 rounded-md" />
+        <Skeleton className="h-4 w-1/2 rounded-md" />
+        <Skeleton className="h-3 w-1/3 rounded-md" />
       </View>
       <Skeleton className="h-10 w-10 rounded-2xl" />
     </View>
@@ -294,8 +294,8 @@ function AccountLinkSkeleton() {
     <Card padding="lg" className="flex-row items-center gap-4">
       <Skeleton className="h-12 w-12 rounded-2xl" />
       <View className="flex-1 gap-2">
-        <Skeleton className="h-4 w-3/5 rounded-full" />
-        <Skeleton className="h-3 w-1/2 rounded-full" />
+        <Skeleton className="h-4 w-3/5 rounded-md" />
+        <Skeleton className="h-3 w-1/2 rounded-md" />
       </View>
     </Card>
   )

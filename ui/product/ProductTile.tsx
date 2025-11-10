@@ -22,6 +22,41 @@ type Props = {
   priority?: "low" | "normal" | "high"
 }
 
+const TILE_PRICE_SIZE_OVERRIDES: Record<
+  PriceSize,
+  {
+    amount: string
+    compare: string
+    discount: string
+  }
+> = {
+  xs: {
+    amount: "text-[10px]",
+    compare: "text-[8px]",
+    discount: "text-[9px]",
+  },
+  sm: {
+    amount: "text-[12px]",
+    compare: "text-[10px]",
+    discount: "text-[10px]",
+  },
+  md: {
+    amount: "text-[14px]",
+    compare: "text-[11px]",
+    discount: "text-[11px]",
+  },
+  lg: {
+    amount: "text-[16px]",
+    compare: "text-[12px]",
+    discount: "text-[12px]",
+  },
+  xl: {
+    amount: "text-[18px]",
+    compare: "text-[13px]",
+    discount: "text-[13px]",
+  },
+}
+
 export function ProductTile({
   image,
   brand,
@@ -56,11 +91,12 @@ export function ProductTile({
     if (targetW >= 170) return "sm"
     return "xs"
   })()
+  const priceOverride = TILE_PRICE_SIZE_OVERRIDES[priceSize]
 
   return (
     <Pressable
       onPress={onPress}
-      className={cn("active:opacity-95 rounded-md overflow-hidden border-gray-200 border", className)}
+      className={cn("active:opacity-95 rounded-sm overflow-hidden border-gray-200 border", className)}
       style={width ? { width } : undefined}
     >
       <View className={cn(cardChrome, "overflow-hidden")}>
@@ -79,14 +115,22 @@ export function ProductTile({
         <View className={cn(pad, "gap-2")}>
           <View style={{ minHeight: titleLineHeight * titleLines, justifyContent: "flex-start" }}>
             <Text
-              className="text-primary text-[12px] font-semibold"
+              className="text-primary text-[14px] font-semibold"
               style={{ lineHeight: titleLineHeight }}
               numberOfLines={titleLines}
             >
               {title}
             </Text>
           </View>
-          <Price amount={price} compareAt={compareAt} currency={currency} size={priceSize} />
+          <Price
+            amount={price}
+            compareAt={compareAt}
+            currency={currency}
+            size={priceSize}
+            amountClassName={priceOverride.amount}
+            compareAtClassName={priceOverride.compare}
+            discountClassName={priceOverride.discount}
+          />
         </View>
       </View>
     </Pressable>

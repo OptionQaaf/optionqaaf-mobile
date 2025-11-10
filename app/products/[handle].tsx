@@ -270,15 +270,6 @@ export default function ProductScreen() {
                 />
               ))}
 
-              {/* Description accordion: preload closed; open when ready */}
-              <View className="mt-2 px-2">
-                <Accordion defaultValue="desc" /* don’t control it unless needed */>
-                  <Accordion.Item value="desc" title="Description" appearance="inline" keepMounted>
-                    <ProductDescriptionNative html={(product as any)?.descriptionHtml} />
-                  </Accordion.Item>
-                </Accordion>
-              </View>
-
               {vendor ? (
                 <View className="my-2">
                   <BrandCard
@@ -293,6 +284,15 @@ export default function ProductScreen() {
                   />
                 </View>
               ) : null}
+
+              {/* Description accordion: preload closed; open when ready */}
+              <View className="mt-2 px-2">
+                <Accordion defaultValue="desc" /* don’t control it unless needed */>
+                  <Accordion.Item value="desc" title="Description" appearance="inline" keepMounted>
+                    <ProductDescriptionNative html={(product as any)?.descriptionHtml} />
+                  </Accordion.Item>
+                </Accordion>
+              </View>
 
               {/* Inline Add to Cart (pill) */}
               <Animated.View style={inlineStyle} className="mt-2">

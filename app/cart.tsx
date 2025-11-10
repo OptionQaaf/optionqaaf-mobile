@@ -354,12 +354,12 @@ export default function CartScreen() {
             entering={MOTION.enter.fadeDown}
             exiting={MOTION.exit.fadeUp}
             layout={MOTION.spring()}
-            className="flex-row gap-3 p-3 mb-3 rounded-2xl bg-surface border border-border"
+            className="flex-row gap-3 p-3 mb-3 rounded-md bg-surface border border-border"
             accessibilityRole="summary"
           >
             <PressableOverlay
               onPress={goToPDP}
-              className="rounded-2xl overflow-hidden"
+              className="rounded-md overflow-hidden"
               accessibilityLabel="Open product"
             >
               <Image

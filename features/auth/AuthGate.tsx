@@ -46,7 +46,7 @@ type SignInPromptProps = {
 
 export function SignInPrompt({
   title = "Sign in to continue",
-  description = "Customer-only features need a quick login with your Shopify account.",
+  description = "Customer-only features need a quick login with your OptionQaaf account.",
   buttonLabel = "Sign in",
   onSuccess,
   bleedTopImage = false,
@@ -137,7 +137,7 @@ export function SignInPrompt({
               {buttonLabel}
             </Button>
             <Text className="text-center text-[#64748b] text-[12px] leading-[18px] px-4">
-              Shopify handles the secure part. We’ll bring you right back here when you’re done.
+              We handle the secure part. We’ll bring you right back here when you’re done.
             </Text>
           </View>
         </View>

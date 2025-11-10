@@ -25,7 +25,7 @@ export function AccountSignInFallback({ onSuccess }: Props) {
           <SignInPrompt
             title="Sign in to your account"
             description="Unlock your orders, wishlist, and saved checkout details in one place."
-            buttonLabel="Sign in with Shopify"
+            buttonLabel="Sign in"
             onSuccess={onSuccess}
             bleedTopImage
             showBackgroundImage={false}

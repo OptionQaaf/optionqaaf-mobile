@@ -8,6 +8,7 @@ import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
+import { ProductTileSkeleton } from "@/ui/product/ProductTileSkeleton"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { router, useLocalSearchParams } from "expo-router"
 import { LayoutGrid, Square } from "lucide-react-native"
@@ -25,6 +26,9 @@ import {
   useWindowDimensions,
   View,
 } from "react-native"
+
+const GRID_GAP = 8
+const NEXT_PAGE_SKELETON_ROWS = 1
 
 // Optional gradient for hero overlay
 let LinearGradient: any
@@ -70,8 +74,8 @@ export default function CollectionScreen() {
   const [view, setView] = useState<1 | 2>(2)
 
   // sorting/filters
-  type SortOption = "featured" | "newest" | "priceAsc" | "priceDesc"
-  const [sort, setSort] = useState<SortOption>("featured")
+  type SortOption = "newest" | "featured" | "priceAsc" | "priceDesc"
+  const [sort, setSort] = useState<SortOption>("newest")
 
   const sortKey: ProductCollectionSortKeys =
     sort === "featured" ? "BEST_SELLING" : sort === "newest" ? "CREATED" : "PRICE"
@@ -115,16 +119,16 @@ export default function CollectionScreen() {
 
   const pillFilters = [
     {
-      key: "featured",
-      label: "Best Selling",
-      onPress: () => setSort("featured" as SortOption),
-      active: sort === "featured",
-    },
-    {
       key: "newest",
       label: "Newest Drops",
       onPress: () => setSort("newest" as SortOption),
       active: sort === "newest",
+    },
+    {
+      key: "featured",
+      label: "Best Selling",
+      onPress: () => setSort("featured" as SortOption),
+      active: sort === "featured",
     },
     {
       key: "priceAsc",
@@ -179,6 +183,23 @@ export default function CollectionScreen() {
     : heroShouldSkeleton
       ? "skeleton"
       : "fallback"
+
+  const gridItems = useMemo(() => {
+    if (isLoadingProducts || !activeIsFetchingNextPage) {
+      return visibleProducts
+    }
+    const remainder = visibleProducts.length % view
+    const fillCount = remainder === 0 ? 0 : view - remainder
+    const skeletonCount = fillCount + view * NEXT_PAGE_SKELETON_ROWS
+    const placeholders =
+      skeletonCount > 0
+        ? Array.from({ length: skeletonCount }, (_, idx) => ({
+            __skeleton: true,
+            _key: `grid-skeleton-${idx}`,
+          }))
+        : []
+    return [...visibleProducts, ...placeholders]
+  }, [visibleProducts, activeIsFetchingNextPage, view, isLoadingProducts])
 
   // Auto-load more pages while searching and no results found yet
   useEffect(() => {
@@ -368,7 +389,7 @@ export default function CollectionScreen() {
                   <Pressable
                     key={pill.key}
                     onPress={pill.onPress}
-                    className={`py-2.5 px-4 rounded-full ${pill.active ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
+                    className={`py-2.5 px-4 rounded-sm ${pill.active ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
                   >
                     <Text className={`${pill.active ? "text-white" : "text-neutral-900"} font-bold`}>{pill.label}</Text>
                   </Pressable>
@@ -378,24 +399,16 @@ export default function CollectionScreen() {
           </View>
 
           {/* Products */}
-          <View className="mt-4">
+          <View className="mt-4 mb-8">
             {isLoadingProducts ? (
-              <View className="px-4 gap-3">
-                {view === 2
-                  ? Array.from({ length: 3 }).map((_, idx) => (
-                      <View key={`skeleton-row-${idx}`} className="flex-row gap-3">
-                        <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
-                        <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
-                      </View>
-                    ))
-                  : Array.from({ length: 4 }).map((_, idx) => (
-                      <Skeleton
-                        key={`skeleton-item-${idx}`}
-                        className="w-full rounded-3xl"
-                        style={{ aspectRatio: 3 / 4 }}
-                      />
-                    ))}
-              </View>
+              <StaticProductGrid
+                data={Array.from({ length: view === 2 ? 6 : 4 }, (_, idx) => idx)}
+                columns={view}
+                gap={GRID_GAP}
+                renderItem={(_, itemW: number) => (
+                  <ProductTileSkeleton width={itemW} imageRatio={3 / 4} padding={view === 2 ? "sm" : "md"} />
+                )}
+              />
             ) : (
               <>
                 {visibleProducts.length === 0 ? (
@@ -405,47 +418,37 @@ export default function CollectionScreen() {
                   </View>
                 ) : null}
                 <StaticProductGrid
-                  data={visibleProducts}
+                  data={gridItems}
                   columns={view}
-                  gap={8}
-                  renderItem={(item: any, itemW: number) => (
-                    <ProductTile
-                      image={item?.featuredImage?.url ?? ""}
-                      brand={item?.vendor ?? ""}
-                      title={item?.title ?? ""}
-                      price={Number(item?.priceRange?.minVariantPrice?.amount ?? 0)}
-                      compareAt={(() => {
-                        const cmp = Number(item?.compareAtPriceRange?.minVariantPrice?.amount ?? 0)
-                        const amt = Number(item?.priceRange?.minVariantPrice?.amount ?? 0)
-                        return cmp > amt ? cmp : undefined
-                      })()}
-                      currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
-                      width={itemW}
-                      imageRatio={3 / 4}
-                      padding={view === 2 ? "sm" : "md"}
-                      onPress={() => {
-                        const h = item?.handle
-                        if (h) router.push(`/products/${h}` as any)
-                      }}
-                    />
-                  )}
+                  gap={GRID_GAP}
+                  renderItem={(item: any, itemW: number) =>
+                    item?.__skeleton ? (
+                      <ProductTileSkeleton width={itemW} imageRatio={3 / 4} padding={view === 2 ? "sm" : "md"} />
+                    ) : (
+                      <ProductTile
+                        image={item?.featuredImage?.url ?? ""}
+                        brand={item?.vendor ?? ""}
+                        title={item?.title ?? ""}
+                        price={Number(item?.priceRange?.minVariantPrice?.amount ?? 0)}
+                        compareAt={(() => {
+                          const cmp = Number(item?.compareAtPriceRange?.minVariantPrice?.amount ?? 0)
+                          const amt = Number(item?.priceRange?.minVariantPrice?.amount ?? 0)
+                          return cmp > amt ? cmp : undefined
+                        })()}
+                        currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
+                        width={itemW}
+                        imageRatio={3 / 4}
+                        padding={view === 2 ? "sm" : "md"}
+                        onPress={() => {
+                          const h = item?.handle
+                          if (h) router.push(`/products/${h}` as any)
+                        }}
+                      />
+                    )
+                  }
                 />
 
-                {/* Infinite loading skeletons */}
-                {activeIsFetchingNextPage ? (
-                  <View className="mt-3">
-                    {view === 2 ? (
-                      <View className="flex-row">
-                        <Skeleton className="flex-1 " style={{ aspectRatio: 3 / 4 }} />
-                        <Skeleton className="flex-1 " style={{ aspectRatio: 3 / 4 }} />
-                      </View>
-                    ) : (
-                      <View>
-                        <Skeleton className="" style={{ aspectRatio: 3 / 4 }} />
-                      </View>
-                    )}
-                  </View>
-                ) : visibleProducts.length > 0 && reachedCap ? (
+                {visibleProducts.length > 0 && reachedCap && !activeIsFetchingNextPage ? (
                   <View className="py-6 items-center">
                     <Text className="text-gray-500">You’ve reached the end</Text>
                   </View>

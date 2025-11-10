@@ -1,7 +1,7 @@
-import { optimizeImageUrl, DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
+import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
+import { Skeleton } from "@/ui/feedback/Skeleton"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Button } from "@/ui/primitives/Button"
-import { Skeleton } from "@/ui/feedback/Skeleton"
 import { cn } from "@/ui/utils/cva"
 import { Image as ExpoImage } from "expo-image"
 import { ChevronRight } from "lucide-react-native"
@@ -23,14 +23,7 @@ type Props = {
   onPress?: () => void
 }
 
-export const BrandCard = memo(function BrandCard({
-  name,
-  productCount,
-  images,
-  priceRange,
-  loading,
-  onPress,
-}: Props) {
+export const BrandCard = memo(function BrandCard({ name, productCount, images, priceRange, loading, onPress }: Props) {
   const formatter = useMemo(() => {
     if (!priceRange) return null
     try {
@@ -76,7 +69,6 @@ export const BrandCard = memo(function BrandCard({
       haptic="light"
     >
       <View className="flex-1 pr-4">
-        <Text className="text-[12px] uppercase tracking-[2px] text-neutral-500">Brand</Text>
         <Text className="mt-1 text-[18px] font-extrabold text-primary" numberOfLines={1}>
           {name}
         </Text>

@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query"
 export type CollectionSummary = {
   handle: string
   title: string
-  image?: string
+  image: string
 }
 
 export function useCollectionsSummary(handles: string[], take = 3) {
