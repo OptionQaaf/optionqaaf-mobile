@@ -229,8 +229,6 @@ export default function CollectionScreen() {
   // If special men-1 / women-1: render aesthetic sections + PLP-like grid
   if (special) {
     const sections = specialSections
-    const capsuleHandles = specialCapsuleHandles
-    const products = (specialSearch?.pages?.flatMap((p) => p.nodes) ?? []).slice(0, 24)
     const go = (url?: string) => {
       if (!url) return
       const ABS = /^(https?:|mailto:|tel:|sms:)/i
@@ -241,33 +239,9 @@ export default function CollectionScreen() {
       <Screen bleedBottom bleedTop>
         <View className="flex-1 bg-white">
           <MenuBar floating />
-          <PageScrollView contentContainerStyle={{ paddingBottom: 16 }} contentContainerClassName="bg-white">
+          <PageScrollView contentContainerClassName="bg-white">
             <View className="pt-0">
-              {/* Metaobject sections drive the composed landing */}
               <MetaobjectSectionList sections={sections} onNavigate={go} />
-
-              <View className="px-3 mt-4">
-                <Text className="text-[26px] font-extrabold text-primary mb-2">{special.title}</Text>
-                <StaticProductGrid
-                  data={products}
-                  columns={2}
-                  gap={8}
-                  renderItem={(item: any, w: number) => (
-                    <ProductTile
-                      image={item?.featuredImage?.url ?? ""}
-                      brand={item?.vendor ?? ""}
-                      title={item?.title ?? ""}
-                      price={Number(item?.priceRange?.minVariantPrice?.amount ?? 0)}
-                      compareAt={undefined}
-                      currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
-                      width={w}
-                      imageRatio={3 / 4}
-                      padding="sm"
-                      onPress={() => item?.handle && router.push(`/products/${item.handle}` as any)}
-                    />
-                  )}
-                />
-              </View>
             </View>
           </PageScrollView>
         </View>
