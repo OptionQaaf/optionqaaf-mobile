@@ -1,18 +1,21 @@
 import { Pressable, Text as RNText, View, useWindowDimensions } from "react-native"
+import type { SectionSize } from "@/lib/shopify/services/home"
+import { sizeScale } from "./sectionSize"
 
-type Props = { title?: string; theme?: string; onPress?: () => void }
+type Props = { title?: string; theme?: string; onPress?: () => void; size?: SectionSize }
 
-export function EditorialQuote({ title, theme = "light", onPress }: Props) {
+export function EditorialQuote({ title, theme = "light", onPress, size }: Props) {
   const light = theme === "light"
   const { width } = useWindowDimensions()
-  const size = Math.round(Math.min(72, Math.max(36, width * 0.12)))
-  const line = Math.round(size * 1.05)
+  const scale = sizeScale(size)
+  const fontSize = Math.round(Math.min(72, Math.max(36, width * 0.12 * scale)))
+  const line = Math.round(fontSize * 1.05)
   return (
     <Pressable onPress={onPress}>
       <View className={light ? "bg-white" : "bg-black"}>
         <RNText
-          className={`p-4 font-extrabold ${light ? "text-black" : "text-white"}`}
-          style={{ fontSize: size, lineHeight: line }}
+          className={`font-extrabold ${light ? "text-black" : "text-white"}`}
+          style={{ fontSize, lineHeight: line, padding: 16 * scale }}
         >
           {title}
         </RNText>

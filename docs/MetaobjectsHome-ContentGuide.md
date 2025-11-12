@@ -69,7 +69,7 @@ You can create seasonal versions (e.g. `ramadan-home`) and share the handle with
 
 ## 5. Section Library & Checklists
 
-Use the “Kind” dropdown in your section to select one of the layouts below.
+Use the “Kind” dropdown in your section to select one of the layouts below. Every section also has a **Size** dropdown (Small / Medium / Large) that scales the height/spacing of the block in the app. Leave it on **Medium** unless you explicitly want a compact or oversized treatment.
 
 ### Hero Poster — `hero_poster`
 Best for a main campaign image.

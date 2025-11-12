@@ -2,6 +2,8 @@ import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { Image } from "expo-image"
 import { memo } from "react"
 import { PixelRatio, Pressable, Text, View } from "react-native"
+import type { SectionSize } from "@/lib/shopify/services/home"
+import { sizeScale } from "./sectionSize"
 
 type QuiltItem = {
   image?: { url: string }
@@ -18,6 +20,7 @@ type QuiltItem = {
 type Props = {
   items?: QuiltItem[]
   onPressItem?: (url: string | undefined, index: number) => void
+  size?: SectionSize
 }
 
 const layoutRatio = (layout?: string) => {
@@ -32,8 +35,9 @@ const layoutRatio = (layout?: string) => {
 
 const defaultLayouts = ["portrait", "portrait", "portrait", "landscape", "statement"]
 
-export const PosterQuilt = memo(function PosterQuilt({ items = [], onPressItem }: Props) {
+export const PosterQuilt = memo(function PosterQuilt({ items = [], onPressItem, size }: Props) {
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
+  const scale = sizeScale(size)
   if (!items.length) return null
 
   const safeItems = items.slice(0, 6)
@@ -53,7 +57,7 @@ export const PosterQuilt = memo(function PosterQuilt({ items = [], onPressItem }
         className="flex-1"
         accessibilityRole="button"
       >
-        <View style={{ aspectRatio: ratio }} className="relative overflow-hidden">
+        <View style={{ aspectRatio: ratio, minHeight: 180 * scale }} className="relative overflow-hidden">
           {!!item.image?.url ? (
             <Image
               source={{
@@ -76,16 +80,23 @@ export const PosterQuilt = memo(function PosterQuilt({ items = [], onPressItem }
           )}
 
           <View className="absolute inset-0">
-            <View className={`flex-1 px-4 py-4 justify-end ${justify}`}>
+            <View
+              className={`flex-1 justify-end ${justify}`}
+              style={{ paddingHorizontal: 16 * scale, paddingVertical: 16 * scale }}
+            >
               {item.eyebrow ? (
-                <Text className="text-xs uppercase tracking-[3px] text-white/80" numberOfLines={1}>
+                <Text
+                  className="text-xs uppercase tracking-[3px] text-white/80"
+                  numberOfLines={1}
+                  style={{ fontSize: 12 * scale }}
+                >
                   {item.eyebrow}
                 </Text>
               ) : null}
               {item.title ? (
                 <Text
                   className={`text-[22px] font-extrabold ${titleAlign}`}
-                  style={{ color: foreground }}
+                  style={{ color: foreground, fontSize: 22 * scale }}
                   numberOfLines={3}
                 >
                   {item.title}
@@ -94,7 +105,7 @@ export const PosterQuilt = memo(function PosterQuilt({ items = [], onPressItem }
               {item.subtitle ? (
                 <Text
                   className={`mt-2 text-sm opacity-85 ${titleAlign}`}
-                  style={{ color: foreground }}
+                  style={{ color: foreground, fontSize: 14 * scale }}
                   numberOfLines={3}
                 >
                   {item.subtitle}

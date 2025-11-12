@@ -8,6 +8,8 @@ import Animated, {
   withRepeat,
   withTiming,
 } from "react-native-reanimated"
+import type { SectionSize } from "@/lib/shopify/services/home"
+import { sizeScale } from "./sectionSize"
 
 type Props = {
   text?: string
@@ -15,15 +17,25 @@ type Props = {
   theme?: "light" | "dark" | (string & {})
   height?: number
   onPress?: () => void
+  size?: SectionSize
 }
 
 const NBSP = "\u00A0" // non-breaking space
 const DEFAULT_SPEED = 30
 
-export function RibbonMarquee({ text = "OPTIONQAAF", speed = DEFAULT_SPEED, theme = "light", height = 32, onPress }: Props) {
+export function RibbonMarquee({
+  text = "OPTIONQAAF",
+  speed = DEFAULT_SPEED,
+  theme = "light",
+  height = 32,
+  onPress,
+  size,
+}: Props) {
   const { width: screenW } = useWindowDimensions()
   const colorBg = theme === "dark" ? "#0B0B0B" : "#8E1A26"
   const colorFg = theme === "dark" ? "#FFFFFF" : "#FFEDED"
+  const scale = sizeScale(size)
+  const ribbonHeight = Math.max(20, Math.round(height * scale))
 
   // one logical "unit" with bullet + NBSP spacing (doesn't collapse)
   const normalized = useMemo(() => (text?.trim() ? text.trim() : "OPTIONQAAF"), [text])
@@ -109,8 +121,8 @@ export function RibbonMarquee({ text = "OPTIONQAAF", speed = DEFAULT_SPEED, them
     letterSpacing: 1.5 as number,
     includeFontPadding: false,
     textAlignVertical: "center" as const,
-    lineHeight: height,
-    fontSize: 10,
+    lineHeight: ribbonHeight,
+    fontSize: 10 * scale,
     fontWeight: "700" as const,
   }
 
@@ -129,7 +141,7 @@ export function RibbonMarquee({ text = "OPTIONQAAF", speed = DEFAULT_SPEED, them
   return (
     <Pressable onPress={onPress} style={{ backgroundColor: colorBg }}>
       {/* ribbon */}
-      <View style={{ height, overflow: "hidden" }}>
+      <View style={{ height: ribbonHeight, overflow: "hidden" }}>
         <Animated.View style={[{ flexDirection: "row" }, animatedStyle]}>
           <SegmentRow onLayout={shouldMeasure ? (e) => handleMeasure(e.nativeEvent.layout.width) : undefined} />
           {/* duplicate back-to-back, so the screen is always filled */}

@@ -2,6 +2,8 @@ import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { Image } from "expo-image"
 import { memo } from "react"
 import { PixelRatio, Pressable, Text, View } from "react-native"
+import type { SectionSize } from "@/lib/shopify/services/home"
+import { sizeScale } from "./sectionSize"
 
 type PosterItem = {
   image?: { url: string }
@@ -18,10 +20,12 @@ type PosterItem = {
 type Props = {
   items?: PosterItem[]
   onPressItem?: (url: string | undefined, index: number) => void
+  size?: SectionSize
 }
 
-export const PosterTriptych = memo(function PosterTriptych({ items = [], onPressItem }: Props) {
+export const PosterTriptych = memo(function PosterTriptych({ items = [], onPressItem, size }: Props) {
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
+  const scale = sizeScale(size)
 
   if (!items.length) return null
 
@@ -50,7 +54,7 @@ export const PosterTriptych = memo(function PosterTriptych({ items = [], onPress
               className="flex-1"
               accessibilityRole="button"
             >
-              <View style={{ aspectRatio: ratio }} className="relative">
+              <View style={{ aspectRatio: ratio, minHeight: 200 * scale }} className="relative">
                 {!!item.image?.url ? (
                   <Image
                     source={{
@@ -73,16 +77,23 @@ export const PosterTriptych = memo(function PosterTriptych({ items = [], onPress
                 )}
 
                 <View className="absolute inset-0 justify-end">
-                  <View className={`px-3 py-4 ${textAlign}`} style={{ backgroundColor: background }}>
+                  <View
+                    className={textAlign}
+                    style={{ backgroundColor: background, paddingHorizontal: 12 * scale, paddingVertical: 16 * scale }}
+                  >
                     {item.eyebrow ? (
-                      <Text className="text-xs uppercase tracking-[3px] text-white/80" numberOfLines={1}>
+                      <Text
+                        className="text-xs uppercase tracking-[3px] text-white/80"
+                        numberOfLines={1}
+                        style={{ fontSize: 12 * scale }}
+                      >
                         {item.eyebrow}
                       </Text>
                     ) : null}
                     {item.title ? (
                       <Text
                         className={`text-[20px] font-extrabold mt-1 ${titleAlign}`}
-                        style={{ color: foreground }}
+                        style={{ color: foreground, fontSize: 20 * scale }}
                         numberOfLines={2}
                       >
                         {item.title}
@@ -91,7 +102,7 @@ export const PosterTriptych = memo(function PosterTriptych({ items = [], onPress
                     {item.subtitle ? (
                       <Text
                         className={`text-sm mt-1 opacity-80 ${subtitleAlign}`}
-                        style={{ color: foreground }}
+                        style={{ color: foreground, fontSize: 14 * scale }}
                         numberOfLines={2}
                       >
                         {item.subtitle}

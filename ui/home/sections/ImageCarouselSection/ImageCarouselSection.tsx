@@ -1,9 +1,10 @@
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
-import type { PosterCell } from "@/lib/shopify/services/home"
+import type { PosterCell, SectionSize } from "@/lib/shopify/services/home"
 import { Image } from "expo-image"
 import { memo, useState } from "react"
 import { Dimensions, Pressable, View } from "react-native"
 import Carousel from "react-native-reanimated-carousel"
+import { sizeScale } from "../sectionSize"
 
 type CarouselItem = Pick<PosterCell, "image" | "url">
 
@@ -11,20 +12,22 @@ type Props = {
   items?: CarouselItem[]
   height?: number
   onPressItem?: (url: string | undefined, index: number) => void
+  size?: SectionSize
 }
 
 const { width: screenWidth } = Dimensions.get("window")
 
-export const ImageCarouselSection = memo(function ImageCarouselSection({ items = [], height, onPressItem }: Props) {
+export const ImageCarouselSection = memo(function ImageCarouselSection({ items = [], height, onPressItem, size }: Props) {
   const slides = (items ?? []).filter((x) => x.image?.url)
   const [activeIndex, setActiveIndex] = useState(0)
 
   if (!slides.length) return null
 
+  const scale = sizeScale(size)
   const slideHeight =
     typeof height === "number" && Number.isFinite(height)
-      ? Math.max(200, height)
-      : Math.round(Math.min(Math.max(screenWidth * 0.85, 340), 520))
+      ? Math.max(200, height * scale)
+      : Math.round(Math.min(Math.max(screenWidth * 0.85, 340), 520) * scale)
 
   const optimized = slides.map(
     (item) =>

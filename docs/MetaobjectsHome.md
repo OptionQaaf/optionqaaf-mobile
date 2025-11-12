@@ -10,6 +10,8 @@ This document explains how Shopify metaobjects drive the mobile Home, Men, and W
 - A `mobile_home` entry exposes a `sections` list. Each list item references a `mobile_home_section` metaobject.
 - Every section has a `kind` that maps to a React Native component plus a set of fields. Unknown kinds are ignored safely.
 - Optional gating fields (`country`, `language`, `startAt`, `endAt`) let you target locales and schedule campaigns.
+- The `kind` field is case insensitive—`Trio Grid`, `trio-grid`, or `TRIO_GRID` all resolve to `trio_grid`.
+- Locale gates are also case-insensitive, so entering `sa` / `en` works the same as `SA` / `EN`.
 
 ---
 
@@ -21,6 +23,7 @@ Top-level metaobject (`mobile_home`):
 
 Section metaobject (`mobile_home_section`):
 - Common fields: `kind`, `title`, `subtitle`, `url` (or `link`), `theme`, `country`, `language`, `startAt`, `endAt`.
+- Global field: `size` — choose `small`, `medium` (default), or `large` to control how much vertical space the section occupies.
 - Kind fields: images (`image`, `image2`, `image3`…), `speed`, `align`, `background`, `foreground`, `count`, `collection`, etc.
 - The service accepts `foo2` or `foo_2` style suffixes for second/third items (`image2`, `image_2`, …).
 

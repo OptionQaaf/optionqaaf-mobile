@@ -1,27 +1,57 @@
 import { callShopify, shopifyClient } from "@/lib/shopify/client"
-import { type LocalePrefs } from "@/lib/shopify/env"
 import { gql } from "graphql-tag"
 
-type ProductVendorsQuery = {
-  shop?: {
-    productVendors?: {
-      edges?: Array<{ node?: string | null } | null> | null
-      pageInfo?: { hasNextPage?: boolean | null; endCursor?: string | null } | null
-    } | null
+type ProductVendorIndexQuery = {
+  products?: {
+    edges?: Array<{ node?: { vendor?: string | null } | null } | null> | null
+    pageInfo?: { hasNextPage?: boolean | null; endCursor?: string | null } | null
   } | null
 }
 
-const PRODUCT_VENDORS_DOCUMENT = gql`
-  query ProductVendors($pageSize: Int!, $cursor: String, $language: LanguageCode, $country: CountryCode)
+const PRODUCT_VENDOR_INDEX_DOCUMENT = gql`
+  query ProductVendorIndex($pageSize: Int!, $cursor: String, $language: LanguageCode, $country: CountryCode)
     @inContext(language: $language, country: $country) {
-    shop {
-      productVendors(first: $pageSize, after: $cursor) {
-        edges {
-          node
+    products(first: $pageSize, after: $cursor, sortKey: VENDOR) {
+      edges {
+        node {
+          vendor
         }
-        pageInfo {
-          hasNextPage
-          endCursor
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`
+
+type BrandPreviewQuery = {
+  products?: {
+    nodes?: Array<{
+      handle?: string | null
+      vendor?: string | null
+      featuredImage?: {
+        url: string
+        width?: number | null
+        height?: number | null
+        altText?: string | null
+      } | null
+    } | null> | null
+  } | null
+}
+
+const BRAND_PREVIEW_DOCUMENT = gql`
+  query BrandPreview($query: String!, $language: LanguageCode, $country: CountryCode)
+    @inContext(language: $language, country: $country) {
+    products(first: 1, query: $query) {
+      nodes {
+        handle
+        vendor
+        featuredImage {
+          url
+          width
+          height
+          altText
         }
       }
     }
@@ -39,6 +69,21 @@ export type BrandSummary = {
   }
 }
 
+type LocalePrefs = {
+  language?: string | null
+  country?: string | null
+}
+
+export type BrandPreview = {
+  handle?: string | null
+  image?: {
+    url: string
+    width?: number | null
+    height?: number | null
+    altText?: string | null
+  } | null
+}
+
 const PAGE_SIZE = 250
 const MAX_PAGES = 40
 
@@ -48,8 +93,8 @@ type FetchArgs = {
 }
 
 async function fetchVendorPage({ after, locale }: FetchArgs) {
-  return callShopify<ProductVendorsQuery>(() =>
-    shopifyClient.request(PRODUCT_VENDORS_DOCUMENT, {
+  return callShopify<ProductVendorIndexQuery>(() =>
+    shopifyClient.request(PRODUCT_VENDOR_INDEX_DOCUMENT, {
       pageSize: PAGE_SIZE,
       cursor: after ?? null,
       language: locale?.language as any,
@@ -63,6 +108,11 @@ function vendorUrl(name: string) {
   return `/collections/vendors?q=${query}`
 }
 
+function vendorQuery(vendor: string) {
+  const escaped = vendor.replace(/"/g, '\\"')
+  return `vendor:"${escaped}"`
+}
+
 export async function getAllBrands(locale?: LocalePrefs): Promise<BrandSummary[]> {
   const brands = new Set<string>()
   let after: string | null | undefined
@@ -71,15 +121,15 @@ export async function getAllBrands(locale?: LocalePrefs): Promise<BrandSummary[]
 
   while (hasNext && guard < MAX_PAGES) {
     const result = await fetchVendorPage({ after, locale })
-    const edges = result?.shop?.productVendors?.edges ?? []
+    const edges = result?.products?.edges ?? []
 
     for (const edge of edges) {
-      const name = edge?.node?.trim()
+      const name = edge?.node?.vendor?.trim()
       if (!name) continue
       brands.add(name)
     }
 
-    const pageInfo = result?.shop?.productVendors?.pageInfo
+    const pageInfo = result?.products?.pageInfo
     hasNext = Boolean(pageInfo?.hasNextPage)
     after = pageInfo?.endCursor ?? null
     guard += 1
@@ -90,4 +140,27 @@ export async function getAllBrands(locale?: LocalePrefs): Promise<BrandSummary[]
   return Array.from(brands)
     .sort((a, b) => a.localeCompare(b))
     .map((name) => ({ name, url: vendorUrl(name) }))
+}
+
+export async function getBrandPreview(vendor: string, locale?: LocalePrefs): Promise<BrandPreview | null> {
+  const trimmed = vendor?.trim()
+  if (!trimmed) return null
+  const result = await callShopify<BrandPreviewQuery>(() =>
+    shopifyClient.request(BRAND_PREVIEW_DOCUMENT, {
+      query: vendorQuery(trimmed),
+      language: locale?.language as any,
+      country: locale?.country as any,
+    }),
+  )
+  const node = result?.products?.nodes?.[0]
+  if (!node?.featuredImage?.url) return null
+  return {
+    handle: node.handle ?? undefined,
+    image: {
+      url: node.featuredImage.url,
+      width: node.featuredImage.width,
+      height: node.featuredImage.height,
+      altText: node.featuredImage.altText,
+    },
+  }
 }

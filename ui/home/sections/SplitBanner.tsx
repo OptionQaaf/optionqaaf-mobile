@@ -1,6 +1,8 @@
 import { Pressable, Text as RNText, View, useWindowDimensions, StyleSheet, PixelRatio } from "react-native"
 import { Image } from "expo-image"
 import { optimizeImageUrl, DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
+import type { SectionSize } from "@/lib/shopify/services/home"
+import { sizeScale } from "./sectionSize"
 
 // Lazy import so it doesn't explode if not installed; we fall back to a flat tint.
 let LinearGradient: any
@@ -22,6 +24,7 @@ type Props = {
   tint?: number
   /** force uppercase title */
   uppercaseTitle?: boolean
+  size?: SectionSize
 }
 
 export function SplitBanner({
@@ -35,8 +38,11 @@ export function SplitBanner({
   height = 320,
   tint = 0.45,
   uppercaseTitle = true,
+  size,
 }: Props) {
   const { width } = useWindowDimensions()
+  const scale = sizeScale(size)
+  const bannerHeight = Math.round((height ?? 320) * scale)
   const aClass =
     align === "center"
       ? "items-center text-center"
@@ -52,7 +58,7 @@ export function SplitBanner({
   const brand = "#8E1A26"
 
   // responsive headline sizing (by width, clamped)
-  const titleSize = Math.round(Math.min(84, Math.max(38, width * 0.14)))
+  const titleSize = Math.round(Math.min(84, Math.max(38, width * 0.14)) * scale)
   const titleLine = Math.round(titleSize * 1.05)
 
   const Title = () =>
@@ -76,7 +82,7 @@ export function SplitBanner({
       <RNText
         style={{
           color: isBrand ? brand : subFg,
-          fontSize: 13,
+          fontSize: 13 * scale,
           letterSpacing: 1.4,
           textTransform: "uppercase",
           marginBottom: 6,
@@ -93,14 +99,14 @@ export function SplitBanner({
           className="font-geist-medium"
           style={{
             color: isBrand ? brand : fg,
-            fontSize: 16,
+            fontSize: 16 * scale,
             letterSpacing: 0.6,
             textTransform: "uppercase",
           }}
         >
           {ctaLabel}
         </RNText>
-        <RNText style={{ color: isBrand ? brand : fg, fontSize: 18, marginLeft: 8 }}>→</RNText>
+        <RNText style={{ color: isBrand ? brand : fg, fontSize: 18 * scale, marginLeft: 8 }}>→</RNText>
       </View>
     ) : null
 
@@ -111,14 +117,14 @@ export function SplitBanner({
 
   return (
     <Pressable onPress={onPress}>
-      <View style={{ height, width: "100%" }}>
+      <View style={{ height: bannerHeight, width: "100%" }}>
         {image?.url ? (
           <Image
             source={{
               uri:
                 optimizeImageUrl(image.url, {
                   width: Math.round(width),
-                  height,
+                  height: bannerHeight,
                   format: "webp",
                   dpr: Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1)),
                 }) || image.url,
@@ -146,13 +152,13 @@ export function SplitBanner({
               left: 0,
               right: 0,
               bottom: 0,
-              height: height * 0.55,
+              height: bannerHeight * 0.55,
             }}
           />
         )}
 
         {/* content */}
-        <View className={`flex-1 justify-end p-4 ${aClass}`}>
+        <View className={`flex-1 justify-end ${aClass}`} style={{ padding: Math.round(16 * scale) }}>
           <Eyebrow />
           <Title />
           <CTA />

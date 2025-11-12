@@ -3,6 +3,7 @@ import { MobileHomeDocument, type MobileHomeQuery } from "@/lib/shopify/gql/grap
 import { currentLocale } from "@/store/prefs"
 
 export type ImageRef = { url: string; w?: number | null; h?: number | null; alt?: string | null }
+export type SectionSize = "small" | "medium" | "large"
 export type PosterCell = {
   image?: ImageRef
   url?: string
@@ -25,6 +26,7 @@ export type AppHomeSection =
       image?: ImageRef
       url?: string
       theme?: string
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -36,6 +38,7 @@ export type AppHomeSection =
       title?: string
       url?: string
       theme?: string
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -48,6 +51,7 @@ export type AppHomeSection =
       speed?: number
       theme?: string
       url?: string
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -61,6 +65,12 @@ export type AppHomeSection =
       url?: string
       theme?: string
       align?: "left" | "center" | "right"
+      eyebrow?: string
+      ctaLabel?: string
+      height?: number
+      tint?: number
+      uppercaseTitle?: boolean
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -71,6 +81,7 @@ export type AppHomeSection =
       id: string
       items: PosterCell[]
       theme?: string
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -81,6 +92,7 @@ export type AppHomeSection =
       id: string
       items: PosterCell[]
       theme?: string
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -92,6 +104,7 @@ export type AppHomeSection =
       items: PosterCell[]
       theme?: string
       height?: number
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -102,6 +115,7 @@ export type AppHomeSection =
       id: string
       left?: { image?: ImageRef; url?: string }
       right?: { image?: ImageRef; url?: string }
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -112,6 +126,7 @@ export type AppHomeSection =
       id: string
       title?: string
       theme?: string
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -123,6 +138,7 @@ export type AppHomeSection =
       a?: { image?: ImageRef; url?: string }
       b?: { image?: ImageRef; url?: string }
       c?: { image?: ImageRef; url?: string }
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -134,6 +150,7 @@ export type AppHomeSection =
       title?: string
       collectionHandle?: string
       theme?: string
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -145,6 +162,7 @@ export type AppHomeSection =
       title?: string
       theme?: string
       url?: string
+      size?: SectionSize
       country?: string
       language?: string
       startAt?: string
@@ -155,6 +173,41 @@ export type AppHomeSection =
 export async function getMobileHome(handle = "app-home", language?: string) {
   const lang = (language as any) ?? currentLocale().language
   return callShopify<MobileHomeQuery>(() => shopifyClient.request(MobileHomeDocument, { handle, language: lang }))
+}
+
+const SUPPORTED_KINDS: AppHomeSection["kind"][] = [
+  "hero_poster",
+  "headline_promo",
+  "ribbon_marquee",
+  "split_banner",
+  "poster_triptych",
+  "poster_quilt",
+  "image_carousel",
+  "duo_poster",
+  "brand_cloud",
+  "trio_grid",
+  "product_rail",
+  "editorial_quote",
+] as const
+
+const SUPPORTED_KIND_SET = new Set<AppHomeSection["kind"]>(SUPPORTED_KINDS)
+const COLLAPSED_KIND_MAP = SUPPORTED_KINDS.reduce<Record<string, AppHomeSection["kind"]>>((acc, kind) => {
+  acc[kind.replace(/_/g, "")] = kind
+  return acc
+}, {})
+const FALSEY_STRINGS = new Set(["false", "0", "off", "no"])
+
+function normalizeKind(raw?: string | null): AppHomeSection["kind"] | undefined {
+  if (!raw) return
+  const trimmed = raw.trim()
+  if (!trimmed) return
+  const lower = trimmed.toLowerCase()
+  const normalized = lower.replace(/[\s-]+/g, "_")
+  if (SUPPORTED_KIND_SET.has(normalized as AppHomeSection["kind"])) {
+    return normalized as AppHomeSection["kind"]
+  }
+  const collapsed = normalized.replace(/_/g, "")
+  return COLLAPSED_KIND_MAP[collapsed]
 }
 
 // normalize
@@ -168,10 +221,14 @@ export function normalizeHome(data: MobileHomeQuery | null | undefined): AppHome
 
   // optional targeting/scheduling
   const { country, language } = currentLocale()
+  const activeCountry = normalizeCountryCode(country)
+  const activeLanguage = normalizeLanguageCode(language)
   const now = Date.now()
   const sections = raw.filter((s) => {
-    if ((s as any).country && (s as any).country !== country) return false
-    if ((s as any).language && (s as any).language !== language) return false
+    const targetCountry = normalizeCountryCode((s as any).country)
+    const targetLanguage = normalizeLanguageCode((s as any).language)
+    if (targetCountry && activeCountry && targetCountry !== activeCountry) return false
+    if (targetLanguage && activeLanguage && targetLanguage !== activeLanguage) return false
     const sa = (s as any).startAt as string | undefined
     const ea = (s as any).endAt as string | undefined
     if (sa && now < Date.parse(sa)) return false
@@ -179,16 +236,40 @@ export function normalizeHome(data: MobileHomeQuery | null | undefined): AppHome
     return true
   })
 
+  logHomeSections(raw, sections)
+
   return { sections }
 }
 
 // helpers
+function normalizeFieldKey(key?: string | null) {
+  const trimmed = key?.trim()
+  if (!trimmed) return ""
+  return trimmed.replace(/[\s_-]+/g, "").toLowerCase()
+}
+function getField(node: any, key: string) {
+  const fields = node?.fields ?? []
+  const target = normalizeFieldKey(key)
+  if (!target) return undefined
+  return fields.find((f: any) => normalizeFieldKey(f?.key) === target)
+}
 function val(node: any, key: string) {
-  return node?.fields?.find((f: any) => f.key === key)?.value
+  return getField(node, key)?.value
 }
 function ref(node: any, key: string) {
-  return node?.fields?.find((f: any) => f.key === key)?.reference
+  const field = getField(node, key)
+  if (!field) return undefined
+  return field.reference ?? getReferenceNodes(field)[0]
 }
+function fieldUrl(node: any, key: string) {
+  const field = getField(node, key)
+  if (!field) return undefined
+  const value = typeof field.value === "string" ? field.value.trim() : undefined
+  if (value) return value
+  const refNode = field.reference ?? getReferenceNodes(field)[0]
+  return refToUrl(refNode)
+}
+
 function valAt(node: any, key: string, index: number) {
   if (index === 0) return val(node, key)
   const suffix = String(index + 1)
@@ -199,22 +280,133 @@ function refAt(node: any, key: string, index: number) {
   const suffix = String(index + 1)
   return ref(node, `${key}${suffix}`) ?? ref(node, `${key}_${suffix}`)
 }
+function urlAt(node: any, key: string, index: number) {
+  if (index === 0) return fieldUrl(node, key)
+  const suffix = String(index + 1)
+  return fieldUrl(node, `${key}${suffix}`) ?? fieldUrl(node, `${key}_${suffix}`)
+}
 function imgFrom(r: any): ImageRef | undefined {
   const img = r?.image
   if (!img?.url) return
   return { url: img.url, w: img.width, h: img.height, alt: img.altText }
 }
 
+function getReferenceNodes(field: any): any[] {
+  const nodes = field?.references?.nodes
+  if (Array.isArray(nodes)) return nodes.filter(Boolean)
+  const edges = field?.references?.edges
+  if (Array.isArray(edges)) return edges.map((e: any) => e?.node).filter(Boolean)
+  return []
+}
+
+function refToUrl(ref: any): string | undefined {
+  if (!ref) return undefined
+  switch (ref.__typename) {
+    case "Collection":
+      return ref.handle ? `/collections/${ref.handle}` : undefined
+    case "Product":
+      return ref.handle ? `/products/${ref.handle}` : undefined
+    default:
+      return undefined
+  }
+}
+
+function normalizeCountryCode(value?: string | null) {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+  return trimmed.toUpperCase()
+}
+
+function normalizeLanguageCode(value?: string | null) {
+  return normalizeCountryCode(value)
+}
+
+function parseNumber(value?: string | null) {
+  if (typeof value !== "string") return undefined
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return undefined
+  return parsed
+}
+
+function clamp(num: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, num))
+}
+
+function parseBoolean(value?: string | null): boolean | undefined {
+  if (value == null) return undefined
+  const normalized = value.trim().toLowerCase()
+  if (!normalized) return undefined
+  if (FALSEY_STRINGS.has(normalized)) return false
+  return true
+}
+
+function normalizeSize(value?: string | null): SectionSize {
+  const normalized = value?.trim().toLowerCase()
+  if (!normalized) return "medium"
+  if (normalized === "small" || normalized === "s") return "small"
+  if (normalized === "large" || normalized === "l") return "large"
+  if (normalized === "medium" || normalized === "m") return "medium"
+  return "medium"
+}
+
+function logHomeSections(raw: AppHomeSection[], filtered: AppHomeSection[]) {
+  if (typeof console === "undefined") return
+  const summarize = (items: AppHomeSection[]) =>
+    items.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      size: item.size ?? "medium",
+      country: (item as any).country ?? "*",
+      language: (item as any).language ?? "*",
+      startAt: (item as any).startAt ?? null,
+      endAt: (item as any).endAt ?? null,
+      detail: sectionDetail(item),
+    }))
+  console.log(`[Home] sections raw (${raw.length})`, summarize(raw))
+  console.log(`[Home] sections after gating (${filtered.length})`, summarize(filtered))
+}
+
+function sectionDetail(section: AppHomeSection) {
+  switch (section.kind) {
+    case "trio_grid":
+      return {
+        a: Boolean(section.a?.image?.url),
+        b: Boolean(section.b?.image?.url),
+        c: Boolean(section.c?.image?.url),
+      }
+    case "duo_poster":
+      return {
+        left: Boolean(section.left?.image?.url),
+        right: Boolean(section.right?.image?.url),
+      }
+    case "product_rail":
+      return {
+        collectionHandle: section.collectionHandle ?? null,
+        hasTitle: Boolean(section.title),
+      }
+    case "split_banner":
+      return {
+        hasImage: Boolean(section.image?.url),
+        align: section.align,
+        tint: section.tint ?? null,
+      }
+    default:
+      return undefined
+  }
+}
+
 function toSection(node: any): AppHomeSection | null {
-  const kind = val(node, "kind") as AppHomeSection["kind"] | undefined
+  const kind = normalizeKind(val(node, "kind"))
   const title = val(node, "title")
   const subtitle = val(node, "subtitle")
-  const url = val(node, "url") ?? val(node, "link")
+  const url = fieldUrl(node, "url") ?? fieldUrl(node, "link")
   const theme = val(node, "theme") ?? "light"
-  const country = val(node, "country")
-  const language = val(node, "language")
+  const country = normalizeCountryCode(val(node, "country"))
+  const language = normalizeLanguageCode(val(node, "language"))
   const startAt = val(node, "startAt")
   const endAt = val(node, "endAt")
+  const size = normalizeSize(val(node, "size"))
+  const targeting = { size, country, language, startAt, endAt }
 
   switch (kind) {
     case "hero_poster": {
@@ -226,26 +418,29 @@ function toSection(node: any): AppHomeSection | null {
         url,
         theme,
         image: imgFrom(imageRef),
-        country,
-        language,
-        startAt,
-        endAt,
+        ...targeting,
       }
     }
     case "headline_promo":
-      return { kind, id: node.id, title, url, theme, country, language, startAt, endAt }
+      return { kind, id: node.id, title, url, theme, ...targeting }
 
     case "ribbon_marquee": {
       const text = title || subtitle || "" // use either; prefer title
       const speedRaw = val(node, "speed")
       const parsedSpeed = Number(speedRaw)
       const speed = Number.isFinite(parsedSpeed) && parsedSpeed !== 0 ? parsedSpeed : 30
-      return { kind, id: node.id, text, speed, theme, url, country, language, startAt, endAt }
+      return { kind, id: node.id, text, speed, theme, url, ...targeting }
     }
 
     case "split_banner": {
       const imageRef = ref(node, "image")
       const align = (val(node, "align") as any) ?? "left"
+      const height = parseNumber(val(node, "height"))
+      const eyebrow = val(node, "eyebrow")
+      const ctaLabel = val(node, "ctaLabel") ?? val(node, "cta_label")
+      const tintValue = parseNumber(val(node, "tint"))
+      const tint = typeof tintValue === "number" ? clamp(tintValue, 0, 1) : undefined
+      const uppercaseTitle = parseBoolean(val(node, "uppercaseTitle") ?? val(node, "uppercase_title"))
       return {
         kind,
         id: node.id,
@@ -254,10 +449,12 @@ function toSection(node: any): AppHomeSection | null {
         theme,
         image: imgFrom(imageRef),
         align,
-        country,
-        language,
-        startAt,
-        endAt,
+        eyebrow,
+        ctaLabel,
+        height,
+        tint,
+        uppercaseTitle,
+        ...targeting,
       }
     }
 
@@ -269,7 +466,7 @@ function toSection(node: any): AppHomeSection | null {
         const imageRef = refAt(node, "image", i)
         const item: PosterCell = {
           image: imgFrom(imageRef),
-          url: valAt(node, "url", i) ?? valAt(node, "link", i),
+          url: urlAt(node, "url", i) ?? urlAt(node, "link", i),
           title: valAt(node, "title", i),
           subtitle: valAt(node, "subtitle", i),
           eyebrow: valAt(node, "eyebrow", i),
@@ -281,7 +478,7 @@ function toSection(node: any): AppHomeSection | null {
         const hasContent = item.image || item.title || item.subtitle || item.background
         if (hasContent) items.push(item)
       }
-      return { kind, id: node.id, items, theme, country, language, startAt, endAt }
+      return { kind, id: node.id, items, theme, ...targeting }
     }
 
     case "poster_quilt": {
@@ -292,7 +489,7 @@ function toSection(node: any): AppHomeSection | null {
         const imageRef = refAt(node, "image", i)
         const item: PosterCell = {
           image: imgFrom(imageRef),
-          url: valAt(node, "url", i) ?? valAt(node, "link", i),
+          url: urlAt(node, "url", i) ?? urlAt(node, "link", i),
           title: valAt(node, "title", i),
           subtitle: valAt(node, "subtitle", i),
           eyebrow: valAt(node, "eyebrow", i),
@@ -304,7 +501,7 @@ function toSection(node: any): AppHomeSection | null {
         const hasContent = item.image || item.title || item.subtitle || item.background
         if (hasContent) items.push(item)
       }
-      return { kind, id: node.id, items, theme, country, language, startAt, endAt }
+      return { kind, id: node.id, items, theme, ...targeting }
     }
 
     case "image_carousel": {
@@ -317,7 +514,7 @@ function toSection(node: any): AppHomeSection | null {
         const imageRef = refAt(node, "image", i)
         const item: PosterCell = {
           image: imgFrom(imageRef),
-          url: valAt(node, "url", i) ?? valAt(node, "link", i),
+          url: urlAt(node, "url", i) ?? urlAt(node, "link", i),
           title: valAt(node, "title", i),
           subtitle: valAt(node, "subtitle", i),
           eyebrow: valAt(node, "eyebrow", i),
@@ -330,57 +527,78 @@ function toSection(node: any): AppHomeSection | null {
         if (hasContent) items.push(item)
       }
       if (!items.length) return null
-      return { kind, id: node.id, items, theme, height, country, language, startAt, endAt }
+      return { kind, id: node.id, items, theme, height, ...targeting }
     }
 
     case "duo_poster": {
-      const imageL = ref(node, "image")
-      const imageR = ref(node, "image2")
-      const url2 = val(node, "url2") ?? val(node, "link2")
+      const imageL = ref(node, "image") ?? ref(node, "image_left")
+      const imageR = ref(node, "image2") ?? ref(node, "image_right")
+      const urlRight = urlAt(node, "url", 1) ?? urlAt(node, "link", 1) ?? fieldUrl(node, "url2") ?? fieldUrl(node, "link2")
       return {
         kind,
         id: node.id,
         left: { image: imgFrom(imageL), url },
-        right: { image: imgFrom(imageR), url: url2 },
-        country,
-        language,
-        startAt,
-        endAt,
+        right: { image: imgFrom(imageR), url: urlRight },
+        ...targeting,
       }
     }
 
     case "trio_grid": {
-      const a = ref(node, "image")
-      const b = ref(node, "image2")
-      const c = ref(node, "image3")
-      const u2 = val(node, "url2") ?? val(node, "link2")
-      const u3 = val(node, "url3") ?? val(node, "link3")
+      const [aRef, bRef, cRef] = collectImageRefs(node)
+      const urlA = urlAt(node, "url", 0) ?? urlAt(node, "link", 0)
+      const urlB = urlAt(node, "url", 1) ?? urlAt(node, "link", 1)
+      const urlC = urlAt(node, "url", 2) ?? urlAt(node, "link", 2)
       return {
         kind,
         id: node.id,
-        a: { image: imgFrom(a), url },
-        b: { image: imgFrom(b), url: u2 },
-        c: { image: imgFrom(c), url: u3 },
-        country,
-        language,
-        startAt,
-        endAt,
+        a: { image: imgFrom(aRef ?? ref(node, "image")), url: urlA },
+        b: { image: imgFrom(bRef ?? ref(node, "image2")), url: urlB },
+        c: { image: imgFrom(cRef ?? ref(node, "image3")), url: urlC },
+        ...targeting,
       }
     }
 
     case "product_rail": {
       const coll = ref(node, "collection")
-      const handle = coll?.handle as string | undefined
-      return { kind, id: node.id, title, collectionHandle: handle, theme, country, language, startAt, endAt }
+      const handleText = val(node, "collectionHandle") ?? val(node, "collection_handle")
+      const handle = (coll?.handle as string | undefined) ?? handleText ?? undefined
+      return { kind, id: node.id, title, collectionHandle: handle, theme, ...targeting }
     }
 
     case "editorial_quote":
-      return { kind, id: node.id, title, theme, url, country, language, startAt, endAt }
+      return { kind, id: node.id, title, theme, url, ...targeting }
 
     case "brand_cloud":
-      return { kind, id: node.id, title, theme, country, language, startAt, endAt }
+      return { kind, id: node.id, title, theme, ...targeting }
 
     default:
       return null
   }
+}
+
+function collectImageRefs(node: any) {
+  const fields = node?.fields ?? []
+  const refs: Array<{ order: number; ref: any }> = []
+  fields.forEach((field: any, idx: number) => {
+    const normalizedKey = normalizeFieldKey(field?.key)
+    if (!normalizedKey.startsWith("image")) return
+    const order = orderForImageKey(normalizedKey, idx)
+    if (field?.reference) refs.push({ order, ref: field.reference })
+    const list = getReferenceNodes(field)
+    list.forEach((refNode: any, listIdx: number) => {
+      refs.push({ order: order + listIdx / 10, ref: refNode })
+    })
+  })
+  refs.sort((a, b) => a.order - b.order)
+  return refs.map((entry) => entry.ref).filter(Boolean)
+}
+
+function orderForImageKey(normalizedKey: string, fallback: number) {
+  if (!normalizedKey.startsWith("image")) return fallback
+  const suffix = normalizedKey.slice("image".length)
+  if (!suffix) return fallback
+  if (/^\d+$/.test(suffix)) return Number(suffix)
+  const firstChar = suffix.charCodeAt(0)
+  if (Number.isFinite(firstChar)) return fallback + (firstChar - 96)
+  return fallback
 }

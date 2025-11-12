@@ -8,7 +8,7 @@ query MobileHome($handle: String!, $language: LanguageCode) @inContext(language:
     fields {
       key
       value
-      references(first: 50) {
+      references(first: 250) {
         nodes {
           __typename
           # sections should be Metaobject references — narrow to Metaobject

@@ -97,7 +97,7 @@ store/
 
 ### 5.4 Brands (`brands.ts`)
 
-- Paginates through `shop.productVendors` with 250-per-page, max 40 pages.
+- Paginates through the storefront `products` connection (sorted by `VENDOR`) with 250-per-page, max 40 pages.
 - Deduplicates vendor names and formats into `{ name, url }` structures for the Brands screen.
 
 ### 5.5 Home (`home.ts`)
