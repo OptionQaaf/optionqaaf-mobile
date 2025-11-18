@@ -4,6 +4,7 @@ import { EditorialQuote } from "./EditorialQuote"
 import { HeadlinePromo } from "./HeadlinePromo"
 import { HeroPoster } from "./HeroPoster"
 import { ImageCarouselSection } from "./ImageCarouselSection/ImageCarouselSection"
+import { ImageLinkSlider } from "./ImageLinkSlider"
 import { PosterQuilt } from "./PosterQuilt"
 import { PosterTriptych } from "./PosterTriptych"
 import { ProductRail } from "./ProductRail"
@@ -24,6 +25,7 @@ export const sectionRegistry = {
   editorial_quote: EditorialQuote,
   brand_cloud: BrandCloud,
   image_carousel: ImageCarouselSection,
+  image_link_slider: ImageLinkSlider,
 } as const
 
 export type SectionKind = keyof typeof sectionRegistry

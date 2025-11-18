@@ -1,8 +1,8 @@
 import { useCollectionProducts } from "@/features/plp/api"
-import { HomeProductTile } from "@/ui/product/HomeProductTile"
+import { ProductTile } from "@/ui/product/ProductTile"
 import { router } from "expo-router"
 import { FlatList, View, useWindowDimensions } from "react-native"
-import { useRef } from "react"
+import { useMemo, useRef } from "react"
 import type { SectionSize } from "@/lib/shopify/services/home"
 import { sizeScale } from "./sectionSize"
 
@@ -17,6 +17,36 @@ export function ProductRail({ collectionHandle, size }: Props) {
   const warnedMissingHandle = useRef(false)
 
   const products = (data?.pages?.flatMap((p) => p.nodes) ?? []).slice(0, 10)
+  const tiles = useMemo(() => {
+    const toNumber = (value?: string | null) => {
+      if (typeof value !== "string") return undefined
+      const parsed = Number(value)
+      return Number.isFinite(parsed) ? parsed : undefined
+    }
+    return products
+      .map((product) => {
+        if (!product) return null
+        const image = product.featuredImage?.url?.toString?.() ?? product.featuredImage?.url
+        const price = toNumber(product.priceRange?.minVariantPrice?.amount)
+        if (!image || typeof price !== "number") return null
+        const compareAt = toNumber(product.compareAtPriceRange?.minVariantPrice?.amount)
+        const currency =
+          product.priceRange?.minVariantPrice?.currencyCode ??
+          product.compareAtPriceRange?.minVariantPrice?.currencyCode ??
+          "USD"
+        return {
+          id: product.id,
+          handle: product.handle,
+          image,
+          brand: product.vendor ?? "",
+          title: product.title ?? "",
+          price,
+          compareAt: compareAt,
+          currency,
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+  }, [products])
 
   if (!collectionHandle && __DEV__ && !warnedMissingHandle.current) {
     warnedMissingHandle.current = true
@@ -29,17 +59,20 @@ export function ProductRail({ collectionHandle, size }: Props) {
     <View className="w-full">
       <FlatList
         horizontal
-        data={products}
-        keyExtractor={(p: any) => p.id}
+        data={tiles}
+        keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <HomeProductTile
-            image={item?.featuredImage?.url?.toString?.() ?? item?.featuredImage?.url ?? ""}
-            brand={item?.vendor ?? ""}
-            title={item?.title ?? ""}
-            price={undefined}
+          <ProductTile
+            image={item.image}
+            brand={item.brand}
+            title={item.title}
+            price={item.price}
+            compareAt={item.compareAt}
+            currency={item.currency}
             width={cardWidth}
-            ratio={0.85}
-            rounded="none"
+            padding="xs"
+            imageRatio={0.82}
+            edgeToEdge
             onPress={() => {
               if (collectionHandle) router.push(`/collections/${collectionHandle}` as any)
             }}

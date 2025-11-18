@@ -15,6 +15,11 @@ export type PosterCell = {
   align?: "left" | "center" | "right"
   layout?: string
 }
+export type SliderLinkItem = {
+  image?: ImageRef
+  url?: string
+  label?: string
+}
 
 export type AppHome = { sections: AppHomeSection[] }
 
@@ -111,6 +116,18 @@ export type AppHomeSection =
       endAt?: string
     }
   | {
+      kind: "image_link_slider"
+      id: string
+      title?: string
+      items: SliderLinkItem[]
+      theme?: string
+      size?: SectionSize
+      country?: string
+      language?: string
+      startAt?: string
+      endAt?: string
+    }
+  | {
       kind: "duo_poster"
       id: string
       left?: { image?: ImageRef; url?: string }
@@ -183,6 +200,7 @@ const SUPPORTED_KINDS: AppHomeSection["kind"][] = [
   "poster_triptych",
   "poster_quilt",
   "image_carousel",
+  "image_link_slider",
   "duo_poster",
   "brand_cloud",
   "trio_grid",
@@ -195,6 +213,9 @@ const COLLAPSED_KIND_MAP = SUPPORTED_KINDS.reduce<Record<string, AppHomeSection[
   acc[kind.replace(/_/g, "")] = kind
   return acc
 }, {})
+const KIND_SYNONYMS: Record<string, AppHomeSection["kind"]> = {
+  imagesliderlink: "image_link_slider",
+}
 const FALSEY_STRINGS = new Set(["false", "0", "off", "no"])
 
 function normalizeKind(raw?: string | null): AppHomeSection["kind"] | undefined {
@@ -207,6 +228,9 @@ function normalizeKind(raw?: string | null): AppHomeSection["kind"] | undefined 
     return normalized as AppHomeSection["kind"]
   }
   const collapsed = normalized.replace(/_/g, "")
+  if (collapsed in KIND_SYNONYMS) {
+    return KIND_SYNONYMS[collapsed]
+  }
   return COLLAPSED_KIND_MAP[collapsed]
 }
 
@@ -286,9 +310,12 @@ function urlAt(node: any, key: string, index: number) {
   return fieldUrl(node, `${key}${suffix}`) ?? fieldUrl(node, `${key}_${suffix}`)
 }
 function imgFrom(r: any): ImageRef | undefined {
-  const img = r?.image
-  if (!img?.url) return
-  return { url: img.url, w: img.width, h: img.height, alt: img.altText }
+  if (!r) return undefined
+  const img = r.image
+  if (img?.url) return { url: img.url, w: img.width, h: img.height, alt: img.altText }
+  if (typeof r.url === "string") return { url: r.url, w: r.width, h: r.height, alt: r.altText }
+  if (typeof r.originalSrc === "string") return { url: r.originalSrc, w: r.width, h: r.height, alt: r.altText }
+  return undefined
 }
 
 function getReferenceNodes(field: any): any[] {
@@ -389,6 +416,11 @@ function sectionDetail(section: AppHomeSection) {
         hasImage: Boolean(section.image?.url),
         align: section.align,
         tint: section.tint ?? null,
+      }
+    case "image_link_slider":
+      return {
+        tiles: section.items.length,
+        hasHeading: Boolean(section.title),
       }
     default:
       return undefined
@@ -528,6 +560,23 @@ function toSection(node: any): AppHomeSection | null {
       }
       if (!items.length) return null
       return { kind, id: node.id, items, theme, height, ...targeting }
+    }
+
+    case "image_link_slider": {
+      const countRaw = Number(val(node, "count"))
+      const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.min(Math.round(countRaw), 12) : 8
+      const items: SliderLinkItem[] = []
+      for (let i = 0; i < count; i += 1) {
+        const imageRef = refAt(node, "image", i)
+        const image = imgFrom(imageRef)
+        if (!image?.url) continue
+        const link = urlAt(node, "url", i) ?? urlAt(node, "link", i)
+        const label = valAt(node, "title", i) ?? valAt(node, "eyebrow", i)
+        items.push({ image, url: link, label: label ?? undefined })
+      }
+      if (!items.length) return null
+      const heading = val(node, "sectionTitle") ?? val(node, "heading") ?? title ?? subtitle
+      return { kind, id: node.id, title: heading ?? undefined, items, theme, ...targeting }
     }
 
     case "duo_poster": {

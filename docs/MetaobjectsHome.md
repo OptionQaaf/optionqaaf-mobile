@@ -116,6 +116,14 @@ All sections respect the optional targeting/scheduling fields: `country`, `langu
 - Global optional fields: `count` (default 5, max 10), `height` (px), `theme`, gating fields.
 - Slides auto-advance every 4.5 seconds when untouched.
 
+### `image_link_slider`
+- Purpose: Horizontally scrolling row of tappable images with tiny captions.
+- Required: Populate at least one tile with `image` (`image2`, `image3`, ... are supported).
+- Optional per item: `title`/`title2` (caption text shown on the white tag), `url`/`link` for the tap-through destination.
+- Optional global fields: `count` (default 8, max 12), `title`/`subtitle`/`heading` for an optional section label, `theme`, gating fields.
+- Each image gently scales to ~1.03× while pressed and displays its caption in a centered white rectangle with black text.
+- Alias: The kind name `image_slider_link` also works if you already created a definition with that identifier.
+
 ### `duo_poster`
 - Purpose: Two half-width posters.
 - Required: `image` (left), `image2` (right).

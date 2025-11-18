@@ -47,7 +47,9 @@ export const BrandCloud = memo(function BrandCloud({ title, onPressBrand, size }
 
   const { width: screenWidth } = useWindowDimensions()
   const scale = sizeScale(size)
-  const verticalPadding = Math.round(48 * scale)
+  const verticalPadding = Math.round(20 * scale)
+  const horizontalSpacing = Math.max(10, Math.round(14 * scale))
+  const verticalSpacing = Math.max(6, Math.round(8 * scale))
 
   const { data: preview, isFetching: previewLoading } = useBrandPreview(active?.name ?? null)
   const previewImage = preview?.image?.url
@@ -112,7 +114,16 @@ export const BrandCloud = memo(function BrandCloud({ title, onPressBrand, size }
         {title ? <Skeleton className="mb-6 h-4 w-36" /> : null}
         <View className="flex-row flex-wrap justify-center">
           {PLACEHOLDER.map((_, idx) => (
-            <Skeleton key={`brand-cloud-placeholder-${idx}`} className="mx-1 my-1 h-9 w-28 rounded-full" />
+            <Skeleton
+              key={`brand-cloud-placeholder-${idx}`}
+              style={{
+                width: 72,
+                height: 14,
+                marginHorizontal: horizontalSpacing,
+                marginVertical: verticalSpacing,
+              }}
+              className="rounded-sm"
+            />
           ))}
         </View>
       </View>
@@ -135,20 +146,24 @@ export const BrandCloud = memo(function BrandCloud({ title, onPressBrand, size }
           </Text>
         ) : null}
 
-        <View className="flex-row flex-wrap justify-center">
+        <View className="flex-row flex-wrap justify-center gap-4">
           {brands.map((brand) => {
             const isActive = active?.name === brand.name
             return (
               <Pressable
                 key={brand.name}
-                className={cn(
-                  "mx-1 my-1 rounded-full border px-3 py-2",
-                  isActive ? "border-neutral-900 bg-neutral-900" : "border-neutral-200 bg-neutral-50",
-                )}
+                hitSlop={8}
                 onPress={(e) => handlePress(brand, e)}
+                style={({ pressed }) => [
+                  {
+                    marginHorizontal: horizontalSpacing,
+                    marginVertical: verticalSpacing,
+                  },
+                  pressed ? { opacity: 0.5 } : null,
+                ]}
               >
                 <Text
-                  className={cn("text-sm font-semibold tracking-wide", isActive ? "text-white" : "text-neutral-700")}
+                  className={cn("text-sm font-semibold tracking-wide", isActive ? "text-black" : "text-neutral-400")}
                   style={{ fontSize: 14 * scale }}
                 >
                   {brand.name}

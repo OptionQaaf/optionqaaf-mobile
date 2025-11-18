@@ -5,6 +5,8 @@ import { cn } from "@/ui/utils/cva"
 import { Image } from "expo-image"
 import { PixelRatio, Pressable, Text, View } from "react-native"
 
+type PaddingSize = "xs" | "sm" | "md" | "lg"
+
 type Props = {
   image: string
   brand: string
@@ -16,10 +18,11 @@ type Props = {
   onPress?: () => void
   className?: string
   width?: number
-  padding?: "sm" | "md" | "lg"
+  padding?: PaddingSize
   imageRatio?: number
   variant?: "card" | "plain"
   priority?: "low" | "normal" | "high"
+  edgeToEdge?: boolean
 }
 
 const TILE_PRICE_SIZE_OVERRIDES: Record<
@@ -72,9 +75,20 @@ export function ProductTile({
   imageRatio = 1,
   variant = "card",
   priority,
+  edgeToEdge = false,
 }: Props) {
-  const pad = padding === "lg" ? "p-4" : padding === "sm" ? "p-2.5" : "p-3"
-  const cardChrome = variant === "card" ? "bg-surface" : ""
+  const resolvedPadding: PaddingSize = (() => {
+    if (edgeToEdge && padding === "md") return "sm"
+    return padding
+  })()
+  const padMap: Record<PaddingSize, string> = {
+    lg: "p-4",
+    md: "p-3",
+    sm: "p-2.5",
+    xs: "p-2",
+  }
+  const pad = padMap[resolvedPadding]
+  const cardChrome = variant === "card" && !edgeToEdge ? "bg-surface" : ""
   const targetW = width ? Math.round(width) : undefined
   const targetH = targetW ? Math.round(targetW * imageRatio) : undefined
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
@@ -82,8 +96,8 @@ export function ProductTile({
   const titleLineHeight = 20
   const priceSize: PriceSize = (() => {
     if (typeof targetW !== "number") {
-      if (padding === "lg") return "md"
-      if (padding === "sm") return "xs"
+      if (resolvedPadding === "lg") return "md"
+      if (resolvedPadding === "sm" || resolvedPadding === "xs") return "xs"
       return "sm"
     }
     if (targetW >= 260) return "lg"
@@ -96,7 +110,11 @@ export function ProductTile({
   return (
     <Pressable
       onPress={onPress}
-      className={cn("active:opacity-95 rounded-sm overflow-hidden border-gray-200 border", className)}
+      className={cn(
+        "active:opacity-95 overflow-hidden",
+        edgeToEdge ? undefined : "rounded-sm border-gray-200 border",
+        className,
+      )}
       style={width ? { width } : undefined}
     >
       <View className={cn(cardChrome, "overflow-hidden")}>

@@ -40,6 +40,7 @@ export function renderMetaobjectSection(section: AppHomeSection, navigate: Navig
       )
 
     case "image_carousel":
+    case "image_link_slider":
       return <Cmp key={section.id} {...props} onPressItem={(url: string | undefined) => navigate(url)} />
 
     default:
