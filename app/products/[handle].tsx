@@ -1,3 +1,4 @@
+import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { useAddToCart, useEnsureCart } from "@/features/cart/api"
 import { useProduct } from "@/features/pdp/api"
 import { useRecommendedProducts } from "@/features/recommendations/api"
@@ -31,6 +32,7 @@ export default function ProductScreen() {
   const { handle } = useLocalSearchParams<{ handle: string }>()
   const h = typeof handle === "string" ? handle : ""
   const { data: product, isLoading } = useProduct(h)
+  const { isAuthenticated, login } = useShopifyAuth()
   const vendor = ((product as any)?.vendor ?? "") as string
   const { data: vendorSearchData, isLoading: isVendorLoading } = useSearch(vendor, 12)
   const vendorProducts = useMemo(() => vendorSearchData?.pages?.flatMap((p) => p.nodes) ?? [], [vendorSearchData])
@@ -44,28 +46,73 @@ export default function ProductScreen() {
 
   const options: { name: string; values: string[] }[] = (product as any)?.options ?? []
   const variants: any[] = (product as any)?.variants?.nodes ?? []
+  const inStockVariants = useMemo(() => variants.filter((v) => v?.availableForSale !== false), [variants])
+  const variantsPool = inStockVariants.length ? inStockVariants : variants
+  const firstAvailableVariant = useMemo(() => variantsPool[0] ?? null, [variantsPool])
   const [sel, setSel] = useState<Record<string, string>>({})
   useEffect(() => {
     if (!options?.length) return
     setSel((prev) => {
       const next = { ...prev }
+      const source = firstAvailableVariant ?? variants[0]
+      if (source?.selectedOptions) {
+        for (const opt of source.selectedOptions) {
+          if (opt?.name && opt?.value && !next[opt.name]) next[opt.name] = opt.value
+        }
+      }
       for (const opt of options) if (!next[opt.name]) next[opt.name] = opt.values[0]
       return next
     })
-  }, [product])
+  }, [product, options, firstAvailableVariant, variants])
+
+  const availableOptionValues = useMemo(() => {
+    const map: Record<string, string[]> = {}
+    for (const opt of options) {
+      const otherSelections = { ...sel }
+      delete otherSelections[opt.name]
+      const values = new Set<string>()
+      const pool = variantsPool.length ? variantsPool : variants
+      for (const v of pool) {
+        const selectedOptions = v?.selectedOptions ?? []
+        const matchesOthers = Object.entries(otherSelections).every(([name, val]) =>
+          selectedOptions.some((o: any) => o?.name === name && String(o?.value) === String(val)),
+        )
+        if (!matchesOthers) continue
+        const match = selectedOptions.find((o: any) => o?.name === opt.name)
+        if (match?.value) values.add(String(match.value))
+      }
+      const list = Array.from(values)
+      map[opt.name] = list.length ? list : opt.values
+    }
+    return map
+  }, [options, sel, variants, variantsPool])
+
+  useEffect(() => {
+    if (!options?.length) return
+    setSel((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const opt of options) {
+        const avail = availableOptionValues[opt.name] ?? opt.values
+        const current = next[opt.name]
+        if (!avail.includes(current) && avail.length) {
+          next[opt.name] = avail[0]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [options, availableOptionValues])
 
   const selectedVariant = useMemo(() => {
     if (!variants?.length) return null
-    return (
-      variants.find((v) => (v.selectedOptions ?? []).every((o: any) => String(sel[o.name]) === String(o.value))) ||
-      variants[0]
-    )
-  }, [variants, sel])
+    const pool = variantsPool.length ? variantsPool : variants
+    const match = pool.find((v) => (v.selectedOptions ?? []).every((o: any) => String(sel[o.name]) === String(o.value)))
+    return match ?? firstAvailableVariant ?? variants[0] ?? null
+  }, [variants, sel, firstAvailableVariant, variantsPool])
 
   const available = selectedVariant?.availableForSale !== false
   const loading = ensure.isPending || add.isPending
-  const [descOpen, setDescOpen] = useState<string>("")
-  const [descReady, setDescReady] = useState(false)
 
   const images = useMemo(() => {
     const urls: string[] = []
@@ -177,10 +224,10 @@ export default function ProductScreen() {
     ((product as any)?.featuredImage?.url as string | undefined)
 
   const productId = (product as any)?.id as string | undefined
-  const isWishlisted = productId ? wishlistItems.some((item) => item.productId === productId) : false
+  const isWishlisted = isAuthenticated && productId ? wishlistItems.some((item) => item.productId === productId) : false
 
   const wishlistData = useMemo<WishlistItem | null>(() => {
-    if (!productId) return null
+    if (!isAuthenticated || !productId) return null
     return {
       productId,
       handle: h,
@@ -190,9 +237,14 @@ export default function ProductScreen() {
       imageUrl: images[0] ?? null,
       variantTitle: (selectedVariant as any)?.title ?? null,
     }
-  }, [productId, h, product, priceAmount, currencyCode, images, selectedVariant])
+  }, [productId, h, product, priceAmount, currencyCode, images, selectedVariant, isAuthenticated])
 
   const handleWishlistPress = useCallback(() => {
+    if (!isAuthenticated) {
+      show({ title: "Sign in to save items to wishlist", type: "info" })
+      login().catch(() => {})
+      return
+    }
     if (!wishlistData) {
       show({ title: "Product unavailable", type: "danger" })
       return
@@ -202,7 +254,7 @@ export default function ProductScreen() {
       title: isWishlisted ? "Removed from wishlist" : "Added to wishlist",
       type: isWishlisted ? "info" : "success",
     })
-  }, [wishlistData, toggleWishlist, isWishlisted, show])
+  }, [wishlistData, toggleWishlist, isWishlisted, show, isAuthenticated, login])
 
   if (isLoading) {
     return (
@@ -263,7 +315,7 @@ export default function ProductScreen() {
                 <VariantDropdown
                   key={opt.name}
                   label={opt.name}
-                  options={opt.values.map((v) => ({ id: v, label: v }))}
+                  options={(availableOptionValues[opt.name] ?? opt.values).map((v) => ({ id: v, label: v }))}
                   value={sel[opt.name]}
                   onChange={(id) => setSel((s) => ({ ...s, [opt.name]: id }))}
                   className="mb-3"
