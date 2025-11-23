@@ -116,6 +116,18 @@ export type AppHomeSection =
       endAt?: string
     }
   | {
+      kind: "collection_link_slider"
+      id: string
+      title?: string
+      items: SliderLinkItem[]
+      theme?: string
+      size?: SectionSize
+      country?: string
+      language?: string
+      startAt?: string
+      endAt?: string
+    }
+  | {
       kind: "image_link_slider"
       id: string
       title?: string
@@ -200,6 +212,7 @@ const SUPPORTED_KINDS: AppHomeSection["kind"][] = [
   "poster_triptych",
   "poster_quilt",
   "image_carousel",
+  "collection_link_slider",
   "image_link_slider",
   "duo_poster",
   "brand_cloud",
@@ -214,6 +227,9 @@ const COLLAPSED_KIND_MAP = SUPPORTED_KINDS.reduce<Record<string, AppHomeSection[
   return acc
 }, {})
 const KIND_SYNONYMS: Record<string, AppHomeSection["kind"]> = {
+  collectionslider: "collection_link_slider",
+  collectionlinkslider: "collection_link_slider",
+  collectionsliderlink: "collection_link_slider",
   imagesliderlink: "image_link_slider",
 }
 const FALSEY_STRINGS = new Set(["false", "0", "off", "no"])
@@ -241,7 +257,15 @@ export function normalizeHome(data: MobileHomeQuery | null | undefined): AppHome
   const refs = sectionsField?.references
   const nodes = (refs?.nodes ?? (refs as any)?.edges?.map((e: any) => e?.node) ?? []).filter(Boolean)
 
-  const raw = nodes.map((n: any) => toSection(n)).filter(Boolean) as AppHomeSection[]
+  const raw = nodes
+    .map((n: any) => {
+      const parsed = toSection(n)
+      if (!parsed && __DEV__) {
+        console.warn("[Home] skipped section metaobject", summarizeMetaobject(n))
+      }
+      return parsed
+    })
+    .filter(Boolean) as AppHomeSection[]
 
   // optional targeting/scheduling
   const { country, language } = currentLocale()
@@ -277,35 +301,82 @@ function getField(node: any, key: string) {
   if (!target) return undefined
   return fields.find((f: any) => normalizeFieldKey(f?.key) === target)
 }
+function parseListValue(raw?: string | null): string[] | undefined {
+  if (typeof raw !== "string") return undefined
+  const trimmed = raw.trim()
+  if (!trimmed) return []
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) {
+        return parsed.map((entry) => {
+          if (entry == null) return ""
+          return String(entry).trim()
+        })
+      }
+    } catch {
+      // ignore malformed JSON and fall through
+    }
+  }
+  if (trimmed.includes("\n")) {
+    return trimmed
+      .split("\n")
+      .map((t) => t.trim())
+      .filter(Boolean)
+  }
+  return undefined
+}
+function valueFromFieldAt(field: any, index: number) {
+  if (!field) return undefined
+  const list = parseListValue(field.value)
+  if (list && list[index]) return list[index]
+  if (index === 0 && typeof field.value === "string") return field.value
+  return undefined
+}
+function refFromFieldAt(field: any, index: number) {
+  if (!field) return undefined
+  const list = getReferenceNodes(field)
+  if (list[index]) return list[index]
+  if (index === 0) return field.reference ?? list[0]
+  return undefined
+}
 function val(node: any, key: string) {
-  return getField(node, key)?.value
+  const field = getField(node, key)
+  return valueFromFieldAt(field, 0)
 }
 function ref(node: any, key: string) {
   const field = getField(node, key)
-  if (!field) return undefined
-  return field.reference ?? getReferenceNodes(field)[0]
+  return refFromFieldAt(field, 0)
 }
-function fieldUrl(node: any, key: string) {
+function fieldUrl(node: any, key: string, index = 0) {
   const field = getField(node, key)
   if (!field) return undefined
-  const value = typeof field.value === "string" ? field.value.trim() : undefined
-  if (value) return value
-  const refNode = field.reference ?? getReferenceNodes(field)[0]
+  const value = valueFromFieldAt(field, index)
+  if (typeof value === "string" && value.trim()) return value.trim()
+  const refNode = refFromFieldAt(field, index)
   return refToUrl(refNode)
 }
 
 function valAt(node: any, key: string, index: number) {
   if (index === 0) return val(node, key)
+  const baseField = getField(node, key)
+  const listVal = valueFromFieldAt(baseField, index)
+  if (listVal != null) return listVal
   const suffix = String(index + 1)
   return val(node, `${key}${suffix}`) ?? val(node, `${key}_${suffix}`)
 }
 function refAt(node: any, key: string, index: number) {
   if (index === 0) return ref(node, key)
+  const baseField = getField(node, key)
+  const listRef = refFromFieldAt(baseField, index)
+  if (listRef) return listRef
   const suffix = String(index + 1)
   return ref(node, `${key}${suffix}`) ?? ref(node, `${key}_${suffix}`)
 }
 function urlAt(node: any, key: string, index: number) {
-  if (index === 0) return fieldUrl(node, key)
+  if (index === 0) return fieldUrl(node, key, index)
+  const listUrl = fieldUrl(node, key, index)
+  if (listUrl) return listUrl
   const suffix = String(index + 1)
   return fieldUrl(node, `${key}${suffix}`) ?? fieldUrl(node, `${key}_${suffix}`)
 }
@@ -376,6 +447,34 @@ function normalizeSize(value?: string | null): SectionSize {
   return "medium"
 }
 
+const MAX_SCROLLABLE_ITEMS = 50
+const DEFAULT_IMAGE_CAROUSEL_COUNT = 3
+const DEFAULT_IMAGE_LINK_SLIDER_COUNT = 3
+
+function detectedImageFieldCount(node: any) {
+  const fields = node?.fields ?? []
+  let maxIndex = 0
+
+  fields.forEach((field: any, idx: number) => {
+    const normalizedKey = normalizeFieldKey(field?.key)
+    if (!normalizedKey.startsWith("image")) return
+    const suffix = normalizedKey.slice("image".length)
+    if (!suffix) {
+      maxIndex = Math.max(maxIndex, 1)
+      return
+    }
+    const parsed = Number(suffix)
+    if (Number.isFinite(parsed)) {
+      maxIndex = Math.max(maxIndex, parsed)
+      return
+    }
+    maxIndex = Math.max(maxIndex, idx + 1)
+  })
+
+  const referencedImages = collectImageRefs(node).length
+  return Math.max(maxIndex, referencedImages)
+}
+
 function logHomeSections(raw: AppHomeSection[], filtered: AppHomeSection[]) {
   if (typeof console === "undefined") return
   const summarize = (items: AppHomeSection[]) =>
@@ -418,9 +517,11 @@ function sectionDetail(section: AppHomeSection) {
         tint: section.tint ?? null,
       }
     case "image_link_slider":
+    case "collection_link_slider":
       return {
         tiles: section.items.length,
         hasHeading: Boolean(section.title),
+        handles: (section.items as SliderLinkItem[]).map((i) => i.url).slice(0, 6),
       }
     default:
       return undefined
@@ -491,8 +592,11 @@ function toSection(node: any): AppHomeSection | null {
     }
 
     case "poster_triptych": {
-      const countRaw = Number(val(node, "count"))
-      const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.min(Math.round(countRaw), 6) : 3
+      const countRaw = parseNumber(val(node, "count"))
+      const requestedCount = typeof countRaw === "number" && countRaw > 0 ? Math.round(countRaw) : undefined
+      const detectedImages = detectedImageFieldCount(node)
+      const fallbackCount = Math.max(3, detectedImages)
+      const count = clamp(requestedCount ?? fallbackCount, 1, 6)
       const items: PosterCell[] = []
       for (let i = 0; i < count; i += 1) {
         const imageRef = refAt(node, "image", i)
@@ -514,8 +618,11 @@ function toSection(node: any): AppHomeSection | null {
     }
 
     case "poster_quilt": {
-      const countRaw = Number(val(node, "count"))
-      const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.min(Math.round(countRaw), 8) : 5
+      const countRaw = parseNumber(val(node, "count"))
+      const requestedCount = typeof countRaw === "number" && countRaw > 0 ? Math.round(countRaw) : undefined
+      const detectedImages = detectedImageFieldCount(node)
+      const fallbackCount = Math.max(5, detectedImages)
+      const count = clamp(requestedCount ?? fallbackCount, 1, 8)
       const items: PosterCell[] = []
       for (let i = 0; i < count; i += 1) {
         const imageRef = refAt(node, "image", i)
@@ -537,8 +644,11 @@ function toSection(node: any): AppHomeSection | null {
     }
 
     case "image_carousel": {
-      const countRaw = Number(val(node, "count"))
-      const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.min(Math.round(countRaw), 10) : 5
+      const countRaw = parseNumber(val(node, "count"))
+      const requestedCount = typeof countRaw === "number" && countRaw > 0 ? Math.round(countRaw) : undefined
+      const detectedImages = detectedImageFieldCount(node)
+      const fallbackCount = Math.max(DEFAULT_IMAGE_CAROUSEL_COUNT, detectedImages)
+      const count = clamp(requestedCount ?? fallbackCount, 1, MAX_SCROLLABLE_ITEMS)
       const heightRaw = Number(val(node, "height") ?? val(node, "imageHeight"))
       const height = Number.isFinite(heightRaw) && heightRaw > 0 ? Math.round(heightRaw) : undefined
       const items: PosterCell[] = []
@@ -563,8 +673,11 @@ function toSection(node: any): AppHomeSection | null {
     }
 
     case "image_link_slider": {
-      const countRaw = Number(val(node, "count"))
-      const count = Number.isFinite(countRaw) && countRaw > 0 ? Math.min(Math.round(countRaw), 12) : 8
+      const countRaw = parseNumber(val(node, "count"))
+      const requestedCount = typeof countRaw === "number" && countRaw > 0 ? Math.round(countRaw) : undefined
+      const detectedImages = detectedImageFieldCount(node)
+      const fallbackCount = Math.max(DEFAULT_IMAGE_LINK_SLIDER_COUNT, detectedImages)
+      const count = clamp(requestedCount ?? fallbackCount, 1, MAX_SCROLLABLE_ITEMS)
       const items: SliderLinkItem[] = []
       for (let i = 0; i < count; i += 1) {
         const imageRef = refAt(node, "image", i)
@@ -579,10 +692,48 @@ function toSection(node: any): AppHomeSection | null {
       return { kind, id: node.id, title: heading ?? undefined, items, theme, ...targeting }
     }
 
+    case "collection_link_slider": {
+      const collectionsField = getField(node, "collections") ?? getField(node, "collection")
+      const collections = collectCollections(node)
+      const countRaw = parseNumber(val(node, "count"))
+      const requestedCount = typeof countRaw === "number" && countRaw > 0 ? Math.round(countRaw) : undefined
+      const fallbackCount = collections.length
+      const count = clamp(requestedCount ?? fallbackCount, 0, MAX_SCROLLABLE_ITEMS)
+      const items: SliderLinkItem[] = []
+      for (let i = 0; i < count; i += 1) {
+        const coll = collections[i]
+        if (!coll?.handle) continue
+        const overrideImage = refAt(node, "image", i)
+        const image = imgFrom(overrideImage) ?? imgFrom(coll.image)
+        if (!image?.url) continue
+        const url = `/collections/${coll.handle}`
+        const rawLabel = valAt(node, "title", i)
+        const label = rawLabel && rawLabel.trim() ? rawLabel : coll.title
+        items.push({ image, url, label: label ?? undefined })
+      }
+      if (!items.length) {
+        if (__DEV__) {
+          console.warn("[Home] collection_link_slider has no renderable items", {
+            collections: collections.length,
+            requestedCount,
+            fieldHasReference: Boolean(collectionsField?.reference),
+            fieldReferenceTypename: collectionsField?.reference?.__typename ?? null,
+            listRefs: getReferenceNodes(collectionsField).map((r) => r?.__typename ?? null),
+            fieldKeys: (node?.fields ?? []).map((f: any) => f?.key),
+          })
+        }
+        return null
+      }
+      const heading = val(node, "sectionTitle") ?? val(node, "heading") ?? title ?? subtitle
+      return { kind, id: node.id, title: heading ?? undefined, items, theme, ...targeting }
+    }
+
     case "duo_poster": {
-      const imageL = ref(node, "image") ?? ref(node, "image_left")
-      const imageR = ref(node, "image2") ?? ref(node, "image_right")
-      const urlRight = urlAt(node, "url", 1) ?? urlAt(node, "link", 1) ?? fieldUrl(node, "url2") ?? fieldUrl(node, "link2")
+      const orderedImages = collectImageRefs(node)
+      const imageL = ref(node, "image") ?? ref(node, "image_left") ?? orderedImages[0]
+      const imageR = ref(node, "image2") ?? ref(node, "image_right") ?? orderedImages[1]
+      const urlRight =
+        urlAt(node, "url", 1) ?? urlAt(node, "link", 1) ?? fieldUrl(node, "url2") ?? fieldUrl(node, "link2")
       return {
         kind,
         id: node.id,
@@ -650,4 +801,19 @@ function orderForImageKey(normalizedKey: string, fallback: number) {
   const firstChar = suffix.charCodeAt(0)
   if (Number.isFinite(firstChar)) return fallback + (firstChar - 96)
   return fallback
+}
+
+function collectCollections(node: any) {
+  const collectionsField = getField(node, "collections") ?? getField(node, "collection")
+  if (!collectionsField) return []
+  const refs = getReferenceNodes(collectionsField)
+  if (collectionsField.reference) refs.unshift(collectionsField.reference)
+  return refs.filter(Boolean)
+}
+
+function summarizeMetaobject(node: any) {
+  const kind = val(node, "kind") ?? node?.type ?? "unknown"
+  const id = node?.id ?? "?"
+  const keys = (node?.fields ?? []).map((f: any) => f?.key).filter(Boolean)
+  return { id, kind, keys }
 }

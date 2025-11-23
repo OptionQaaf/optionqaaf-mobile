@@ -26,6 +26,7 @@ Section metaobject (`mobile_home_section`):
 - Global field: `size` — choose `small`, `medium` (default), or `large` to control how much vertical space the section occupies.
 - Kind fields: images (`image`, `image2`, `image3`…), `speed`, `align`, `background`, `foreground`, `count`, `collection`, etc.
 - The service accepts `foo2` or `foo_2` style suffixes for second/third items (`image2`, `image_2`, …).
+- List fields: you can set `image` as a **Files (list)** field and `title`/`url`/`link` as **Text (list)** fields; we read the items in order without needing `image2`, `title2`, etc.
 
 ---
 
@@ -61,7 +62,7 @@ You can create additional handles (e.g. `ramadan-home`, `summer-home`) and route
      - `theme`, `country`, `language`, `align`, `layout`, `background`, `foreground`, `eyebrow` — Single line text.
      - `startAt`, `endAt` — Date and time.
      - `speed`, `count` — Number.
-     - `image`, `image2`, `image3`, `image4`, `image5`, `image6` — File (Media image).
+     - Images — add `image`, `image2`, `image3`, … as far as you need (recommend at least through `image20` for sliders) — File (Media image).
      - `collection` — Reference → Collection.
 
 4. **Create section entries**
@@ -113,16 +114,25 @@ All sections respect the optional targeting/scheduling fields: `country`, `langu
 - Purpose: Auto-advancing hero carousel that also supports manual swipes.
 - Required: At least one tile with an image.
 - Optional per item: `url`/`link` for tap-through navigation.
-- Global optional fields: `count` (default 5, max 10), `height` (px), `theme`, gating fields.
+- Global optional fields: `count` (auto; defaults to number of image fields or 5, max 50), `height` (px), `theme`, gating fields.
+- Works with list fields — a single multi-file `image` field and multi-text `title`/`url` fields are read in order.
 - Slides auto-advance every 4.5 seconds when untouched.
 
 ### `image_link_slider`
 - Purpose: Horizontally scrolling row of tappable images with tiny captions.
 - Required: Populate at least one tile with `image` (`image2`, `image3`, ... are supported).
 - Optional per item: `title`/`title2` (caption text shown on the white tag), `url`/`link` for the tap-through destination.
-- Optional global fields: `count` (default 8, max 12), `title`/`subtitle`/`heading` for an optional section label, `theme`, gating fields.
+- Optional global fields: `count` (auto; defaults to number of image fields or 8, max 50), `title`/`subtitle`/`heading` for an optional section label, `theme`, gating fields.
 - Each image gently scales to ~1.03× while pressed and displays its caption in a centered white rectangle with black text.
+- Works with list fields — a single multi-file `image` field and multi-text `title`/`url` fields are read in order.
 - Alias: The kind name `image_slider_link` also works if you already created a definition with that identifier.
+
+### `collection_link_slider`
+- Purpose: Horizontally scrolling row of collections that deep-link to `/collections/<handle>`.
+- Required: Add collections to the `collections` (list of Collection references) field. We also accept a single `collection` field configured as a list.
+- Images: Uses each collection’s featured image. Optional labels come from the `title` list (per index) or the collection title.
+- Optional global fields: `count` (auto; defaults to number of collections, max 50), `title`/`heading` for an optional section label, `theme`, gating fields.
+- Works with list fields — one `collections` list + optional `title` list.
 
 ### `duo_poster`
 - Purpose: Two half-width posters.

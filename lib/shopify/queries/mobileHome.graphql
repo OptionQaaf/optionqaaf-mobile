@@ -18,6 +18,30 @@ query MobileHome($handle: String!, $language: LanguageCode) @inContext(language:
             fields {
               key
               value
+              references(first: 250) {
+                nodes {
+                  __typename
+                  ... on MediaImage {
+                    image {
+                      ...Image
+                    }
+                  }
+                  ... on Collection {
+                    handle
+                    title
+                    image {
+                      ...Image
+                    }
+                  }
+                  ... on Product {
+                    handle
+                    title
+                    featuredImage {
+                      ...Image
+                    }
+                  }
+                }
+              }
               reference {
                 __typename
 
@@ -47,7 +71,30 @@ query MobileHome($handle: String!, $language: LanguageCode) @inContext(language:
               }
             }
           }
-          # If any non-Metaobject sneaks in, we ignore it by design
+
+          # Allow list-of-collection fields to resolve directly here
+          ... on Collection {
+            handle
+            title
+            image {
+              ...Image
+            }
+          }
+
+          # And list-of-product/media fallbacks if ever needed
+          ... on Product {
+            handle
+            title
+            featuredImage {
+              ...Image
+            }
+          }
+
+          ... on MediaImage {
+            image {
+              ...Image
+            }
+          }
         }
       }
     }

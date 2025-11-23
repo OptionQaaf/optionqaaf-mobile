@@ -60,15 +60,7 @@ export default function CollectionScreen() {
   const { data: specialSearch } = useSearch(special?.searchQuery ?? "", 24)
   const vendorSearch = useSearch(isVendorLanding ? vendorName : "", 24)
   const specialSections = useMemo(() => specialHome?.sections ?? [], [specialHome?.sections])
-  const specialCapsuleHandles = useMemo(() => {
-    const handles: string[] = []
-    for (const section of specialSections ?? []) {
-      if (section?.kind === "product_rail" && section.collectionHandle) {
-        if (!handles.includes(section.collectionHandle)) handles.push(section.collectionHandle)
-      }
-    }
-    return handles.slice(0, 3)
-  }, [specialSections])
+
   // controls state
   const [searchTerm, setSearchTerm] = useState("")
   const [view, setView] = useState<1 | 2>(2)
@@ -235,6 +227,7 @@ export default function CollectionScreen() {
       if (ABS.test(url)) Linking.openURL(url)
       else router.push(url as any)
     }
+    console.log("Rendering special collection page for", sections, sections.length)
     return (
       <Screen bleedBottom bleedTop>
         <View className="flex-1 bg-white">
