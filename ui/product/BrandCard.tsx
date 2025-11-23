@@ -82,11 +82,6 @@ export const BrandCard = memo(function BrandCard({ name, productCount, images, p
             <Text className="mt-2 text-[14px] text-secondary" numberOfLines={2}>
               {summary}
             </Text>
-            {priceSummary ? (
-              <Text className="mt-1 text-[12px] text-neutral-500" numberOfLines={1}>
-                {priceSummary}
-              </Text>
-            ) : null}
           </>
         )}
       </View>

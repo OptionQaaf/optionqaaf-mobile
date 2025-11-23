@@ -76,15 +76,10 @@ export default function ProductScreen() {
     const condensed = normalized.replace(/\s+/g, "")
     return (
       variants.find((v) => {
-        const sku = ((v as any)?.sku ?? "").toString().toLowerCase()
         const bc = ((v as any)?.barcode ?? "").toString().toLowerCase()
         return (
-          sku === normalized ||
           bc === normalized ||
-          sku === condensed ||
-          bc === condensed ||
-          (!sku && bc === normalized) ||
-          (!bc && sku === normalized)
+          bc === condensed
         )
       }) ?? null
     )
@@ -238,7 +233,6 @@ export default function ProductScreen() {
     : undefined
   const variantCode =
     ((selectedVariant as any)?.barcode as string | undefined) ??
-    ((selectedVariant as any)?.sku as string | undefined) ??
     null
   const vendorPriceRange = useMemo(() => {
     if (!vendorProducts.length) return null

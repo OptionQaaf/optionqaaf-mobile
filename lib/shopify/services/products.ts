@@ -119,32 +119,32 @@ export async function searchProducts(
         )
         const nodes = res.products?.nodes ?? []
         if (!nodes.length) continue
-        for (const n of nodes) {
-          const handle = (n as any)?.handle
-          if (!handle) continue
-          const full = await productFromHandle(handle)
-          if (!full) continue
-            const match = (full.variants ?? []).find((v) => {
-              const sku = (v as any)?.sku
-              const bc = (v as any)?.barcode
-              return sku === normalized || bc === normalized || sku === condensed || bc === condensed
-            })
-            if (match) {
-              const node: any = {
-                ...full,
-                availableForSale: full.availableForSale ?? match.availableForSale ?? true,
-                __variantId: match.id,
-                __variantCode: (match as any)?.barcode ?? (match as any)?.sku ?? normalized,
-              }
-              delete node.variants
-            if (__DEV__) console.log("[Search] variant code hit", { code, query: q, handle: node.handle })
-            return node
+    for (const n of nodes) {
+      const handle = (n as any)?.handle
+      if (!handle) continue
+      const full = await productFromHandle(handle)
+      if (!full) continue
+        const match = (full.variants ?? []).find((v) => {
+          const bc = (v as any)?.barcode
+          return bc === normalized || bc === condensed
+        })
+        const barcode = (match as any)?.barcode
+        if (match && barcode) {
+          const node: any = {
+            ...full,
+            availableForSale: full.availableForSale ?? match.availableForSale ?? true,
+            __variantId: match.id,
+            __variantCode: barcode,
           }
+          delete node.variants
+          if (__DEV__) console.log("[Search] variant code hit", { code, query: q, handle: node.handle })
+          return node
         }
-      } catch (err) {
-        if (__DEV__) console.warn("[Search] variant code search failed", { code, query: q, err })
-      }
     }
+  } catch (err) {
+    if (__DEV__) console.warn("[Search] variant code search failed", { code, query: q, err })
+  }
+}
     return null
   }
 
