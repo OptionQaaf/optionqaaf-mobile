@@ -6,6 +6,7 @@ import {
   type ProductCollectionSortKeys,
   ProductByHandleDocument,
   type ProductByHandleQuery,
+  type ProductVariant,
   SearchProductsDocument,
   type SearchProductsQuery,
 } from "@/lib/shopify/gql/graphql"
@@ -47,6 +48,143 @@ export async function searchProducts(
   args: { query: string; pageSize?: number; after?: string | null },
   locale?: { country?: string; language?: string },
 ) {
+  const trimmed = args.query.trim()
+  const isNumericId = /^\d+$/.test(trimmed)
+
+  async function productFromHandle(pHandle: string) {
+    const prod = await getProductByHandle(pHandle, locale)
+    const p = prod.product
+    if (!p) return null
+    const variants = (p.variants?.nodes ?? []) as ProductVariant[]
+    let minPrice = Number.POSITIVE_INFINITY
+    let minCompare = Number.POSITIVE_INFINITY
+    let currency = "USD"
+    let available = false
+    for (const v of variants) {
+      if (!v) continue
+      const amt = Number((v as any)?.price?.amount ?? 0)
+      const cmp = Number((v as any)?.compareAtPrice?.amount ?? Number.POSITIVE_INFINITY)
+      if (Number.isFinite(amt) && amt < minPrice) minPrice = amt
+      if (Number.isFinite(cmp) && cmp < minCompare) minCompare = cmp
+      if ((v as any)?.price?.currencyCode) currency = String((v as any).price.currencyCode)
+      if (v.availableForSale !== false) available = true
+    }
+    if (!Number.isFinite(minPrice)) minPrice = 0
+    const compareAt = Number.isFinite(minCompare) ? minCompare : undefined
+
+    return {
+      id: p.id,
+      handle: p.handle,
+      title: p.title,
+      vendor: (p as any)?.vendor ?? "",
+      availableForSale: available,
+      featuredImage: p.featuredImage as any,
+      priceRange: {
+        minVariantPrice: { amount: String(minPrice), currencyCode: currency as any },
+        maxVariantPrice: { amount: String(minPrice), currencyCode: currency as any },
+      },
+      compareAtPriceRange: {
+        minVariantPrice: {
+          amount: String(compareAt ?? minPrice),
+          currencyCode: currency as any,
+        },
+        maxVariantPrice: {
+          amount: String(compareAt ?? minPrice),
+          currencyCode: currency as any,
+        },
+      },
+      variants,
+    }
+  }
+
+  async function searchProductByVariantCode(code: string) {
+    const normalized = code.trim()
+    const quoted = JSON.stringify(normalized)
+    const condensed = normalized.replace(/\s+/g, "")
+    const queries = [
+      `sku:${quoted} OR barcode:${quoted}`,
+      condensed !== normalized ? `sku:${condensed} OR barcode:${condensed}` : null,
+    ].filter(Boolean) as string[]
+
+    for (const q of queries) {
+      try {
+        const res = await callShopify<SearchProductsQuery>(() =>
+          shopifyClient.request(SearchProductsDocument, {
+            query: q,
+            pageSize: 3,
+            after: null,
+            country: locale?.country as any,
+            language: locale?.language as any,
+          }),
+        )
+        const nodes = res.products?.nodes ?? []
+        if (!nodes.length) continue
+        for (const n of nodes) {
+          const handle = (n as any)?.handle
+          if (!handle) continue
+          const full = await productFromHandle(handle)
+          if (!full) continue
+            const match = (full.variants ?? []).find((v) => {
+              const sku = (v as any)?.sku
+              const bc = (v as any)?.barcode
+              return sku === normalized || bc === normalized || sku === condensed || bc === condensed
+            })
+            if (match) {
+              const node: any = {
+                ...full,
+                availableForSale: full.availableForSale ?? match.availableForSale ?? true,
+                __variantId: match.id,
+                __variantCode: (match as any)?.barcode ?? (match as any)?.sku ?? normalized,
+              }
+              delete node.variants
+            if (__DEV__) console.log("[Search] variant code hit", { code, query: q, handle: node.handle })
+            return node
+          }
+        }
+      } catch (err) {
+        if (__DEV__) console.warn("[Search] variant code search failed", { code, query: q, err })
+      }
+    }
+    return null
+  }
+
+  // Fallback: if someone searches a numeric product ID, try to resolve it directly.
+  if (isNumericId && !args.after) {
+    const gid = `gid://shopify/Product/${trimmed}`
+    const handle = await getProductHandleById(gid)
+    if (__DEV__) console.log("[Search] numeric ID query", trimmed, { resolvedHandle: handle })
+    if (handle) {
+      const node = await productFromHandle(handle)
+      if (node) {
+        delete (node as any).variants
+        return {
+          products: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [node],
+          },
+        } as unknown as SearchProductsQuery
+      }
+    }
+
+    // If product ID lookup failed, try barcode/sku variant lookup for numeric codes.
+    const codeHit = await searchProductByVariantCode(trimmed)
+    if (codeHit) {
+      return {
+        products: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [codeHit] },
+      } as unknown as SearchProductsQuery
+    }
+  }
+
+  // If not numeric ID, still try barcode/sku variant lookup before general search.
+  if (!args.after && trimmed && !isNumericId) {
+    const codeHit = await searchProductByVariantCode(trimmed)
+    if (codeHit) {
+      return {
+        products: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [codeHit] },
+      } as unknown as SearchProductsQuery
+    }
+  }
+
   return callShopify<SearchProductsQuery>(() =>
     shopifyClient.request(SearchProductsDocument, {
       query: args.query,

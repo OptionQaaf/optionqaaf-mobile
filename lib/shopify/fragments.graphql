@@ -86,6 +86,8 @@ fragment ProductDetail on Product {
       image {
         ...Image
       }
+      sku
+      barcode
     }
   }
 }

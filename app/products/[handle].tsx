@@ -22,15 +22,36 @@ import ProductDescriptionNative from "@/ui/product/ProductDescriptionNative"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { VariantDropdown } from "@/ui/product/VariantDropdown"
+import * as Clipboard from "expo-clipboard"
 import { router, useLocalSearchParams } from "expo-router"
-import { Star } from "lucide-react-native"
+import { Copy, Star } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function ProductScreen() {
-  const { handle } = useLocalSearchParams<{ handle: string }>()
+  const { handle, variant: variantParam, code: codeParam } = useLocalSearchParams<{
+    handle: string
+    variant?: string
+    code?: string
+  }>()
   const h = typeof handle === "string" ? handle : ""
+  const requestedVariantId = useMemo(() => {
+    if (typeof variantParam !== "string") return null
+    try {
+      return decodeURIComponent(variantParam)
+    } catch {
+      return variantParam
+    }
+  }, [variantParam])
+  const requestedCode = useMemo(() => {
+    if (typeof codeParam !== "string") return null
+    try {
+      return decodeURIComponent(codeParam)
+    } catch {
+      return codeParam
+    }
+  }, [codeParam])
   const { data: product, isLoading } = useProduct(h)
   const { isAuthenticated, login } = useShopifyAuth()
   const vendor = ((product as any)?.vendor ?? "") as string
@@ -47,23 +68,48 @@ export default function ProductScreen() {
   const options: { name: string; values: string[] }[] = (product as any)?.options ?? []
   const variants: any[] = (product as any)?.variants?.nodes ?? []
   const inStockVariants = useMemo(() => variants.filter((v) => v?.availableForSale !== false), [variants])
-  const variantsPool = inStockVariants.length ? inStockVariants : variants
+  const requestedVariant = useMemo(() => {
+    const byId = variants.find((v) => v?.id === requestedVariantId)
+    if (byId) return byId
+    if (!requestedCode) return null
+    const normalized = requestedCode.trim().toLowerCase()
+    const condensed = normalized.replace(/\s+/g, "")
+    return (
+      variants.find((v) => {
+        const sku = ((v as any)?.sku ?? "").toString().toLowerCase()
+        const bc = ((v as any)?.barcode ?? "").toString().toLowerCase()
+        return (
+          sku === normalized ||
+          bc === normalized ||
+          sku === condensed ||
+          bc === condensed ||
+          (!sku && bc === normalized) ||
+          (!bc && sku === normalized)
+        )
+      }) ?? null
+    )
+  }, [variants, requestedVariantId, requestedCode])
+  const variantsPool = useMemo(() => {
+    const base = inStockVariants.length ? inStockVariants : variants
+    if (requestedVariant && !base.includes(requestedVariant)) return [...base, requestedVariant]
+    return base
+  }, [variants, inStockVariants, requestedVariant])
   const firstAvailableVariant = useMemo(() => variantsPool[0] ?? null, [variantsPool])
   const [sel, setSel] = useState<Record<string, string>>({})
   useEffect(() => {
     if (!options?.length) return
     setSel((prev) => {
       const next = { ...prev }
-      const source = firstAvailableVariant ?? variants[0]
+      const source = requestedVariant ?? firstAvailableVariant ?? variants[0]
       if (source?.selectedOptions) {
         for (const opt of source.selectedOptions) {
-          if (opt?.name && opt?.value && !next[opt.name]) next[opt.name] = opt.value
+          if (opt?.name && opt?.value) next[opt.name] = opt.value
         }
       }
       for (const opt of options) if (!next[opt.name]) next[opt.name] = opt.values[0]
       return next
     })
-  }, [product, options, firstAvailableVariant, variants])
+  }, [product, options, firstAvailableVariant, variants, requestedVariant])
 
   const availableOptionValues = useMemo(() => {
     const map: Record<string, string[]> = {}
@@ -89,6 +135,7 @@ export default function ProductScreen() {
 
   useEffect(() => {
     if (!options?.length) return
+    if (requestedVariant) return
     setSel((prev) => {
       let changed = false
       const next = { ...prev }
@@ -102,14 +149,15 @@ export default function ProductScreen() {
       }
       return changed ? next : prev
     })
-  }, [options, availableOptionValues])
+  }, [options, availableOptionValues, requestedVariant])
 
   const selectedVariant = useMemo(() => {
     if (!variants?.length) return null
+    if (requestedVariant) return requestedVariant
     const pool = variantsPool.length ? variantsPool : variants
     const match = pool.find((v) => (v.selectedOptions ?? []).every((o: any) => String(sel[o.name]) === String(o.value)))
     return match ?? firstAvailableVariant ?? variants[0] ?? null
-  }, [variants, sel, firstAvailableVariant, variantsPool])
+  }, [variants, sel, firstAvailableVariant, variantsPool, requestedVariant])
 
   const available = selectedVariant?.availableForSale !== false
   const loading = ensure.isPending || add.isPending
@@ -188,6 +236,10 @@ export default function ProductScreen() {
   const compareAtAmount = (selectedVariant as any)?.compareAtPrice?.amount
     ? Number((selectedVariant as any)?.compareAtPrice?.amount)
     : undefined
+  const variantCode =
+    ((selectedVariant as any)?.barcode as string | undefined) ??
+    ((selectedVariant as any)?.sku as string | undefined) ??
+    null
   const vendorPriceRange = useMemo(() => {
     if (!vendorProducts.length) return null
     let min = Number.POSITIVE_INFINITY
@@ -256,6 +308,12 @@ export default function ProductScreen() {
     })
   }, [wishlistData, toggleWishlist, isWishlisted, show, isAuthenticated, login])
 
+  const copyVariantCode = useCallback(() => {
+    if (!variantCode) return
+    Clipboard.setStringAsync(variantCode).catch(() => {})
+    show({ title: "Barcode copied", type: "success" })
+  }, [variantCode, show])
+
   if (isLoading) {
     return (
       <Screen bleedTop bleedBottom>
@@ -291,6 +349,15 @@ export default function ProductScreen() {
               <View className="flex-1">
                 <Text className="text-[18px] font-extrabold text-primary mb-1">{(product as any)?.title}</Text>
                 <Text className="text-secondary mb-1">{(product as any)?.vendor}</Text>
+                {variantCode ? (
+                  <PressableOverlay
+                    onPress={copyVariantCode}
+                    className="self-start flex-row items-center gap-1 rounded-full bg-[#f1f5f9] px-2.5 py-1"
+                  >
+                    <Copy size={14} color="#0f172a" strokeWidth={1.5} />
+                    <Text className="text-[12px] font-semibold text-[#0f172a]">{variantCode}</Text>
+                  </PressableOverlay>
+                ) : null}
                 {!available ? <Text className="text-brand font-geist-semibold">Out of stock</Text> : null}
               </View>
               {wishlistData ? (

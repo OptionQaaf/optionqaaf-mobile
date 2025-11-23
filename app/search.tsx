@@ -150,7 +150,18 @@ export default function SearchScreen() {
               imageRatio={3 / 4}
               padding="sm"
               priority={index < 6 ? "high" : "normal"}
-              onPress={() => item?.handle && router.push(`/products/${item.handle}` as any)}
+              onPress={() =>
+                item?.handle &&
+                router.push({
+                  pathname: "/products/[handle]",
+                  params: {
+                    handle: item.handle,
+                    variant:
+                      (item as any).__variantId != null ? encodeURIComponent(String((item as any).__variantId)) : undefined,
+                    code: (item as any).__variantCode != null ? encodeURIComponent(String((item as any).__variantCode)) : undefined,
+                  },
+                })
+              }
             />
           </View>
         )}
