@@ -1,12 +1,7 @@
-import { hapticOnce, haptics } from "@/ui/feedback/useHaptics"
-import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
-import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { cn } from "@/ui/utils/cva"
-import { Check, ChevronDown, X } from "lucide-react-native"
+import DropDownPicker from "react-native-dropdown-picker"
 import { useEffect, useMemo, useState } from "react"
-import { FlatList, type ListRenderItem, Modal, Pressable, Text, useWindowDimensions, View } from "react-native"
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { Platform, Text, View } from "react-native"
 
 export type DropdownOption = { id: string; label: string; disabled?: boolean }
 
@@ -17,8 +12,11 @@ export function Dropdown({
   options,
   onChange,
   className,
-  buttonClassName,
+  buttonClassName: _buttonClassName, // kept for backward compatibility but styling handled via hasError
   disabled,
+  searchable = false,
+  searchPlaceholder = "Search…",
+  hasError = false,
 }: {
   label?: string
   placeholder?: string
@@ -28,118 +26,90 @@ export function Dropdown({
   className?: string
   buttonClassName?: string
   disabled?: boolean
+  searchable?: boolean
+  searchPlaceholder?: string
+  hasError?: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const progress = useSharedValue(0)
-  const selected = useMemo(() => options.find((o) => o.id === value)?.label, [options, value])
-  const { height } = useWindowDimensions()
-  const insets = useSafeAreaInsets()
+  const [items, setItems] = useState(() =>
+    options.map((option) => ({ label: option.label, value: option.id, disabled: option.disabled })),
+  )
 
-  const openSheet = () => {
-    setMounted(true)
-    progress.value = withTiming(1, { duration: 140 })
-    hapticOnce(haptics.impact.light)
-  }
-
-  const closeSheet = () => {
-    progress.value = withTiming(0, { duration: 140 }, (f) => {
-      if (f) runOnJS(setMounted)(false)
-    })
-  }
   useEffect(() => {
-    open ? openSheet() : closeSheet()
-  }, [open])
+    setItems(options.map((option) => ({ label: option.label, value: option.id, disabled: option.disabled })))
+  }, [options])
 
-  const scrimStyle = useAnimatedStyle(() => ({ opacity: 0.4 * progress.value }))
-  const panelStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: (1 - progress.value) * 16 }],
-    opacity: progress.value,
-  }))
-
-  const renderItem: ListRenderItem<DropdownOption> = ({ item }) => {
-    const isSelected = item.id === value
-    return (
-      <Pressable
-        disabled={item.disabled}
-        onPress={() => {
-          onChange?.(item.id)
-          hapticOnce(haptics.selection)
-          setOpen(false)
-        }}
-        className={cn("flex-row items-center justify-between px-4 h-12", item.disabled && "opacity-40")}
-      >
-        <Text className="text-primary">{item.label}</Text>
-        {isSelected ? <Check size={18} color="#0B0B0B" /> : null}
-      </Pressable>
-    )
-  }
+  const containerZIndex = useMemo(() => (open ? 2000 : 1), [open])
+  const buttonProps = useMemo(() => ({ activeOpacity: 1 }), [])
 
   return (
-    <View className={cn("w-full", className)}>
-      {!!label && <Text className="mb-2 text-primary">{label}</Text>}
+    <View className={cn("w-full", className)} style={{ zIndex: containerZIndex }}>
+      {!!label && (
+        <Text className="mb-2 text-primary" selectable={false}>
+          {label}
+        </Text>
+      )}
 
-      <PressableOverlay
+      <DropDownPicker
+        open={open}
+        setOpen={setOpen}
+        value={value ?? null}
+        setValue={(next) => {
+          const resolved = typeof next === "function" ? next(value ?? null) : next
+          if (resolved && onChange) {
+            onChange(resolved)
+          }
+          return resolved
+        }}
+        items={items}
+        setItems={setItems}
+        placeholder={placeholder}
+        searchable={searchable}
+        searchPlaceholder={searchPlaceholder}
+        listMode="SCROLLVIEW"
+        autoScroll
+        dropDownDirection={Platform.OS === "android" ? "AUTO" : "DEFAULT"}
         disabled={disabled}
-        onPress={() => setOpen(true)}
-        className={cn(
-          "w-full h-12 rounded-xl bg-surface border border-border px-3 flex-row items-center justify-between",
-          buttonClassName,
-        )}
-      >
-        <>
-          <Text className={cn(selected ? "text-primary" : "text-muted")}>{selected ?? placeholder}</Text>
-          <ChevronDown size={18} color="#0B0B0B" />
-        </>
-      </PressableOverlay>
-
-      <Modal
-        visible={mounted}
-        transparent
-        animationType="none"
-        onRequestClose={() => setOpen(false)}
-        presentationStyle="overFullScreen"
-        statusBarTranslucent
-      >
-        {/* SCRIM */}
-        <Pressable className="absolute inset-0" onPress={() => setOpen(false)}>
-          <Animated.View style={scrimStyle} className="flex-1 bg-black" />
-        </Pressable>
-
-        {/* SHEET */}
-        <Animated.View style={panelStyle} className="absolute inset-x-0 bottom-0">
-          {/* Use a plain View for the rounded container and clip children */}
-          <View className="bg-surface border-t border-border rounded-t-2xl overflow-hidden">
-            {/* Header */}
-            <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-              <Text className="text-primary font-geist-semibold text-[16px]">{label ?? "Select"}</Text>
-              <PressableOverlay className="px-2 py-1 rounded-md" onPress={() => setOpen(false)}>
-                <X size={18} />
-              </PressableOverlay>
-            </View>
-
-            {/* Options list */}
-            <FlatList
-              {...verticalScrollProps}
-              data={options}
-              keyExtractor={(o) => o.id}
-              renderItem={renderItem}
-              ItemSeparatorComponent={() => <View className="h-px bg-border" />}
-              // Cap height so it never pushes into the top too far
-              style={{ maxHeight: Math.round(height * 0.6) - insets.bottom }}
-              // <-- The important part: keep content clear of the bottom inset
-              contentContainerStyle={{
-                paddingBottom: insets.bottom + 12, // leaves space above the home indicator
-                paddingHorizontal: 0,
-              }}
-              // Also lift the scroll indicators
-              scrollIndicatorInsets={{ bottom: insets.bottom + 12 }}
-              keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
-              showsVerticalScrollIndicator={false}
-            />
-          </View>
-        </Animated.View>
-      </Modal>
+        showArrowIcon={!disabled}
+        keyboardShouldPersistTaps="handled"
+        scrollViewProps={{ keyboardShouldPersistTaps: "handled" }}
+        props={buttonProps}
+        style={{
+          borderRadius: 12,
+          minHeight: 48,
+          backgroundColor: disabled ? "#e2e8f0" : "#ffffff",
+          borderColor: hasError ? "#ef4444" : "#e2e8f0",
+          borderWidth: 1,
+        }}
+        placeholderStyle={{ color: "#94a3b8" }}
+        labelStyle={{ color: "#0f172a" }}
+        textStyle={{ color: "#0f172a" }}
+        dropDownContainerStyle={{
+          borderRadius: 12,
+          borderColor: "#e2e8f0",
+          backgroundColor: "#ffffff",
+          overflow: "hidden",
+        }}
+        listItemContainerStyle={{ paddingVertical: 12 }}
+        arrowIconStyle={{ display: disabled ? "none" : "flex" }}
+        searchContainerStyle={{
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          backgroundColor: "#ffffff",
+          borderBottomColor: "#e2e8f0",
+          borderBottomWidth: searchable ? 1 : 0,
+        }}
+        searchTextInputStyle={{
+          backgroundColor: "#ffffff",
+          borderColor: "#e2e8f0",
+          borderWidth: 1,
+          borderRadius: 12,
+          paddingHorizontal: 12,
+          color: "#0f172a",
+        }}
+        disabledStyle={{ backgroundColor: "#e2e8f0" }}
+        modalAnimationType="fade"
+      />
     </View>
   )
 }
