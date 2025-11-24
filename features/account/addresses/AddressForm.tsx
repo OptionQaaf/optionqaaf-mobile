@@ -459,6 +459,10 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               autoCapitalize="characters"
               returnKeyType="done"
             />
+            <Text className="text-[12px] text-[#64748b]">
+              We’ll try to detect your postal code when the address details are filled; if it looks wrong, you can
+              replace it.
+            </Text>
             {cityName ? <Text className="text-[12px] text-[#64748b]">Selected city: {cityName}</Text> : null}
           </View>
         </Card>
