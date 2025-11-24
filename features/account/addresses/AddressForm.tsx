@@ -19,7 +19,7 @@ import {
   createInitialAddressState,
   type AddressFormState,
 } from "./formState"
-import { placeDetails, reverseGeocodeGoogle } from "@/lib/maps/places"
+import { geocodeAddressString, placeDetails, reverseGeocodeGoogle } from "@/lib/maps/places"
 import { useToast } from "@/ui/feedback/Toast"
 import { Button } from "@/ui/primitives/Button"
 import { Dropdown } from "@/ui/primitives/Dropdown"
@@ -27,7 +27,7 @@ import { Input } from "@/ui/primitives/Input"
 import { Text } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
 import * as Location from "expo-location"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Platform, ScrollView, Switch, View } from "react-native"
 import type { MapPressEvent, Region } from "react-native-maps"
 import { PlacesInput, type PlacePick } from "./PlacesInput"
@@ -81,6 +81,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   const MarkerComponent = mapModule?.Marker
   const [values, setValues] = useState<AddressFormState>(() => createInitialAddressState(initialValues))
   const [errors, setErrors] = useState<FormErrors>({})
+  const zipEditedManually = useRef(false)
   const [region, setRegion] = useState<Region>(() =>
     initialCoordinate
       ? {
@@ -141,6 +142,9 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   }, [show])
 
   const applySelection = useCallback((selection: MappedAddressSelection | null | undefined) => {
+    if (selection?.zip) {
+      zipEditedManually.current = false
+    }
     setValues((prev) => applyMappedSelection(prev, selection))
   }, [])
 
@@ -294,6 +298,40 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
 
   const cityName = values.cityId ? cityLookupById[values.cityId]?.cityName : undefined
 
+  useEffect(() => {
+    if (!values.countryCode || !values.cityId || !values.addressLine.trim()) return
+    const city = cityLookupById[values.cityId]
+    if (!city) return
+    if (zipEditedManually.current && !values.zip.trim()) {
+      zipEditedManually.current = false
+    }
+    if (zipEditedManually.current) return
+
+    const parts = [values.addressLine, values.address2, values.area, city.cityName, city.provinceName, values.countryCode]
+      .map((part) => (part ?? "").trim())
+      .filter(Boolean)
+    if (!parts.length) return
+
+    const query = parts.join(", ")
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      geocodeAddressString(query, controller.signal)
+        .then((address) => {
+          if (!address.rawZip || zipEditedManually.current) return
+          setValues((prev) => ({ ...prev, zip: address.rawZip ?? prev.zip }))
+        })
+        .catch((error) => {
+          if (error?.name === "AbortError") return
+          console.error("geocodeAddressString", error)
+        })
+    }, 500)
+
+    return () => {
+      controller.abort()
+      clearTimeout(timer)
+    }
+  }, [values.address2, values.addressLine, values.area, values.cityId, values.countryCode, values.provinceName, values.zip])
+
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 48 }} className="bg-[#f8fafc]">
       <View className="gap-6 px-5 pt-6 pb-10">
@@ -422,7 +460,6 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               disabled={!values.countryCode}
             />
             {errors.cityId ? <Text className="text-[12px] text-[#ef4444]">{errors.cityId}</Text> : null}
-            <Input label="Province" value={values.provinceName ?? ""} editable={false} placeholder="Auto-filled" />
             <Dropdown
               label="Area"
               value={values.area ? `${values.cityId}|${values.area}` : undefined}
@@ -438,7 +475,10 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
             <Input
               label="Postal code"
               value={values.zip}
-              onChangeText={(text) => updateValue("zip", text)}
+              onChangeText={(text) => {
+                zipEditedManually.current = text.trim().length > 0
+                updateValue("zip", text)
+              }}
               error={errors.zip}
               autoCapitalize="characters"
               returnKeyType="done"

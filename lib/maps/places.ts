@@ -203,3 +203,22 @@ export async function reverseGeocodeGoogle(
     formatted: result.formatted_address,
   }
 }
+
+export async function geocodeAddressString(address: string, signal?: AbortSignal): Promise<GeocodedAddress> {
+  const params = buildParams({
+    address,
+    key: GOOGLE_PLACES_KEY,
+  })
+
+  const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params.toString()}`, {
+    signal,
+  })
+  await handleGoogleError(response)
+  const data = (await response.json()) as GoogleGeocodeResponse
+  validateStatus(data.status, data.error_message)
+
+  const result = data.results?.[0]
+  if (!result) return {}
+
+  return parseAddressComponents(result.address_components)
+}
