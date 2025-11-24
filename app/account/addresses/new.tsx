@@ -8,6 +8,7 @@ import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { useRouter } from "expo-router"
 import { useCallback } from "react"
+import { KeyboardAvoidingView, Platform } from "react-native"
 
 export default function NewAddressScreen() {
   const router = useRouter()
@@ -47,5 +48,13 @@ function NewAddressContent() {
     [createAddress, router, show],
   )
 
-  return <AddressForm submitLabel="Save address" onSubmit={handleSubmit} isSubmitting={isPending} />
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={80}
+    >
+      <AddressForm submitLabel="Save address" onSubmit={handleSubmit} isSubmitting={isPending} />
+    </KeyboardAvoidingView>
+  )
 }

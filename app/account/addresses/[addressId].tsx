@@ -11,7 +11,7 @@ import { Text } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useCallback, useMemo } from "react"
-import { ActivityIndicator, View } from "react-native"
+import { ActivityIndicator, KeyboardAvoidingView, Platform, View } from "react-native"
 
 export default function EditAddressScreen() {
   const router = useRouter()
@@ -109,12 +109,18 @@ function EditAddressContent() {
   }
 
   return (
-    <AddressForm
-      submitLabel="Update address"
-      initialValues={buildInitialValuesFromAddress(address, isDefault)}
-      onSubmit={handleSubmit}
-      onDelete={isDefault ? undefined : handleDelete}
-      isSubmitting={updating || deleting}
-    />
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={80}
+    >
+      <AddressForm
+        submitLabel="Update address"
+        initialValues={buildInitialValuesFromAddress(address, isDefault)}
+        onSubmit={handleSubmit}
+        onDelete={isDefault ? undefined : handleDelete}
+        isSubmitting={updating || deleting}
+      />
+    </KeyboardAvoidingView>
   )
 }

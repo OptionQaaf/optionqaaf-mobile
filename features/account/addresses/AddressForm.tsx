@@ -28,7 +28,8 @@ import { Text } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
 import * as Location from "expo-location"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Platform, ScrollView, Switch, View } from "react-native"
+import { Platform, Switch, View } from "react-native"
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view"
 import type { MapPressEvent, Region } from "react-native-maps"
 
 let ReactNativeMapsModule: typeof import("react-native-maps") | undefined
@@ -306,7 +307,13 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   }, [values.address2, values.addressLine, values.area, values.cityId, values.countryCode, values.provinceName, values.zip])
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 48 }} className="bg-[#f8fafc]">
+    <KeyboardAwareScrollView
+      enableOnAndroid
+      extraScrollHeight={40}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 48 }}
+      className="bg-[#f8fafc]"
+    >
       <View className="gap-6 px-5 pt-6 pb-10">
         <Card padding="lg" className="gap-4">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Contact</Text>
@@ -411,7 +418,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               value={values.countryCode ?? undefined}
               options={countryOptions}
               onChange={(code) => setValues((prev) => applyCountry(prev, code))}
-              buttonClassName={errors.countryCode ? "border-[#ef4444]" : undefined}
+              hasError={!!errors.countryCode}
               searchable
               placeholder="Select a country"
             />
@@ -423,7 +430,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               value={values.cityId ?? undefined}
               options={cityOptions}
               onChange={(cityId) => setValues((prev) => applyCity(prev, cityId))}
-              buttonClassName={errors.cityId ? "border-[#ef4444]" : undefined}
+              hasError={!!errors.cityId}
               searchable
               placeholder={values.countryCode ? "Select a city" : "Choose a country first"}
               disabled={!values.countryCode}
@@ -484,6 +491,6 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
           ) : null}
         </View>
       </View>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   )
 }
