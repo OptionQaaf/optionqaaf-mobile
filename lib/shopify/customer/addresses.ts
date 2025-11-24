@@ -87,13 +87,11 @@ export type CustomerAddressInput = {
   address1?: string | null
   address2?: string | null
   city?: string | null
-  area?: string | null
-  provinceName?: string | null
+  province?: string | null
   zip?: string | null
   zoneCode?: string | null
   territoryCode?: string | null
-  countryCode?: string | null
-  addressLine?: string | null
+  country?: string | null
 }
 
 function extractErrors(payload: CustomerAddressPayload | null | undefined): string[] {

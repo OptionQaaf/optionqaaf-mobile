@@ -40,6 +40,7 @@ export function Dropdown({
   }, [options])
 
   const containerZIndex = useMemo(() => (open ? 2000 : 1), [open])
+  const buttonProps = useMemo(() => ({ activeOpacity: 1 }), [])
 
   return (
     <View className={cn("w-full", className)} style={{ zIndex: containerZIndex }}>
@@ -72,6 +73,7 @@ export function Dropdown({
         showArrowIcon={!disabled}
         keyboardShouldPersistTaps="handled"
         scrollViewProps={{ keyboardShouldPersistTaps: "handled" }}
+        props={buttonProps}
         style={{
           borderRadius: 12,
           minHeight: 48,

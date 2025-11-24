@@ -21,14 +21,12 @@ export function formToInput(values: AddressFormSubmitData): CustomerAddressInput
     phoneNumber: values.phoneNumber.trim() || null,
     address1: addressLine,
     address2: address2WithArea,
-    addressLine,
     city: cityName,
-    area: values.area ?? null,
-    provinceName,
+    province: provinceName,
     zip: values.zip.trim() || null,
     zoneCode: provinceName,
     territoryCode: countryCode,
-    countryCode,
+    country: countryCode,
   }
 }
 
