@@ -19,7 +19,7 @@ import {
   createInitialAddressState,
   type AddressFormState,
 } from "./formState"
-import { geocodeAddressString, placeDetails, reverseGeocodeGoogle } from "@/lib/maps/places"
+import { geocodeAddressString, reverseGeocodeGoogle } from "@/lib/maps/places"
 import { useToast } from "@/ui/feedback/Toast"
 import { Button } from "@/ui/primitives/Button"
 import { Dropdown } from "@/ui/primitives/Dropdown"
@@ -30,7 +30,6 @@ import * as Location from "expo-location"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Platform, ScrollView, Switch, View } from "react-native"
 import type { MapPressEvent, Region } from "react-native-maps"
-import { PlacesInput, type PlacePick } from "./PlacesInput"
 
 let ReactNativeMapsModule: typeof import("react-native-maps") | undefined
 let reactNativeMapsError: unknown
@@ -61,10 +60,6 @@ type AddressFormProps = {
 type FormErrors = Partial<Record<keyof AddressFormState, string>>
 
 type Coordinate = { latitude: number; longitude: number }
-
-function createPlacesSessionToken() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36)
-}
 
 const DEFAULT_REGION: Region = {
   latitude: 37.7749,
@@ -233,28 +228,6 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     }
   }, [ensurePermission, reverseGeocode, setRegionForCoordinate, show, updateCoordinateState])
 
-  const handlePickPlace = useCallback(
-    async ({ placeId, details }: PlacePick) => {
-      if (!placeId && !details) return
-      setIsLocating(true)
-      try {
-        const place = details ?? (placeId ? await placeDetails(placeId, createPlacesSessionToken()) : undefined)
-        if (!place) return
-        applyGeocodedAddress(place.address)
-        if (place.coordinate) {
-          updateCoordinateState(place.coordinate)
-          setRegionForCoordinate(place.coordinate)
-        }
-      } catch (error) {
-        console.error("handlePickPlace", error)
-        show({ title: "Could not load that place", type: "danger" })
-      } finally {
-        setIsLocating(false)
-      }
-    },
-    [applyGeocodedAddress, setRegionForCoordinate, show, updateCoordinateState],
-  )
-
   const submit = useCallback(() => {
     const nextErrors: FormErrors = {}
 
@@ -336,53 +309,6 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     <ScrollView contentContainerStyle={{ paddingBottom: 48 }} className="bg-[#f8fafc]">
       <View className="gap-6 px-5 pt-6 pb-10">
         <Card padding="lg" className="gap-4">
-          <View className="gap-3">
-            <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Pin the address</Text>
-            <PlacesInput onPick={handlePickPlace} />
-            <View className="h-64 w-full overflow-hidden rounded-2xl bg-[#e2e8f0]">
-              {MapViewComponent ? (
-                <MapViewComponent
-                  style={{ flex: 1 }}
-                  region={mapRegion}
-                  onRegionChangeComplete={setRegion}
-                  onPress={handleMapPress}
-                  showsUserLocation={false}
-                  showsMyLocationButton={false}
-                  {...(Platform.OS === "android" && mapModule?.PROVIDER_GOOGLE
-                    ? { provider: mapModule.PROVIDER_GOOGLE }
-                    : {})}
-                >
-                  {selectedCoordinate && MarkerComponent ? (
-                    <MarkerComponent
-                      coordinate={selectedCoordinate}
-                      draggable
-                      onDragEnd={(event) => {
-                        const coordinate = event.nativeEvent.coordinate
-                        updateCoordinateState(coordinate)
-                        setRegionForCoordinate(coordinate)
-                        reverseGeocode(coordinate).catch(() => {
-                          /* handled */
-                        })
-                      }}
-                    />
-                  ) : null}
-                </MapViewComponent>
-              ) : (
-                <View className="flex-1 items-center justify-center px-6">
-                  <Text className="text-center text-[#475569] text-[13px] leading-[18px]">{mapUnavailableMessage}</Text>
-                </View>
-              )}
-            </View>
-            <Text className="text-[#64748b] text-[13px] leading-[18px]">
-              Tap on the map to drop a pin or use your current location. We’ll fill in as many address fields as we can.
-            </Text>
-            <Button variant="outline" onPress={handleUseCurrentLocation} isLoading={isLocating}>
-              Use current location
-            </Button>
-          </View>
-        </Card>
-
-        <Card padding="lg" className="gap-4">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Contact</Text>
           <View className="gap-3">
             <Input
@@ -422,6 +348,49 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
         <Card padding="lg" className="gap-4">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Address</Text>
           <View className="gap-3">
+            <View className="gap-3">
+              <Text className="text-[#0f172a] font-geist-semibold text-[15px]">Pin the address</Text>
+              <View className="h-64 w-full overflow-hidden rounded-2xl bg-[#e2e8f0]">
+                {MapViewComponent ? (
+                  <MapViewComponent
+                    style={{ flex: 1 }}
+                    region={mapRegion}
+                    onRegionChangeComplete={setRegion}
+                    onPress={handleMapPress}
+                    showsUserLocation={false}
+                    showsMyLocationButton={false}
+                    {...(Platform.OS === "android" && mapModule?.PROVIDER_GOOGLE
+                      ? { provider: mapModule.PROVIDER_GOOGLE }
+                      : {})}
+                  >
+                    {selectedCoordinate && MarkerComponent ? (
+                      <MarkerComponent
+                        coordinate={selectedCoordinate}
+                        draggable
+                        onDragEnd={(event) => {
+                          const coordinate = event.nativeEvent.coordinate
+                          updateCoordinateState(coordinate)
+                          setRegionForCoordinate(coordinate)
+                          reverseGeocode(coordinate).catch(() => {
+                            /* handled */
+                          })
+                        }}
+                      />
+                    ) : null}
+                  </MapViewComponent>
+                ) : (
+                  <View className="flex-1 items-center justify-center px-6">
+                    <Text className="text-center text-[#475569] text-[13px] leading-[18px]">{mapUnavailableMessage}</Text>
+                  </View>
+                )}
+              </View>
+              <Text className="text-[#64748b] text-[13px] leading-[18px]">
+                Tap on the map to drop a pin or use your current location. We’ll fill in as many address fields as we can.
+              </Text>
+              <Button variant="outline" onPress={handleUseCurrentLocation} isLoading={isLocating}>
+                Use current location
+              </Button>
+            </View>
             <Input
               label="Address line"
               value={values.addressLine}

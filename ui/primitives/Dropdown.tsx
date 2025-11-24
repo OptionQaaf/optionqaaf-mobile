@@ -6,6 +6,8 @@ import { Check, ChevronDown, X } from "lucide-react-native"
 import { useEffect, useMemo, useState } from "react"
 import {
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   TextInput,
   type ListRenderItem,
   Modal,
@@ -109,12 +111,13 @@ export function Dropdown({
         onPress={() => setOpen(true)}
         className={cn(
           "w-full h-12 rounded-xl bg-surface border border-border px-3 flex-row items-center justify-between",
+          disabled && "opacity-60",
           buttonClassName,
         )}
       >
         <>
           <Text className={cn(selected ? "text-primary" : "text-muted")}>{selected ?? placeholder}</Text>
-          <ChevronDown size={18} color="#0B0B0B" />
+          {!disabled ? <ChevronDown size={18} color="#0B0B0B" /> : null}
         </>
       </PressableOverlay>
 
@@ -133,56 +136,61 @@ export function Dropdown({
 
         {/* SHEET */}
         <Animated.View style={panelStyle} className="absolute inset-x-0 bottom-0">
-          {/* Use a plain View for the rounded container and clip children */}
-          <View className="bg-surface border-t border-border rounded-t-2xl overflow-hidden">
-            {/* Header */}
-            <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-              <Text className="text-primary font-geist-semibold text-[16px]">{label ?? "Select"}</Text>
-              <PressableOverlay className="px-2 py-1 rounded-md" onPress={() => setOpen(false)}>
-                <X size={18} />
-              </PressableOverlay>
-            </View>
-
-            {searchable ? (
-              <View className="px-4 py-3 border-b border-border bg-muted/50">
-                <TextInput
-                  placeholder={searchPlaceholder}
-                  value={query}
-                  onChangeText={setQuery}
-                  className="h-11 rounded-xl border border-border px-3"
-                  placeholderTextColor="#94a3b8"
-                  autoFocus
-                />
+          <KeyboardAvoidingView
+            behavior={Platform.select({ ios: "padding", android: "height", default: undefined })}
+            keyboardVerticalOffset={insets.bottom + 12}
+          >
+            {/* Use a plain View for the rounded container and clip children */}
+            <View className="bg-surface border-t border-border rounded-t-2xl overflow-hidden">
+              {/* Header */}
+              <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
+                <Text className="text-primary font-geist-semibold text-[16px]">{label ?? "Select"}</Text>
+                <PressableOverlay className="px-2 py-1 rounded-md" onPress={() => setOpen(false)}>
+                  <X size={18} />
+                </PressableOverlay>
               </View>
-            ) : null}
 
-            {/* Options list */}
-            <FlatList
-              {...verticalScrollProps}
-              data={filteredOptions}
-              keyExtractor={(o) => o.id}
-              renderItem={renderItem}
-              ItemSeparatorComponent={() => <View className="h-px bg-border" />}
-              // Cap height so it never pushes into the top too far
-              style={{ maxHeight: Math.round(height * 0.6) - insets.bottom }}
-              // <-- The important part: keep content clear of the bottom inset
-              contentContainerStyle={{
-                paddingBottom: insets.bottom + 12, // leaves space above the home indicator
-                paddingHorizontal: 0,
-              }}
-              // Also lift the scroll indicators
-              scrollIndicatorInsets={{ bottom: insets.bottom + 12 }}
-              keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                searchable && query.trim() ? (
-                  <View className="px-4 py-3">
-                    <Text className="text-muted">No matches</Text>
-                  </View>
-                ) : null
-              }
-            />
-          </View>
+              {searchable ? (
+                <View className="px-4 py-3 border-b border-border bg-surface">
+                  <TextInput
+                    placeholder={searchPlaceholder}
+                    value={query}
+                    onChangeText={setQuery}
+                    className="h-11 rounded-xl border border-border px-3 bg-surface text-primary"
+                    placeholderTextColor="#0B0B0B"
+                    autoFocus
+                  />
+                </View>
+              ) : null}
+
+              {/* Options list */}
+              <FlatList
+                {...verticalScrollProps}
+                data={filteredOptions}
+                keyExtractor={(o) => o.id}
+                renderItem={renderItem}
+                ItemSeparatorComponent={() => <View className="h-px bg-border" />}
+                // Cap height so it never pushes into the top too far
+                style={{ maxHeight: Math.round(height * 0.6) - insets.bottom }}
+                // <-- The important part: keep content clear of the bottom inset
+                contentContainerStyle={{
+                  paddingBottom: insets.bottom + 12, // leaves space above the home indicator
+                  paddingHorizontal: 0,
+                }}
+                // Also lift the scroll indicators
+                scrollIndicatorInsets={{ bottom: insets.bottom + 12 }}
+                keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                  searchable && query.trim() ? (
+                    <View className="px-4 py-3">
+                      <Text className="text-muted">No matches</Text>
+                    </View>
+                  ) : null
+                }
+              />
+            </View>
+          </KeyboardAvoidingView>
         </Animated.View>
       </Modal>
     </View>
