@@ -4,7 +4,16 @@ import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layo
 import { cn } from "@/ui/utils/cva"
 import { Check, ChevronDown, X } from "lucide-react-native"
 import { useEffect, useMemo, useState } from "react"
-import { FlatList, type ListRenderItem, Modal, Pressable, Text, useWindowDimensions, View } from "react-native"
+import {
+  FlatList,
+  TextInput,
+  type ListRenderItem,
+  Modal,
+  Pressable,
+  Text,
+  useWindowDimensions,
+  View,
+} from "react-native"
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
@@ -19,6 +28,8 @@ export function Dropdown({
   className,
   buttonClassName,
   disabled,
+  searchable = false,
+  searchPlaceholder = "Search…",
 }: {
   label?: string
   placeholder?: string
@@ -28,13 +39,23 @@ export function Dropdown({
   className?: string
   buttonClassName?: string
   disabled?: boolean
+  searchable?: boolean
+  searchPlaceholder?: string
 }) {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [query, setQuery] = useState("")
   const progress = useSharedValue(0)
   const selected = useMemo(() => options.find((o) => o.id === value)?.label, [options, value])
   const { height } = useWindowDimensions()
   const insets = useSafeAreaInsets()
+
+  const filteredOptions = useMemo(() => {
+    if (!searchable) return options
+    const term = query.trim().toLowerCase()
+    if (!term) return options
+    return options.filter((option) => option.label.toLowerCase().includes(term))
+  }, [options, query, searchable])
 
   const openSheet = () => {
     setMounted(true)
@@ -49,6 +70,10 @@ export function Dropdown({
   }
   useEffect(() => {
     open ? openSheet() : closeSheet()
+  }, [open])
+
+  useEffect(() => {
+    if (!open) setQuery("")
   }, [open])
 
   const scrimStyle = useAnimatedStyle(() => ({ opacity: 0.4 * progress.value }))
@@ -118,10 +143,23 @@ export function Dropdown({
               </PressableOverlay>
             </View>
 
+            {searchable ? (
+              <View className="px-4 py-3 border-b border-border bg-muted/50">
+                <TextInput
+                  placeholder={searchPlaceholder}
+                  value={query}
+                  onChangeText={setQuery}
+                  className="h-11 rounded-xl border border-border px-3"
+                  placeholderTextColor="#94a3b8"
+                  autoFocus
+                />
+              </View>
+            ) : null}
+
             {/* Options list */}
             <FlatList
               {...verticalScrollProps}
-              data={options}
+              data={filteredOptions}
               keyExtractor={(o) => o.id}
               renderItem={renderItem}
               ItemSeparatorComponent={() => <View className="h-px bg-border" />}
@@ -136,6 +174,13 @@ export function Dropdown({
               scrollIndicatorInsets={{ bottom: insets.bottom + 12 }}
               keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
               showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                searchable && query.trim() ? (
+                  <View className="px-4 py-3">
+                    <Text className="text-muted">No matches</Text>
+                  </View>
+                ) : null
+              }
             />
           </View>
         </Animated.View>

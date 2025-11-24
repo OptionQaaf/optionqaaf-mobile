@@ -1,4 +1,5 @@
 import { AddressForm, type AddressFormSubmitData } from "@/features/account/addresses/AddressForm"
+import { formToInput } from "@/features/account/addresses/formMapping"
 import { useCreateCustomerAddress } from "@/features/account/api"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
@@ -47,19 +48,4 @@ function NewAddressContent() {
   )
 
   return <AddressForm submitLabel="Save address" onSubmit={handleSubmit} isSubmitting={isPending} />
-}
-
-function formToInput(values: AddressFormSubmitData) {
-  return {
-    firstName: values.firstName.trim() || null,
-    lastName: values.lastName.trim() || null,
-    company: values.company.trim() || null,
-    phoneNumber: values.phoneNumber.trim() || null,
-    address1: values.address1.trim() || null,
-    address2: values.address2.trim() || null,
-    city: values.city.trim() || null,
-    zoneCode: values.zoneCode.trim() || null,
-    territoryCode: values.territoryCode.trim().toUpperCase() || null,
-    zip: values.zip.trim() || null,
-  }
 }

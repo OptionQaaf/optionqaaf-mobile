@@ -1,4 +1,5 @@
 import { AddressForm, type AddressFormSubmitData } from "@/features/account/addresses/AddressForm"
+import { buildInitialValuesFromAddress, formToInput } from "@/features/account/addresses/formMapping"
 import { useCustomerProfile, useDeleteCustomerAddress, useUpdateCustomerAddress } from "@/features/account/api"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
@@ -110,37 +111,10 @@ function EditAddressContent() {
   return (
     <AddressForm
       submitLabel="Update address"
-      initialValues={{
-        firstName: address.firstName ?? "",
-        lastName: address.lastName ?? "",
-        company: address.company ?? "",
-        phoneNumber: address.phoneNumber ?? "",
-        address1: address.address1 ?? "",
-        address2: address.address2 ?? "",
-        city: address.city ?? "",
-        zoneCode: address.zoneCode ?? address.province ?? "",
-        territoryCode: address.territoryCode ?? "",
-        zip: address.zip ?? "",
-        defaultAddress: Boolean(isDefault),
-      }}
+      initialValues={buildInitialValuesFromAddress(address, isDefault)}
       onSubmit={handleSubmit}
       onDelete={isDefault ? undefined : handleDelete}
       isSubmitting={updating || deleting}
     />
   )
-}
-
-function formToInput(values: AddressFormSubmitData) {
-  return {
-    firstName: values.firstName.trim() || null,
-    lastName: values.lastName.trim() || null,
-    company: values.company.trim() || null,
-    phoneNumber: values.phoneNumber.trim() || null,
-    address1: values.address1.trim() || null,
-    address2: values.address2.trim() || null,
-    city: values.city.trim() || null,
-    zoneCode: values.zoneCode.trim() || null,
-    territoryCode: values.territoryCode.trim().toUpperCase() || null,
-    zip: values.zip.trim() || null,
-  }
 }

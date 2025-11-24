@@ -1,6 +1,28 @@
+import {
+  mapGeocodedAddressToSelection,
+  type GeocodedAddress,
+  type MappedAddressSelection,
+} from "@/src/lib/addresses/mapMapper"
+import {
+  cityLookupById,
+  cityOptionsByCountry,
+  countryOptions,
+  getAreaOptions,
+  type AreaOption,
+  type CityOption,
+} from "@/src/lib/addresses/addresses"
+import {
+  applyArea,
+  applyCity,
+  applyCountry,
+  applyMappedSelection,
+  createInitialAddressState,
+  type AddressFormState,
+} from "./formState"
 import { placeDetails, reverseGeocodeGoogle } from "@/lib/maps/places"
 import { useToast } from "@/ui/feedback/Toast"
 import { Button } from "@/ui/primitives/Button"
+import { Dropdown } from "@/ui/primitives/Dropdown"
 import { Input } from "@/ui/primitives/Input"
 import { Text } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
@@ -24,33 +46,19 @@ try {
   }
 }
 
-export type AddressFormData = {
-  firstName: string
-  lastName: string
-  company: string
-  phoneNumber: string
-  address1: string
-  address2: string
-  city: string
-  zoneCode: string
-  territoryCode: string
-  zip: string
-  defaultAddress: boolean
-}
-
-export type AddressFormSubmitData = AddressFormData & {
+export type AddressFormSubmitData = AddressFormState & {
   __coordinate?: { lat: number; lng: number }
 }
 
 type AddressFormProps = {
-  initialValues?: Partial<AddressFormData> & { __coordinate?: { lat: number; lng: number } }
+  initialValues?: Partial<AddressFormState> & { __coordinate?: { lat: number; lng: number } }
   isSubmitting?: boolean
   submitLabel: string
   onSubmit: (data: AddressFormSubmitData) => void
   onDelete?: () => void
 }
 
-type FormErrors = Partial<Record<keyof AddressFormData, string>>
+type FormErrors = Partial<Record<keyof AddressFormState, string>>
 
 type Coordinate = { latitude: number; longitude: number }
 
@@ -71,19 +79,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   const mapModule = ReactNativeMapsModule
   const MapViewComponent = mapModule?.default
   const MarkerComponent = mapModule?.Marker
-  const [values, setValues] = useState<AddressFormData>(() => ({
-    firstName: initialValues?.firstName ?? "",
-    lastName: initialValues?.lastName ?? "",
-    company: initialValues?.company ?? "",
-    phoneNumber: initialValues?.phoneNumber ?? "",
-    address1: initialValues?.address1 ?? "",
-    address2: initialValues?.address2 ?? "",
-    city: initialValues?.city ?? "",
-    zoneCode: initialValues?.zoneCode ?? "",
-    territoryCode: initialValues?.territoryCode ?? "",
-    zip: initialValues?.zip ?? "",
-    defaultAddress: initialValues?.defaultAddress ?? false,
-  }))
+  const [values, setValues] = useState<AddressFormState>(() => createInitialAddressState(initialValues))
   const [errors, setErrors] = useState<FormErrors>({})
   const [region, setRegion] = useState<Region>(() =>
     initialCoordinate
@@ -104,49 +100,23 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   useEffect(() => {
     if (!initialValues) return
     const { __coordinate, ...rest } = initialValues
-    setValues((prev) => ({
-      ...prev,
-      ...rest,
-      defaultAddress: initialValues?.defaultAddress ?? prev.defaultAddress,
-    }))
+    setValues((prev) => ({ ...prev, ...createInitialAddressState(rest) }))
+    if (__coordinate) {
+      const coordinate = { latitude: __coordinate.lat, longitude: __coordinate.lng }
+      setSelectedCoordinate(coordinate)
+      setGeo({ lat: coordinate.latitude, lng: coordinate.longitude })
+      setRegion((prev) => ({
+        latitude: coordinate.latitude,
+        longitude: coordinate.longitude,
+        latitudeDelta: prev.latitudeDelta ?? DEFAULT_REGION.latitudeDelta,
+        longitudeDelta: prev.longitudeDelta ?? DEFAULT_REGION.longitudeDelta,
+      }))
+    }
   }, [initialValues])
 
-  useEffect(() => {
-    if (!initialCoordinate) return
-    const coordinate = { latitude: initialCoordinate.lat, longitude: initialCoordinate.lng }
-    setSelectedCoordinate(coordinate)
-    setGeo({ lat: coordinate.latitude, lng: coordinate.longitude })
-    setRegion((prev) => ({
-      latitude: coordinate.latitude,
-      longitude: coordinate.longitude,
-      latitudeDelta: prev.latitudeDelta ?? DEFAULT_REGION.latitudeDelta,
-      longitudeDelta: prev.longitudeDelta ?? DEFAULT_REGION.longitudeDelta,
-    }))
-  }, [initialCoordinate])
-
-  const updateValue = useCallback(<K extends keyof AddressFormData>(key: K, value: AddressFormData[K]) => {
+  const updateValue = useCallback(<K extends keyof AddressFormState>(key: K, value: AddressFormState[K]) => {
     setValues((prev) => ({ ...prev, [key]: value }))
-    setErrors((prev) => ({ ...prev, [key]: undefined }))
   }, [])
-
-  const applyAddress = useCallback(
-    (address: Partial<AddressFormData> | undefined) => {
-      if (!address) return
-      const entries = Object.entries(address) as Array<
-        [keyof AddressFormData, AddressFormData[keyof AddressFormData] | undefined]
-      >
-      entries.forEach(([key, value]) => {
-        if (value !== undefined) {
-          let nextValue: AddressFormData[keyof AddressFormData] = value
-          if (key === "territoryCode" && typeof value === "string") {
-            nextValue = value.toUpperCase() as AddressFormData[keyof AddressFormData]
-          }
-          updateValue(key, nextValue as AddressFormData[keyof AddressFormData])
-        }
-      })
-    },
-    [updateValue],
-  )
 
   const updateCoordinateState = useCallback((coordinate: Coordinate | null) => {
     setSelectedCoordinate(coordinate)
@@ -170,13 +140,25 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     }
   }, [show])
 
+  const applySelection = useCallback((selection: MappedAddressSelection | null | undefined) => {
+    setValues((prev) => applyMappedSelection(prev, selection))
+  }, [])
+
+  const applyGeocodedAddress = useCallback(
+    (address: GeocodedAddress | undefined) => {
+      if (!address) return
+      applySelection(mapGeocodedAddressToSelection(address))
+    },
+    [applySelection],
+  )
+
   const reverseGeocode = useCallback(
     async (coordinate: Coordinate) => {
       try {
         setIsLocating(true)
         try {
           const result = await reverseGeocodeGoogle(coordinate.latitude, coordinate.longitude)
-          applyAddress(result.address)
+          applyGeocodedAddress(result.address)
           return
         } catch (error) {
           console.error("reverseGeocodeGoogle", error)
@@ -187,13 +169,15 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
           const best = results[0]
           if (best) {
             const streetParts = [best.streetNumber, best.street || best.name].filter(Boolean)
-            applyAddress({
-              address1: streetParts.join(" "),
-              city: best.city ?? best.subregion ?? "",
-              zoneCode: best.region ?? best.subregion ?? "",
-              zip: best.postalCode ?? "",
-              territoryCode: best.isoCountryCode ?? "",
-            })
+            const fallbackAddress: GeocodedAddress = {
+              rawStreet: streetParts.join(" "),
+              rawCity: best.city ?? best.subregion ?? undefined,
+              rawProvince: best.region ?? best.subregion ?? undefined,
+              rawZip: best.postalCode ?? undefined,
+              rawCountryCode: best.isoCountryCode ?? undefined,
+              rawArea: best.district ?? best.subregion ?? undefined,
+            }
+            applyGeocodedAddress(fallbackAddress)
             return
           }
         } catch (error) {
@@ -208,7 +192,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
         setIsLocating(false)
       }
     },
-    [applyAddress, show],
+    [applyGeocodedAddress, show],
   )
 
   const handleMapPress = useCallback(
@@ -252,7 +236,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
       try {
         const place = details ?? (placeId ? await placeDetails(placeId, createPlacesSessionToken()) : undefined)
         if (!place) return
-        applyAddress(place.address)
+        applyGeocodedAddress(place.address)
         if (place.coordinate) {
           updateCoordinateState(place.coordinate)
           setRegionForCoordinate(place.coordinate)
@@ -264,7 +248,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
         setIsLocating(false)
       }
     },
-    [applyAddress, setRegionForCoordinate, show, updateCoordinateState],
+    [applyGeocodedAddress, setRegionForCoordinate, show, updateCoordinateState],
   )
 
   const submit = useCallback(() => {
@@ -272,9 +256,9 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
 
     if (!values.firstName.trim()) nextErrors.firstName = "First name is required"
     if (!values.lastName.trim()) nextErrors.lastName = "Last name is required"
-    if (!values.address1.trim()) nextErrors.address1 = "Street address is required"
-    if (!values.city.trim()) nextErrors.city = "City is required"
-    if (!values.territoryCode.trim()) nextErrors.territoryCode = "Country code is required"
+    if (!values.addressLine.trim()) nextErrors.addressLine = "Street address is required"
+    if (!values.countryCode?.trim()) nextErrors.countryCode = "Country is required"
+    if (!values.cityId?.trim()) nextErrors.cityId = "City is required"
     if (!values.zip.trim()) nextErrors.zip = "Postal code is required"
 
     if (Object.keys(nextErrors).length) {
@@ -300,6 +284,15 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     }
     return "Map preview unavailable on this device. Use the Option QAAF dev client or an EAS build to drop a pin."
   }, [MapViewComponent, reactNativeMapsError])
+
+  const cityOptions = useMemo<CityOption[]>(() => {
+    if (!values.countryCode) return []
+    return cityOptionsByCountry[values.countryCode] ?? []
+  }, [values.countryCode])
+
+  const areaOptions = useMemo<AreaOption[]>(() => getAreaOptions(values.cityId), [values.cityId])
+
+  const cityName = values.cityId ? cityLookupById[values.cityId]?.cityName : undefined
 
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 48 }} className="bg-[#f8fafc]">
@@ -392,43 +385,55 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Address</Text>
           <View className="gap-3">
             <Input
-              label="Address line 1"
-              value={values.address1}
-              onChangeText={(text) => updateValue("address1", text)}
-              error={errors.address1}
+              label="Address line"
+              value={values.addressLine}
+              onChangeText={(text) => updateValue("addressLine", text)}
+              error={errors.addressLine}
               autoCapitalize="words"
               returnKeyType="next"
             />
             <Input
-              label="Address line 2"
+              label="Address line 2 (optional)"
               value={values.address2}
               onChangeText={(text) => updateValue("address2", text)}
               autoCapitalize="words"
               returnKeyType="next"
             />
-            <Input
+            <Dropdown
+              label="Country"
+              value={values.countryCode ?? undefined}
+              options={countryOptions}
+              onChange={(code) => setValues((prev) => applyCountry(prev, code))}
+              buttonClassName={errors.countryCode ? "border-[#ef4444]" : undefined}
+              searchable
+              placeholder="Select a country"
+            />
+            {errors.countryCode ? (
+              <Text className="text-[12px] text-[#ef4444]">{errors.countryCode}</Text>
+            ) : null}
+            <Dropdown
               label="City"
-              value={values.city}
-              onChangeText={(text) => updateValue("city", text)}
-              error={errors.city}
-              autoCapitalize="words"
-              returnKeyType="next"
+              value={values.cityId ?? undefined}
+              options={cityOptions}
+              onChange={(cityId) => setValues((prev) => applyCity(prev, cityId))}
+              buttonClassName={errors.cityId ? "border-[#ef4444]" : undefined}
+              searchable
+              placeholder={values.countryCode ? "Select a city" : "Choose a country first"}
+              disabled={!values.countryCode}
             />
-            <Input
-              label="State / Province"
-              value={values.zoneCode}
-              onChangeText={(text) => updateValue("zoneCode", text)}
-              autoCapitalize="characters"
-              returnKeyType="next"
-            />
-            <Input
-              label="Country code"
-              value={values.territoryCode}
-              onChangeText={(text) => updateValue("territoryCode", text.toUpperCase())}
-              error={errors.territoryCode}
-              autoCapitalize="characters"
-              maxLength={3}
-              returnKeyType="next"
+            {errors.cityId ? <Text className="text-[12px] text-[#ef4444]">{errors.cityId}</Text> : null}
+            <Input label="Province" value={values.provinceName ?? ""} editable={false} placeholder="Auto-filled" />
+            <Dropdown
+              label="Area"
+              value={values.area ? `${values.cityId}|${values.area}` : undefined}
+              options={areaOptions.map((option) => ({ id: option.id, label: option.label }))}
+              onChange={(areaId) => {
+                const option = areaOptions.find((opt) => opt.id === areaId)
+                setValues((prev) => applyArea(prev, option?.label ?? null))
+              }}
+              searchable
+              placeholder={values.cityId ? "Select an area" : "Choose a city first"}
+              disabled={!values.cityId}
             />
             <Input
               label="Postal code"
@@ -438,6 +443,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               autoCapitalize="characters"
               returnKeyType="done"
             />
+            {cityName ? <Text className="text-[12px] text-[#64748b]">Selected city: {cityName}</Text> : null}
           </View>
         </Card>
 

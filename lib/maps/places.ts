@@ -1,4 +1,4 @@
-import type { AddressFormData } from "@/features/account/addresses/AddressForm"
+import type { GeocodedAddress } from "@/src/lib/addresses/mapMapper"
 
 const GOOGLE_PLACES_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_KEY
 
@@ -17,7 +17,7 @@ export type PlaceSuggestion = {
 
 export type PlaceDetailsResult = {
   coordinate: { latitude: number; longitude: number } | null
-  address: Partial<AddressFormData>
+  address: GeocodedAddress
   formatted?: string
   name?: string
 }
@@ -72,7 +72,7 @@ function buildParams(params: Record<string, string | undefined>) {
   return search
 }
 
-function parseAddressComponents(components: GoogleAddressComponent[] | undefined): Partial<AddressFormData> {
+function parseAddressComponents(components: GoogleAddressComponent[] | undefined): GeocodedAddress {
   if (!components) return {}
 
   const find = (type: string) => components.find((component) => component.types.includes(type))
@@ -86,20 +86,21 @@ function parseAddressComponents(components: GoogleAddressComponent[] | undefined
   const adminLevel1 = find("administrative_area_level_1")
   const postalCode = find("postal_code")?.long_name
   const country = find("country")
+  const neighborhood = find("neighborhood")?.long_name ?? find("sublocality")?.long_name
 
-  const address1 = [streetNumber, route].filter(Boolean).join(" ") || route || streetNumber
-  const address2 = subpremise ?? ""
-  const city = locality || postalTown || adminLevel2 || ""
-  const zoneCode = adminLevel1?.short_name || adminLevel1?.long_name || ""
-  const territoryCode = country?.short_name || ""
+  const street = [streetNumber, route, subpremise].filter(Boolean).join(" ").trim()
+
+  const rawCity = locality || postalTown || adminLevel2 || undefined
+  const rawProvince = adminLevel1?.long_name || adminLevel1?.short_name
+  const rawArea = neighborhood || undefined
 
   return {
-    address1,
-    address2,
-    city,
-    zoneCode,
-    zip: postalCode ?? "",
-    territoryCode,
+    rawStreet: street || undefined,
+    rawCity,
+    rawProvince: rawProvince || undefined,
+    rawZip: postalCode || undefined,
+    rawCountryCode: country?.short_name || undefined,
+    rawArea,
   }
 }
 
