@@ -90,6 +90,7 @@ export type CustomerAddressInput = {
   zip?: string | null
   zoneCode?: string | null
   territoryCode?: string | null
+  country?: string | null
 }
 
 function extractErrors(payload: CustomerAddressPayload | null | undefined): string[] {
