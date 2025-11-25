@@ -90,7 +90,12 @@ export type CustomerAddressInput = {
   zip?: string | null
   zoneCode?: string | null
   territoryCode?: string | null
-  country?: string | null
+}
+
+function buildAddressPayload(address: CustomerAddressInput): CustomerAddressInput {
+  return Object.fromEntries(
+    Object.entries(address).filter(([, value]) => value !== undefined),
+  ) as CustomerAddressInput
 }
 
 function extractErrors(payload: CustomerAddressPayload | null | undefined): string[] {
@@ -106,8 +111,9 @@ export async function createCustomerAddress(
   options: { defaultAddress?: boolean; addressLimit?: number } = {},
 ): Promise<CustomerProfile> {
   const { defaultAddress, addressLimit = 6 } = options
+  const payload = buildAddressPayload(address)
   const result = await customerGraphQL<CustomerAddressCreateResult>(CUSTOMER_ADDRESS_CREATE_MUTATION, {
-    address,
+    address: payload,
     defaultAddress,
   })
 
@@ -125,9 +131,10 @@ export async function updateCustomerAddress(
   options: { defaultAddress?: boolean; addressLimit?: number } = {},
 ): Promise<CustomerProfile> {
   const { defaultAddress, addressLimit = 6 } = options
+  const payload = buildAddressPayload(address)
   const result = await customerGraphQL<CustomerAddressUpdateResult>(CUSTOMER_ADDRESS_UPDATE_MUTATION, {
     addressId,
-    address,
+    address: payload,
     defaultAddress,
   })
 

@@ -25,7 +25,6 @@ export function formToInput(values: AddressFormSubmitData): CustomerAddressInput
     zip: values.zip.trim() || null,
     zoneCode: provinceName,
     territoryCode: countryCode,
-    country: countryCode,
   }
 }
 
