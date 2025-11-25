@@ -43,6 +43,7 @@ function NewAddressContent() {
       } catch (err: any) {
         const message = err?.message || "Could not save that address"
         show({ title: message, type: "danger" })
+        console.error("Error creating address:", err)
       }
     },
     [createAddress, router, show],

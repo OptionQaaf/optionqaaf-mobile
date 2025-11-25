@@ -18,7 +18,7 @@ export type MappedAddressSelection = {
   zip?: string | null
 }
 
-const COUNTRY_MAP: Record<string, CountryCode> = {
+export const COUNTRY_MAP: Record<string, CountryCode> = {
   SA: "KSA",
   AE: "UAE",
   KW: "KWT",

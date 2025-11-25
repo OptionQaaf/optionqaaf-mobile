@@ -1,8 +1,4 @@
-import {
-  mapGeocodedAddressToSelection,
-  type GeocodedAddress,
-  type MappedAddressSelection,
-} from "@/src/lib/addresses/mapMapper"
+import { geocodeAddressString, reverseGeocodeGoogle } from "@/lib/maps/places"
 import {
   cityLookupById,
   cityOptionsByCountry,
@@ -12,14 +8,10 @@ import {
   type CityOption,
 } from "@/src/lib/addresses/addresses"
 import {
-  applyArea,
-  applyCity,
-  applyCountry,
-  applyMappedSelection,
-  createInitialAddressState,
-  type AddressFormState,
-} from "./formState"
-import { geocodeAddressString, reverseGeocodeGoogle } from "@/lib/maps/places"
+  mapGeocodedAddressToSelection,
+  type GeocodedAddress,
+  type MappedAddressSelection,
+} from "@/src/lib/addresses/mapMapper"
 import { useToast } from "@/ui/feedback/Toast"
 import { Button } from "@/ui/primitives/Button"
 import { Dropdown } from "@/ui/primitives/Dropdown"
@@ -31,6 +23,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Platform, Switch, View } from "react-native"
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view"
 import type { MapPressEvent, Region } from "react-native-maps"
+import {
+  applyArea,
+  applyCity,
+  applyCountry,
+  applyMappedSelection,
+  createInitialAddressState,
+  type AddressFormState,
+} from "./formState"
 
 let ReactNativeMapsModule: typeof import("react-native-maps") | undefined
 let reactNativeMapsError: unknown
@@ -238,6 +238,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     if (!values.countryCode?.trim()) nextErrors.countryCode = "Country is required"
     if (!values.cityId?.trim()) nextErrors.cityId = "City is required"
     if (!values.zip.trim()) nextErrors.zip = "Postal code is required"
+    if (!values.phoneNumber.trim()) nextErrors.phoneNumber = "Phone number is required"
 
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors)
@@ -281,7 +282,14 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     }
     if (zipEditedManually.current) return
 
-    const parts = [values.addressLine, values.address2, values.area, city.cityName, city.provinceName, values.countryCode]
+    const parts = [
+      values.addressLine,
+      values.address2,
+      values.area,
+      city.cityName,
+      city.provinceName,
+      values.countryCode,
+    ]
       .map((part) => (part ?? "").trim())
       .filter(Boolean)
     if (!parts.length) return
@@ -304,7 +312,15 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
       controller.abort()
       clearTimeout(timer)
     }
-  }, [values.address2, values.addressLine, values.area, values.cityId, values.countryCode, values.provinceName, values.zip])
+  }, [
+    values.address2,
+    values.addressLine,
+    values.area,
+    values.cityId,
+    values.countryCode,
+    values.provinceName,
+    values.zip,
+  ])
 
   return (
     <KeyboardAwareScrollView
@@ -345,6 +361,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               label="Phone number"
               value={values.phoneNumber}
               onChangeText={(text) => updateValue("phoneNumber", text)}
+              error={errors.phoneNumber}
               keyboardType="phone-pad"
               placeholder="+16135551111"
               returnKeyType="next"
@@ -387,12 +404,15 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
                   </MapViewComponent>
                 ) : (
                   <View className="flex-1 items-center justify-center px-6">
-                    <Text className="text-center text-[#475569] text-[13px] leading-[18px]">{mapUnavailableMessage}</Text>
+                    <Text className="text-center text-[#475569] text-[13px] leading-[18px]">
+                      {mapUnavailableMessage}
+                    </Text>
                   </View>
                 )}
               </View>
               <Text className="text-[#64748b] text-[13px] leading-[18px]">
-                Tap on the map to drop a pin or use your current location. We’ll fill in as many address fields as we can.
+                Tap on the map to drop a pin or use your current location. We’ll fill in as many address fields as we
+                can.
               </Text>
               <Button variant="outline" onPress={handleUseCurrentLocation} isLoading={isLocating}>
                 Use current location
@@ -422,9 +442,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               searchable
               placeholder="Select a country"
             />
-            {errors.countryCode ? (
-              <Text className="text-[12px] text-[#ef4444]">{errors.countryCode}</Text>
-            ) : null}
+            {errors.countryCode ? <Text className="text-[12px] text-[#ef4444]">{errors.countryCode}</Text> : null}
             <Dropdown
               label="City"
               value={values.cityId ?? undefined}
@@ -463,7 +481,6 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               We’ll try to detect your postal code when the address details are filled; if it looks wrong, you can
               replace it.
             </Text>
-            {cityName ? <Text className="text-[12px] text-[#64748b]">Selected city: {cityName}</Text> : null}
           </View>
         </Card>
 
