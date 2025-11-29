@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react"
-import { Dimensions, FlatList, NativeScrollEvent, NativeSyntheticEvent, View, PixelRatio } from "react-native"
+import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { Image } from "expo-image"
-import { optimizeImageUrl, DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
+import { useEffect, useMemo, useState } from "react"
+import { Dimensions, FlatList, NativeScrollEvent, NativeSyntheticEvent, PixelRatio, View } from "react-native"
 
 const { width } = Dimensions.get("window")
 
@@ -22,8 +22,7 @@ export function ImageCarousel({
 
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
   const optimized = useMemo(
-    () =>
-      images.map((u) => optimizeImageUrl(u, { width, height: Math.round(height), format: "webp", dpr }) || u),
+    () => images.map((u) => optimizeImageUrl(u, { width, height: Math.round(height), format: "webp", dpr }) || u),
     [images, height, dpr],
   )
 
@@ -40,7 +39,7 @@ export function ImageCarousel({
           <Image
             source={{ uri: optimized[i] || item }}
             style={{ width, height }}
-            contentFit="cover"
+            contentFit="contain"
             transition={i === 0 ? 0 : 200}
             cachePolicy="disk"
             priority={i === 0 ? "high" : "normal"}

@@ -45,7 +45,8 @@ export function renderMetaobjectSection(section: AppHomeSection, navigate: Navig
       return <Cmp key={section.id} {...props} onPressItem={(url: string | undefined) => navigate(url)} />
 
     default:
-      return <Cmp key={section.id} {...props} onPress={() => navigate((props as any)?.url)} />
+      const target = section.collectionUrls?.[0] ?? (props as any)?.url
+      return <Cmp key={section.id} {...props} onPress={() => navigate(target)} />
   }
 }
 

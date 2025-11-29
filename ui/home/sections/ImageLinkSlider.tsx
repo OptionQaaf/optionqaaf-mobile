@@ -1,6 +1,6 @@
 import { Image } from "expo-image"
 import { memo, useMemo } from "react"
-import { Pressable, ScrollView, Text, View } from "react-native"
+import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native"
 
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import type { SectionSize } from "@/lib/shopify/services/home"
@@ -24,10 +24,34 @@ export const ImageLinkSlider = memo(function ImageLinkSlider({ items = [], size,
   if (!slides.length) return null
 
   const scale = sizeScale(size)
+  const { width: windowWidth } = useWindowDimensions()
+  const twoUp = slides.length === 2
   const baseWidth = 175 * scale
-  const tileWidth = Math.round(Math.min(320, Math.max(120, baseWidth)))
+  const defaultTileWidth = Math.round(Math.min(320, Math.max(120, baseWidth)))
+  const tileWidth = twoUp ? Math.max(defaultTileWidth, Math.round(windowWidth / 2)) : defaultTileWidth
   const tileHeight = Math.round(tileWidth * 1.2)
   const captionFontSize = Math.max(7, Math.min(10, Math.round(8 * scale)))
+
+  if (twoUp) {
+    return (
+      <View className="w-full" style={{ height: tileHeight }}>
+        <View style={{ flexDirection: "row", width: "100%", height: "100%" }}>
+          {slides.map((item, index) => (
+            <SliderTile
+              key={`${item.image?.url ?? "slide"}-${index}`}
+              item={item}
+              width={tileWidth}
+              styleWidth="50%"
+              height={tileHeight}
+              scale={scale}
+              captionSize={captionFontSize}
+              onPress={() => onPressItem?.(item.url, index)}
+            />
+          ))}
+        </View>
+      </View>
+    )
+  }
 
   return (
     <View className="w-full">
@@ -55,9 +79,10 @@ type TileProps = {
   scale: number
   captionSize: number
   onPress?: () => void
+  styleWidth?: number | string
 }
 
-function SliderTile({ item, width, height, scale, captionSize, onPress }: TileProps) {
+function SliderTile({ item, width, height, scale, captionSize, onPress, styleWidth }: TileProps) {
   const uri = useMemo(
     () =>
       optimizeImageUrl(item.image?.url ?? undefined, { width, height, format: "webp", dpr: 2 }) ??
@@ -70,7 +95,10 @@ function SliderTile({ item, width, height, scale, captionSize, onPress }: TilePr
   const bottomOffset = Math.max(8, Math.round(12 * scale))
 
   return (
-    <Pressable style={{ width, height, overflow: "hidden", backgroundColor: "#f3f3f3" }} onPress={onPress}>
+    <Pressable
+      style={{ width: styleWidth ?? width, height, overflow: "hidden", backgroundColor: "#f3f3f3" }}
+      onPress={onPress}
+    >
       <View style={{ flex: 1 }}>
         {uri ? (
           <Image

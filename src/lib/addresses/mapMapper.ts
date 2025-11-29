@@ -69,11 +69,7 @@ function resolveCountry(rawCountryCode?: string | null): CountryCode | null {
   return match ?? null
 }
 
-function chooseCity(
-  countryCode: CountryCode,
-  rawCity?: string | null,
-  rawProvince?: string | null,
-) {
+function chooseCity(countryCode: CountryCode, rawCity?: string | null, rawProvince?: string | null) {
   const entries = cityIndexByCountry[countryCode] ?? []
   if (!entries.length) return null
 

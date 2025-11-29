@@ -13,8 +13,19 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { FlatList, PixelRatio, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native"
 
 export default function SearchScreen() {
+  const [input, setInput] = useState("")
   const [query, setQuery] = useState("")
+
+  useEffect(() => {
+    const handle = setTimeout(() => setQuery(input), 250)
+    return () => clearTimeout(handle)
+  }, [input])
+
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetching } = useSearch(query.trim(), 24)
+  const trimmedInput = input.trim()
+  const trimmedQuery = query.trim()
+  const isTyping = trimmedInput.length > 0 && input !== query
+  const showLoadingGrid = trimmedInput.length > 0 && (isTyping || isFetching)
   const {
     footerVisible,
     revealFooter,
@@ -78,17 +89,17 @@ export default function SearchScreen() {
   }, [footerVisible, isFetchingNextPage])
 
   return (
-    <Screen>
+    <Screen bleedBottom>
       {/* Minimal header: back + search input */}
-      <View className="px-4 pt-2">
+      <View className="px-4 py-2">
         <View className="flex-row items-center gap-3">
           <Pressable onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-2xl">
             <ChevronLeft size={22} color="#0B0B0B" />
           </Pressable>
           <View className="flex-1 bg-white rounded-3xl border border-black/10 h-11 px-3 flex-row items-center gap-2">
             <TextInput
-              value={query}
-              onChangeText={setQuery}
+              value={input}
+              onChangeText={setInput}
               placeholder="Search products"
               placeholderTextColor="#6B7280"
               className="flex-1 h-full py-0 px-2"
@@ -100,8 +111,8 @@ export default function SearchScreen() {
               autoCorrect={false}
               autoCapitalize="none"
             />
-            {query ? (
-              <Pressable onPress={() => setQuery("")} className="h-9 w-9 items-center justify-center rounded-2xl">
+            {input ? (
+              <Pressable onPress={() => setInput("")} className="h-9 w-9 items-center justify-center rounded-2xl">
                 <X size={18} color="#0B0B0B" />
               </Pressable>
             ) : null}
@@ -117,15 +128,26 @@ export default function SearchScreen() {
         keyExtractor={(item: any, i) => item?.id ?? item?.handle ?? String(i)}
         numColumns={2}
         columnWrapperStyle={{ gap }}
-        contentContainerStyle={{ paddingHorizontal: padH, paddingTop: 16, rowGap: gap }}
+        contentContainerStyle={{ paddingHorizontal: padH, paddingVertical: 24, rowGap: gap }}
         ListHeaderComponent={
           <View className="px-0">
-            {!query.trim() ? (
+            {showLoadingGrid && nodes.length === 0 ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: gap, rowGap: gap }}>
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <View key={idx} style={{ width: itemW }}>
+                    <Skeleton className="rounded-3xl" style={{ aspectRatio: 3 / 4, width: "100%" }} />
+                    <Skeleton className="rounded-full mt-2" style={{ height: 12, width: "70%" }} />
+                    <Skeleton className="rounded-full mt-1.5" style={{ height: 12, width: "50%" }} />
+                  </View>
+                ))}
+              </View>
+            ) : null}
+            {!trimmedInput && !showLoadingGrid ? (
               <View className="items-center py-10">
                 <Text className="text-secondary">Start typing to search products</Text>
               </View>
             ) : null}
-            {query.trim() && nodes.length === 0 && !isFetching ? (
+            {trimmedQuery && nodes.length === 0 && !isFetching && !showLoadingGrid ? (
               <View className="items-center py-10">
                 <Text className="text-black font-bold text-lg mb-1.5">No products found</Text>
                 <Text className="text-gray-500">Try a different keyword.</Text>
@@ -157,8 +179,13 @@ export default function SearchScreen() {
                   params: {
                     handle: item.handle,
                     variant:
-                      (item as any).__variantId != null ? encodeURIComponent(String((item as any).__variantId)) : undefined,
-                    code: (item as any).__variantCode != null ? encodeURIComponent(String((item as any).__variantCode)) : undefined,
+                      (item as any).__variantId != null
+                        ? encodeURIComponent(String((item as any).__variantId))
+                        : undefined,
+                    code:
+                      (item as any).__variantCode != null
+                        ? encodeURIComponent(String((item as any).__variantCode))
+                        : undefined,
                   },
                 })
               }

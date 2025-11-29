@@ -36,6 +36,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "headline_promo"
@@ -48,6 +49,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "ribbon_marquee"
@@ -61,6 +63,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "split_banner"
@@ -80,6 +83,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "poster_triptych"
@@ -91,6 +95,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "poster_quilt"
@@ -102,6 +107,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "image_carousel"
@@ -114,6 +120,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "collection_link_slider"
@@ -126,6 +133,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "image_link_slider"
@@ -138,6 +146,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "duo_poster"
@@ -149,6 +158,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "brand_cloud"
@@ -160,6 +170,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "trio_grid"
@@ -172,6 +183,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "product_rail"
@@ -184,6 +196,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
   | {
       kind: "editorial_quote"
@@ -196,6 +209,7 @@ export type AppHomeSection =
       language?: string
       startAt?: string
       endAt?: string
+      collectionUrls?: string[]
     }
 
 // fetch
@@ -351,8 +365,13 @@ function ref(node: any, key: string) {
 function fieldUrl(node: any, key: string, index = 0) {
   const field = getField(node, key)
   if (!field) return undefined
+
+  const referencedUrl = prioritizedReferenceUrl(field, index)
+  if (referencedUrl) return referencedUrl
+
   const value = valueFromFieldAt(field, index)
   if (typeof value === "string" && value.trim()) return value.trim()
+
   const refNode = refFromFieldAt(field, index)
   return refToUrl(refNode)
 }
@@ -374,11 +393,39 @@ function refAt(node: any, key: string, index: number) {
   return ref(node, `${key}${suffix}`) ?? ref(node, `${key}_${suffix}`)
 }
 function urlAt(node: any, key: string, index: number) {
-  if (index === 0) return fieldUrl(node, key, index)
-  const listUrl = fieldUrl(node, key, index)
-  if (listUrl) return listUrl
+  const baseKeys = ["collection", "collections", key, "link"]
+
+  const tryKeysWithIndex = (idx: number) => {
+    for (const candidate of baseKeys) {
+      const fromField = fieldUrl(node, candidate, idx)
+      if (fromField) return fromField
+    }
+    return undefined
+  }
+
+  const direct = tryKeysWithIndex(index)
+  if (direct) return direct
+
   const suffix = String(index + 1)
-  return fieldUrl(node, `${key}${suffix}`) ?? fieldUrl(node, `${key}_${suffix}`)
+  for (const candidate of baseKeys) {
+    const suffixed = fieldUrl(node, `${candidate}${suffix}`) ?? fieldUrl(node, `${candidate}_${suffix}`)
+    if (suffixed) return suffixed
+  }
+
+  return undefined
+}
+
+function prioritizedReferenceUrl(field: any, index: number) {
+  const refNode = refFromFieldAt(field, index)
+  const collectionUrl = refToCollectionUrl(refNode)
+  if (collectionUrl) return collectionUrl
+
+  const list = getReferenceNodes(field)
+  const collection = list[index] ?? list.find((ref: any) => refToCollectionUrl(ref))
+  const fallbackCollectionUrl = refToCollectionUrl(collection)
+  if (fallbackCollectionUrl) return fallbackCollectionUrl
+
+  return refToUrl(refNode)
 }
 function imgFrom(r: any): ImageRef | undefined {
   if (!r) return undefined
@@ -397,11 +444,18 @@ function getReferenceNodes(field: any): any[] {
   return []
 }
 
+function refToCollectionUrl(ref: any): string | undefined {
+  if (ref?.__typename === "Collection") {
+    return ref.handle ? `/collections/${ref.handle}` : undefined
+  }
+  return undefined
+}
+
 function refToUrl(ref: any): string | undefined {
   if (!ref) return undefined
+  const collectionUrl = refToCollectionUrl(ref)
+  if (collectionUrl) return collectionUrl
   switch (ref.__typename) {
-    case "Collection":
-      return ref.handle ? `/collections/${ref.handle}` : undefined
     case "Product":
       return ref.handle ? `/products/${ref.handle}` : undefined
     default:
@@ -532,14 +586,16 @@ function toSection(node: any): AppHomeSection | null {
   const kind = normalizeKind(val(node, "kind"))
   const title = val(node, "title")
   const subtitle = val(node, "subtitle")
-  const url = fieldUrl(node, "url") ?? fieldUrl(node, "link")
+  const collections = collectCollections(node)
+  const collectionUrls = uniqueCollectionUrls(collections)
+  const url = collectionUrls[0] ?? fieldUrl(node, "url") ?? fieldUrl(node, "link")
   const theme = val(node, "theme") ?? "light"
   const country = normalizeCountryCode(val(node, "country"))
   const language = normalizeLanguageCode(val(node, "language"))
   const startAt = val(node, "startAt")
   const endAt = val(node, "endAt")
   const size = normalizeSize(val(node, "size"))
-  const targeting = { size, country, language, startAt, endAt }
+  const targeting = { size, country, language, startAt, endAt, collectionUrls }
 
   switch (kind) {
     case "hero_poster": {
@@ -694,7 +750,6 @@ function toSection(node: any): AppHomeSection | null {
 
     case "collection_link_slider": {
       const collectionsField = getField(node, "collections") ?? getField(node, "collection")
-      const collections = collectCollections(node)
       const countRaw = parseNumber(val(node, "count"))
       const requestedCount = typeof countRaw === "number" && countRaw > 0 ? Math.round(countRaw) : undefined
       const fallbackCount = collections.length
@@ -809,6 +864,21 @@ function collectCollections(node: any) {
   const refs = getReferenceNodes(collectionsField)
   if (collectionsField.reference) refs.unshift(collectionsField.reference)
   return refs.filter(Boolean)
+}
+
+function uniqueCollectionUrls(collections: any[]) {
+  const seen = new Set<string>()
+  const urls: string[] = []
+  collections.forEach((coll) => {
+    const handle = typeof coll?.handle === "string" ? coll.handle.trim() : ""
+    if (!handle) return
+    const url = `/collections/${handle}`
+    if (!seen.has(url)) {
+      seen.add(url)
+      urls.push(url)
+    }
+  })
+  return urls
 }
 
 function summarizeMetaobject(node: any) {
