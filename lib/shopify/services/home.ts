@@ -351,8 +351,13 @@ function ref(node: any, key: string) {
 function fieldUrl(node: any, key: string, index = 0) {
   const field = getField(node, key)
   if (!field) return undefined
+
+  const referencedUrl = prioritizedReferenceUrl(field, index)
+  if (referencedUrl) return referencedUrl
+
   const value = valueFromFieldAt(field, index)
   if (typeof value === "string" && value.trim()) return value.trim()
+
   const refNode = refFromFieldAt(field, index)
   return refToUrl(refNode)
 }
@@ -374,11 +379,39 @@ function refAt(node: any, key: string, index: number) {
   return ref(node, `${key}${suffix}`) ?? ref(node, `${key}_${suffix}`)
 }
 function urlAt(node: any, key: string, index: number) {
-  if (index === 0) return fieldUrl(node, key, index)
-  const listUrl = fieldUrl(node, key, index)
-  if (listUrl) return listUrl
+  const baseKeys = ["collection", "collections", key, "link"]
+
+  const tryKeysWithIndex = (idx: number) => {
+    for (const candidate of baseKeys) {
+      const fromField = fieldUrl(node, candidate, idx)
+      if (fromField) return fromField
+    }
+    return undefined
+  }
+
+  const direct = tryKeysWithIndex(index)
+  if (direct) return direct
+
   const suffix = String(index + 1)
-  return fieldUrl(node, `${key}${suffix}`) ?? fieldUrl(node, `${key}_${suffix}`)
+  for (const candidate of baseKeys) {
+    const suffixed = fieldUrl(node, `${candidate}${suffix}`) ?? fieldUrl(node, `${candidate}_${suffix}`)
+    if (suffixed) return suffixed
+  }
+
+  return undefined
+}
+
+function prioritizedReferenceUrl(field: any, index: number) {
+  const refNode = refFromFieldAt(field, index)
+  const collectionUrl = refToCollectionUrl(refNode)
+  if (collectionUrl) return collectionUrl
+
+  const list = getReferenceNodes(field)
+  const collection = list[index] ?? list.find((ref: any) => refToCollectionUrl(ref))
+  const fallbackCollectionUrl = refToCollectionUrl(collection)
+  if (fallbackCollectionUrl) return fallbackCollectionUrl
+
+  return refToUrl(refNode)
 }
 function imgFrom(r: any): ImageRef | undefined {
   if (!r) return undefined
@@ -397,11 +430,18 @@ function getReferenceNodes(field: any): any[] {
   return []
 }
 
+function refToCollectionUrl(ref: any): string | undefined {
+  if (ref?.__typename === "Collection") {
+    return ref.handle ? `/collections/${ref.handle}` : undefined
+  }
+  return undefined
+}
+
 function refToUrl(ref: any): string | undefined {
   if (!ref) return undefined
+  const collectionUrl = refToCollectionUrl(ref)
+  if (collectionUrl) return collectionUrl
   switch (ref.__typename) {
-    case "Collection":
-      return ref.handle ? `/collections/${ref.handle}` : undefined
     case "Product":
       return ref.handle ? `/products/${ref.handle}` : undefined
     default:
