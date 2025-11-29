@@ -30,7 +30,11 @@ import { StyleSheet, Text, View, useWindowDimensions } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function ProductScreen() {
-  const { handle, variant: variantParam, code: codeParam } = useLocalSearchParams<{
+  const {
+    handle,
+    variant: variantParam,
+    code: codeParam,
+  } = useLocalSearchParams<{
     handle: string
     variant?: string
     code?: string
@@ -77,10 +81,7 @@ export default function ProductScreen() {
     return (
       variants.find((v) => {
         const bc = ((v as any)?.barcode ?? "").toString().toLowerCase()
-        return (
-          bc === normalized ||
-          bc === condensed
-        )
+        return bc === normalized || bc === condensed
       }) ?? null
     )
   }, [variants, requestedVariantId, requestedCode])
@@ -231,9 +232,7 @@ export default function ProductScreen() {
   const compareAtAmount = (selectedVariant as any)?.compareAtPrice?.amount
     ? Number((selectedVariant as any)?.compareAtPrice?.amount)
     : undefined
-  const variantCode =
-    ((selectedVariant as any)?.barcode as string | undefined) ??
-    null
+  const variantCode = ((selectedVariant as any)?.barcode as string | undefined) ?? null
   const vendorPriceRange = useMemo(() => {
     if (!vendorProducts.length) return null
     let min = Number.POSITIVE_INFINITY
@@ -341,8 +340,8 @@ export default function ProductScreen() {
 
             <View className="px-4 py-4 flex-row items-start justify-between gap-4">
               <View className="flex-1">
-                <Text className="text-[18px] font-extrabold text-primary mb-1">{(product as any)?.title}</Text>
-                <Text className="text-secondary mb-1">{(product as any)?.vendor}</Text>
+                <Text className="text-[14px] uppercase font-medium text-primary mb-1">{(product as any)?.title}</Text>
+                <Text className="text-secondary text-xs mb-1">{(product as any)?.vendor}</Text>
                 {variantCode ? (
                   <PressableOverlay
                     onPress={copyVariantCode}

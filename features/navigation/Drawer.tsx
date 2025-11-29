@@ -255,25 +255,45 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
       </View>
 
       {/* footer */}
-      <DrawerFooter />
+      <DrawerFooter onNavigate={closeAndReset} />
     </Screen>
   )
 }
 
-function DrawerFooter() {
+function DrawerFooter({ onNavigate }: { onNavigate?: () => void }) {
   const { currency, setPrefs } = usePrefs()
   const [open, setOpen] = useState(false)
   const selected = (currency?.toUpperCase?.() ?? "USD") as keyof typeof CURRENCIES_MAP
   const item = CURRENCIES_MAP[selected] ?? CURRENCIES_MAP.USD
 
+  const policyLinks = [
+    { label: "Shipping Policy", path: "/policies/shipping-policy" },
+    { label: "Terms of Service", path: "/policies/terms-of-service" },
+    { label: "Privacy Policy", path: "/policies/privacy-policy" },
+    { label: "Refund Policy", path: "/policies/refund-policy" },
+  ]
+
+  const handlePolicyPress = (path: string) => {
+    router.push(path as any)
+    onNavigate?.()
+  }
+
   return (
     <View className="px-4 pb-10 pt-8 gap-4 relative">
       {/* currency selector */}
       {/* legal links */}
-      <Text className="text-[18px] text-secondary">Shipping Policy</Text>
-      <Text className="text-[18px] text-secondary">Terms of Service</Text>
-      <Text className="text-[18px] text-secondary">Privacy Policy</Text>
-      <Text className="text-[18px] text-secondary">Refund Policy</Text>
+      <View className="gap-2">
+        {policyLinks.map((link) => (
+          <PressableOverlay
+            key={link.path}
+            onPress={() => handlePolicyPress(link.path)}
+            className="rounded-2xl px-1 py-1"
+            accessibilityLabel={`Open ${link.label}`}
+          >
+            <Text className="text-[18px] text-secondary font-geist-medium">{link.label}</Text>
+          </PressableOverlay>
+        ))}
+      </View>
 
       <View>
         <PressableOverlay

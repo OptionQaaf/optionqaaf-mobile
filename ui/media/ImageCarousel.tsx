@@ -39,7 +39,7 @@ export function ImageCarousel({
           <Image
             source={{ uri: optimized[i] || item }}
             style={{ width, height }}
-            contentFit="contain"
+            contentFit="cover"
             transition={i === 0 ? 0 : 200}
             cachePolicy="disk"
             priority={i === 0 ? "high" : "normal"}

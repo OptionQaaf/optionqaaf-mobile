@@ -7,6 +7,7 @@ module.exports = {
     "./store/**/*.{ts,tsx}",
     "./features/**/*.{ts,tsx}",
     "./lib/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}",
   ],
   presets: [require("nativewind/preset")],
   theme: {
