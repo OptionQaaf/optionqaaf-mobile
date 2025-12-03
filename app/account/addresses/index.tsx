@@ -1,5 +1,6 @@
 import { useCustomerProfile, useDeleteCustomerAddress, useSetDefaultCustomerAddress } from "@/features/account/api"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
+import { ADDRESS_METADATA_PREFIX, stripAddressMetadata } from "@/features/account/addresses/formMapping"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { CustomerAddress } from "@/lib/shopify/customer/profile"
 import { useToast } from "@/ui/feedback/Toast"
@@ -84,7 +85,10 @@ function AddressesContent() {
   const renderAddress = useCallback(
     (address: CustomerAddress) => {
       const isDefault = address.id === defaultId
-      const lines = address.lines.length ? address.lines : buildLines(address)
+      const baseLines = address.lines.length ? address.lines : buildLines(address)
+      const lines = baseLines
+        .map((line) => cleanAddressLine(line))
+        .filter((line): line is string => Boolean(line && line.trim().length))
 
       return (
         <Card key={address.id} padding="lg" className="gap-3">
@@ -179,13 +183,27 @@ function AddressesContent() {
   )
 }
 
+function cleanAddressLine(line?: string | null) {
+  if (!line) return null
+  if (!line.includes(ADDRESS_METADATA_PREFIX)) return line
+  return (
+    line
+      .split("•")
+      .map((part) => part.trim())
+      .filter((part) => part && !part.startsWith(ADDRESS_METADATA_PREFIX))
+      .join(" • ")
+      .trim() || null
+  )
+}
+
 function buildLines(address: CustomerAddress): string[] {
   const parts: string[] = []
   const name = [address.firstName, address.lastName].filter(Boolean).join(" ")
   if (name) parts.push(name)
   if (address.company) parts.push(address.company)
   if (address.address1) parts.push(address.address1)
-  if (address.address2) parts.push(address.address2)
+  const address2 = stripAddressMetadata(address.address2)
+  if (address2) parts.push(address2)
   const cityLine = [address.city, address.province, address.zip].filter(Boolean).join(", ")
   if (cityLine) parts.push(cityLine)
   if (address.country) parts.push(address.country)

@@ -239,6 +239,9 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     if (!values.cityId?.trim()) nextErrors.cityId = "City is required"
     if (!values.zip.trim()) nextErrors.zip = "Postal code is required"
     if (!values.phoneNumber.trim()) nextErrors.phoneNumber = "Phone number is required"
+    if (values.countryCode === "KSA" && !values.saudiNationalAddressCode.trim()) {
+      nextErrors.saudiNationalAddressCode = "Saudi National Address code is required"
+    }
 
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors)
@@ -299,8 +302,19 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     const timer = setTimeout(() => {
       geocodeAddressString(query, controller.signal)
         .then((address) => {
-          if (!address.rawZip || zipEditedManually.current) return
-          setValues((prev) => ({ ...prev, zip: address.rawZip ?? prev.zip }))
+          if (
+            typeof address.lat === "number" &&
+            typeof address.lng === "number" &&
+            !selectedCoordinate
+          ) {
+            const coordinate = { latitude: address.lat, longitude: address.lng }
+            updateCoordinateState(coordinate)
+            setRegionForCoordinate(coordinate)
+          }
+
+          if (address.rawZip && !zipEditedManually.current) {
+            setValues((prev) => ({ ...prev, zip: address.rawZip ?? prev.zip }))
+          }
         })
         .catch((error) => {
           if (error?.name === "AbortError") return
@@ -320,6 +334,9 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     values.countryCode,
     values.provinceName,
     values.zip,
+    selectedCoordinate,
+    setRegionForCoordinate,
+    updateCoordinateState,
   ])
 
   return (
@@ -477,6 +494,17 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               autoCapitalize="characters"
               returnKeyType="done"
             />
+            {values.countryCode === "KSA" ? (
+              <Input
+                label="Saudi National Address code"
+                value={values.saudiNationalAddressCode}
+                onChangeText={(text) => updateValue("saudiNationalAddressCode", text)}
+                error={errors.saudiNationalAddressCode}
+                keyboardType="default"
+                autoCapitalize="characters"
+                placeholder="e.g. 1234-5678"
+              />
+            ) : null}
             <Text className="text-[12px] text-[#64748b]">
               We’ll try to detect your postal code when the address details are filled; if it looks wrong, you can
               replace it.
