@@ -1,3 +1,4 @@
+import { useCustomerProfile } from "@/features/account/api"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import {
   useAttachCartToCustomer,
@@ -45,6 +46,10 @@ export default function CartScreen() {
   const [loginPending, setLoginPending] = useState(false)
   const { mutateAsync: attachBuyerToCustomer, isPending: attachingBuyer } = useAttachCartToCustomer()
   const [buyerLinked, setBuyerLinked] = useState(false)
+  const {
+    data: customerProfile,
+    refetch: refetchProfile,
+  } = useCustomerProfile({ enabled: isAuthenticated })
 
   // Ensure there is a cart as early as possible (for codes, etc.)
   const ensure = useEnsureCart()
@@ -283,12 +288,41 @@ export default function CartScreen() {
       }
     }
 
-    await flush()
+    let latestProfile = customerProfile
+    try {
+      const refreshed = await refetchProfile()
+      if (refreshed?.data) {
+        latestProfile = refreshed.data
+      }
+    } catch (err: any) {
+      const message = err?.message || "Could not check your addresses yet"
+      show({ title: message, type: "danger" })
+      return
+    }
+
+    if (!latestProfile) {
+      show({ title: "Could not load your account yet", type: "danger" })
+      return
+    }
+
+    const hasSavedAddress = (latestProfile?.addresses?.length ?? 0) > 0
+
     const url = cart?.checkoutUrl
     if (!url) {
       Alert.alert("Checkout unavailable", "Missing checkout URL")
       return
     }
+
+    if (!hasSavedAddress) {
+      const checkoutUrlParam = encodeURIComponent(url)
+      router.push({
+        pathname: "/account/addresses/new",
+        params: { redirect: "/checkout", checkoutUrl: checkoutUrlParam, cartId: cart?.id ?? "" },
+      } as any)
+      return
+    }
+
+    await flush()
 
     router.push({ pathname: "/checkout", params: { url, cartId: cart?.id ?? "" } } as any)
   }, [
@@ -296,12 +330,14 @@ export default function CartScreen() {
     attachBuyerToCustomer,
     authInitializing,
     cart?.buyerIdentity?.customer?.id,
-    cart?.checkoutUrl,
     cart?.id,
+    customerProfile,
+    cart?.checkoutUrl,
     flush,
     getToken,
     hasItems,
     isAuthenticated,
+    refetchProfile,
     promptLogin,
     show,
   ])
