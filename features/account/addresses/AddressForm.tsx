@@ -239,8 +239,8 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     if (!values.cityId?.trim()) nextErrors.cityId = "City is required"
     if (!values.zip.trim()) nextErrors.zip = "Postal code is required"
     if (!values.phoneNumber.trim()) nextErrors.phoneNumber = "Phone number is required"
-    if (values.countryCode === "KSA" && !values.saudiPostNumber.trim()) {
-      nextErrors.saudiPostNumber = "Saudi Post number is required"
+    if (values.countryCode === "KSA" && !values.saudiNationalAddressCode.trim()) {
+      nextErrors.saudiNationalAddressCode = "Saudi National Address code is required"
     }
 
     if (Object.keys(nextErrors).length) {
@@ -496,13 +496,13 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
             />
             {values.countryCode === "KSA" ? (
               <Input
-                label="Saudi Post number"
-                value={values.saudiPostNumber}
-                onChangeText={(text) => updateValue("saudiPostNumber", text)}
-                error={errors.saudiPostNumber}
-                keyboardType="number-pad"
-                autoCapitalize="none"
-                placeholder="e.g. 12345"
+                label="Saudi National Address code"
+                value={values.saudiNationalAddressCode}
+                onChangeText={(text) => updateValue("saudiNationalAddressCode", text)}
+                error={errors.saudiNationalAddressCode}
+                keyboardType="default"
+                autoCapitalize="characters"
+                placeholder="e.g. 1234-5678"
               />
             ) : null}
             <Text className="text-[12px] text-[#64748b]">

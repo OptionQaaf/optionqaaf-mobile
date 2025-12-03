@@ -12,7 +12,7 @@ const TERRITORY_CODE_MAP: Record<string, string> = Object.fromEntries(
 type AddressMetadata = {
   latitude?: number
   longitude?: number
-  saudiPostNumber?: string
+  nationalAddressCode?: string
 }
 
 export const ADDRESS_METADATA_PREFIX = "__META:"
@@ -20,19 +20,20 @@ export const ADDRESS_METADATA_PREFIX = "__META:"
 function encodeAddressMetadata({
   latitude,
   longitude,
-  saudiPostNumber,
+  nationalAddressCode,
 }: AddressMetadata): string | null {
   const hasLatLng = typeof latitude === "number" && typeof longitude === "number"
-  const hasPost = typeof saudiPostNumber === "string" && saudiPostNumber.trim().length > 0
-  if (!hasLatLng && !hasPost) return null
+  const hasNationalAddress =
+    typeof nationalAddressCode === "string" && nationalAddressCode.trim().length > 0
+  if (!hasLatLng && !hasNationalAddress) return null
 
   const payload: AddressMetadata = {}
   if (hasLatLng) {
     payload.latitude = Number(latitude.toFixed(6))
     payload.longitude = Number(longitude.toFixed(6))
   }
-  if (hasPost) {
-    payload.saudiPostNumber = saudiPostNumber.trim()
+  if (hasNationalAddress) {
+    payload.nationalAddressCode = nationalAddressCode.trim()
   }
 
   try {
@@ -50,7 +51,12 @@ function parseAddressMetadata(part: string | undefined): AddressMetadata | null 
     return {
       latitude: typeof parsed.latitude === "number" ? parsed.latitude : undefined,
       longitude: typeof parsed.longitude === "number" ? parsed.longitude : undefined,
-      saudiPostNumber: typeof parsed.saudiPostNumber === "string" ? parsed.saudiPostNumber : undefined,
+      nationalAddressCode:
+        typeof parsed.nationalAddressCode === "string"
+          ? parsed.nationalAddressCode
+          : typeof parsed.saudiPostNumber === "string"
+            ? parsed.saudiPostNumber
+            : undefined,
     }
   } catch {
     return null
@@ -97,7 +103,7 @@ export function formToInput(values: AddressFormSubmitData): CustomerAddressInput
   const metadata = encodeAddressMetadata({
     latitude: values.__coordinate?.lat,
     longitude: values.__coordinate?.lng,
-    saudiPostNumber: countryCode === "KSA" ? values.saudiPostNumber : undefined,
+    nationalAddressCode: countryCode === "KSA" ? values.saudiNationalAddressCode : undefined,
   })
   const address2WithArea = [values.area, address2, metadata].filter(Boolean).join(" • ") || null
   const territoryCode = resolveTerritoryCode(countryCode)
@@ -144,7 +150,7 @@ export function buildInitialValuesFromAddress(
     cityId: selection.cityId ?? null,
     area: selection.area ?? null,
     zip: address.zip ?? selection.zip ?? "",
-    saudiPostNumber: metadata?.saudiPostNumber ?? "",
+    saudiNationalAddressCode: metadata?.nationalAddressCode ?? "",
     __coordinate:
       metadata?.latitude && metadata?.longitude
         ? { lat: metadata.latitude, lng: metadata.longitude }
