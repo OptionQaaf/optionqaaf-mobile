@@ -263,7 +263,14 @@ export default function CartScreen() {
   const onCheckout = useCallback(async () => {
     if (!hasItems || attachingBuyer) return
 
-    if (isAuthenticated && !cart?.buyerIdentity?.customer?.id) {
+    if (authInitializing) return
+
+    if (!isAuthenticated) {
+      const loggedIn = await promptLogin()
+      if (!loggedIn) return
+    }
+
+    if (!cart?.buyerIdentity?.customer?.id) {
       const token = await getToken()
       if (token) {
         try {
@@ -287,6 +294,7 @@ export default function CartScreen() {
   }, [
     attachingBuyer,
     attachBuyerToCustomer,
+    authInitializing,
     cart?.buyerIdentity?.customer?.id,
     cart?.checkoutUrl,
     cart?.id,
@@ -294,6 +302,7 @@ export default function CartScreen() {
     getToken,
     hasItems,
     isAuthenticated,
+    promptLogin,
     show,
   ])
 

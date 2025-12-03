@@ -220,5 +220,11 @@ export async function geocodeAddressString(address: string, signal?: AbortSignal
   const result = data.results?.[0]
   if (!result) return {}
 
-  return parseAddressComponents(result.address_components)
+  const location = result.geometry?.location
+
+  return {
+    ...parseAddressComponents(result.address_components),
+    lat: location?.lat,
+    lng: location?.lng,
+  }
 }

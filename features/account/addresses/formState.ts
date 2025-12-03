@@ -13,6 +13,7 @@ export type AddressFormState = {
   cityId: string | null
   area: string | null
   zip: string
+  saudiPostNumber: string
   defaultAddress: boolean
 }
 
@@ -29,6 +30,7 @@ export function createInitialAddressState(initialValues?: Partial<AddressFormSta
     cityId: initialValues?.cityId ?? null,
     area: initialValues?.area ?? null,
     zip: initialValues?.zip ?? "",
+    saudiPostNumber: initialValues?.saudiPostNumber ?? "",
     defaultAddress: initialValues?.defaultAddress ?? false,
   }
 }
@@ -40,6 +42,7 @@ export function applyCountry(state: AddressFormState, countryCode: string | null
     provinceName: null,
     cityId: null,
     area: null,
+    saudiPostNumber: countryCode === "KSA" ? state.saudiPostNumber : "",
   }
 }
 

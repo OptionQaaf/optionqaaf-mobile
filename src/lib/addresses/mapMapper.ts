@@ -7,6 +7,8 @@ export type GeocodedAddress = {
   rawArea?: string
   rawStreet?: string
   rawZip?: string
+  lat?: number
+  lng?: number
 }
 
 export type MappedAddressSelection = {
