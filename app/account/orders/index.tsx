@@ -69,6 +69,7 @@ function OrdersContent() {
       const when = formatDate(item.createdAt)
       const linePreview = item.lineItemsPreview.slice(0, 5)
       const remaining = Math.max(0, item.lineItemsPreview.length - linePreview.length)
+      const note = item.note?.trim()
 
       return (
         <PressableOverlay onPress={() => handlePress(item.id)} className="mb-4">
@@ -109,6 +110,11 @@ function OrdersContent() {
               {remaining > 0 ? (
                 <Text className="text-[#64748b] text-[12px]">
                   +{remaining} more item{remaining === 1 ? "" : "s"}
+                </Text>
+              ) : null}
+              {note ? (
+                <Text className="text-[#475569] text-[12px]" numberOfLines={2}>
+                  ملاحظات: {note}
                 </Text>
               ) : null}
             </View>

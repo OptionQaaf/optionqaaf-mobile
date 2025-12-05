@@ -4,7 +4,9 @@ import {
   useAttachCartToCustomer,
   useCartQuery,
   useEnsureCart,
+  useReplaceCartDeliveryAddresses,
   useSyncCartChanges,
+  useUpdateCartAttributes,
   useUpdateDiscountCodes,
 } from "@/features/cart/api"
 import { convertAmount } from "@/features/currency/rates"
@@ -61,7 +63,12 @@ export default function CartScreen() {
   const { data: cart, isLoading, isFetching, isError, refetch } = useCartQuery()
   const sync = useSyncCartChanges()
   const { mutateAsync: updateDiscountCodesAsync, isPending: updatingDiscounts } = useUpdateDiscountCodes()
+  const { mutateAsync: updateCartAttributesAsync, isPending: savingNotes } = useUpdateCartAttributes()
+  const { mutateAsync: replaceDeliveryAddresses, isPending: syncingAddresses } = useReplaceCartDeliveryAddresses()
   const [codeInput, setCodeInput] = useState("")
+  const NOTE_ATTRIBUTE_KEY = "order_notes"
+  const [noteInput, setNoteInput] = useState("")
+  const [noteDirty, setNoteDirty] = useState(false)
 
   useEffect(() => {
     if (authInitializing) return
@@ -129,6 +136,35 @@ export default function CartScreen() {
       .filter((d) => typeof d?.code === "string" && Boolean(d.code?.trim().length))
       .map((d) => ({ code: (d.code as string).trim(), applicable: d.applicable ?? null }))
   }, [cart?.discountCodes])
+
+  const existingAttributes = useMemo(
+    () => (cart?.attributes ?? []).filter((attr): attr is { key: string; value?: string | null } => Boolean(attr?.key)),
+    [cart?.attributes],
+  )
+
+  const existingNote = useMemo(() => {
+    const match = existingAttributes.find((attr) => attr.key.toLowerCase() === NOTE_ATTRIBUTE_KEY)
+    return match?.value ?? ""
+  }, [NOTE_ATTRIBUTE_KEY, existingAttributes])
+
+  useEffect(() => {
+    if (!noteDirty) setNoteInput(existingNote)
+  }, [existingNote, noteDirty])
+
+  const handleSaveNotes = useCallback(async () => {
+    const trimmed = noteInput.trim()
+    if (!noteDirty && trimmed === existingNote?.trim()) return
+    if (!cart?.id) return
+    try {
+      const withoutNote = existingAttributes.filter((attr) => attr.key.toLowerCase() !== NOTE_ATTRIBUTE_KEY)
+      const payload = trimmed ? [...withoutNote, { key: NOTE_ATTRIBUTE_KEY, value: trimmed }] : withoutNote
+      await updateCartAttributesAsync(payload)
+      setNoteDirty(false)
+    } catch (err: any) {
+      const message = err?.message || "Could not save notes"
+      show({ title: message, type: "danger" })
+    }
+  }, [NOTE_ATTRIBUTE_KEY, cart?.id, existingAttributes, existingNote, noteDirty, noteInput, show, updateCartAttributesAsync])
 
   const handleApplyDiscount = useCallback(async () => {
     const input = codeInput.trim()
@@ -306,6 +342,7 @@ export default function CartScreen() {
     }
 
     const hasSavedAddress = (latestProfile?.addresses?.length ?? 0) > 0
+    const defaultAddressId = latestProfile?.defaultAddress?.id ?? latestProfile?.addresses?.[0]?.id ?? null
 
     const url = cart?.checkoutUrl
     if (!url) {
@@ -320,6 +357,21 @@ export default function CartScreen() {
         params: { redirect: "/checkout", checkoutUrl: checkoutUrlParam, cartId: cart?.id ?? "" },
       } as any)
       return
+    }
+
+    if (hasSavedAddress && defaultAddressId) {
+      try {
+        const addressPayload = latestProfile.addresses.map((addr) => ({
+          address: { copyFromCustomerAddressId: addr.id },
+          selected: addr.id === defaultAddressId,
+          oneTimeUse: false,
+        }))
+        await replaceDeliveryAddresses(addressPayload)
+      } catch (err: any) {
+        const message = err?.message || "Could not prepare your default address"
+        show({ title: message, type: "danger" })
+        return
+      }
     }
 
     await flush()
@@ -337,6 +389,7 @@ export default function CartScreen() {
     getToken,
     hasItems,
     isAuthenticated,
+    replaceDeliveryAddresses,
     refetchProfile,
     promptLogin,
     show,
@@ -616,6 +669,24 @@ export default function CartScreen() {
                           >
                             Apply
                           </Button>
+                        </View>
+
+                        <View className="gap-2">
+                          <Text className="text-[#0f172a] font-geist-semibold text-[14px]">Order notes</Text>
+                          <Input
+                            value={noteInput}
+                            onChangeText={(text) => {
+                              setNoteInput(text)
+                              setNoteDirty(true)
+                            }}
+                            onBlur={handleSaveNotes}
+                            placeholder="Add delivery notes (Arabic or English)"
+                            multiline
+                            numberOfLines={3}
+                            textAlignVertical="top"
+                            style={{ minHeight: 72 }}
+                            helper={savingNotes ? "Saving..." : "Optional instructions for your order."}
+                          />
                         </View>
                       </View>
 

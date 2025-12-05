@@ -5,6 +5,8 @@ import {
   getCart,
   removeLines,
   updateBuyerIdentity,
+  updateCartAttributes,
+  replaceCartDeliveryAddresses,
   updateDiscountCodes,
   updateLines,
 } from "@/lib/shopify/services/cart"
@@ -150,6 +152,46 @@ export function useUpdateLine() {
     },
     onSuccess: () => {
       if (cartId) qc.invalidateQueries({ queryKey: qk.cart(cartId) as any })
+    },
+  })
+}
+
+export function useUpdateCartAttributes() {
+  const locale = currentLocale()
+  const { cartId } = useCartId()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (attributes: { key: string; value: string }[]) => {
+      if (!cartId) throw new Error("Cart not initialized")
+      const res = await updateCartAttributes(cartId, attributes, locale)
+      return res.cartAttributesUpdate?.cart ?? null
+    },
+    onSuccess: (cart) => {
+      if (!cartId) return
+      const key = qk.cart(cartId) as any
+      if (cart) qc.setQueryData(key, cart)
+      qc.invalidateQueries({ queryKey: key })
+    },
+  })
+}
+
+export function useReplaceCartDeliveryAddresses() {
+  const locale = currentLocale()
+  const { cartId } = useCartId()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (
+      addresses: { address: { copyFromCustomerAddressId: string }; selected?: boolean; oneTimeUse?: boolean }[],
+    ) => {
+      if (!cartId) throw new Error("Cart not initialized")
+      const res = await replaceCartDeliveryAddresses(cartId, addresses, locale)
+      return res.cartDeliveryAddressesReplace?.cart ?? null
+    },
+    onSuccess: (_cart) => {
+      if (!cartId) return
+      qc.invalidateQueries({ queryKey: qk.cart(cartId) as any })
     },
   })
 }

@@ -19,6 +19,7 @@ import { Input } from "@/ui/primitives/Input"
 import { Text } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
 import * as Location from "expo-location"
+import { useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Platform, Switch, View } from "react-native"
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view"
@@ -71,6 +72,7 @@ const DEFAULT_REGION: Region = {
 
 export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit, onDelete }: AddressFormProps) {
   const { show } = useToast()
+  const router = useRouter()
   const initialCoordinate = initialValues?.__coordinate
   const mapModule = ReactNativeMapsModule
   const MapViewComponent = mapModule?.default
@@ -239,8 +241,13 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     if (!values.cityId?.trim()) nextErrors.cityId = "City is required"
     if (!values.zip.trim()) nextErrors.zip = "Postal code is required"
     if (!values.phoneNumber.trim()) nextErrors.phoneNumber = "Phone number is required"
-    if (values.countryCode === "KSA" && !values.saudiNationalAddressCode.trim()) {
-      nextErrors.saudiNationalAddressCode = "Saudi National Address code is required"
+    if (values.countryCode === "KSA") {
+      const nationalCode = values.saudiNationalAddressCode.trim()
+      if (!nationalCode) {
+        nextErrors.saudiNationalAddressCode = "Saudi National Address code is required"
+      } else if (nationalCode.length !== 8) {
+        nextErrors.saudiNationalAddressCode = "Saudi National Address code must be exactly 8 characters"
+      }
     }
 
     if (Object.keys(nextErrors).length) {
@@ -498,12 +505,23 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               <Input
                 label="Saudi National Address code"
                 value={values.saudiNationalAddressCode}
-                onChangeText={(text) => updateValue("saudiNationalAddressCode", text)}
+                onChangeText={(text) => updateValue("saudiNationalAddressCode", text.slice(0, 8))}
                 error={errors.saudiNationalAddressCode}
                 keyboardType="default"
                 autoCapitalize="characters"
                 placeholder="e.g. 1234-5678"
+                maxLength={8}
               />
+            ) : null}
+            {values.countryCode === "KSA" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="self-start"
+                onPress={() => router.push("/policies/national-address" as const)}
+              >
+                كيف أحصل على العنوان الوطني؟
+              </Button>
             ) : null}
             <Text className="text-[12px] text-[#64748b]">
               We’ll try to detect your postal code when the address details are filled; if it looks wrong, you can

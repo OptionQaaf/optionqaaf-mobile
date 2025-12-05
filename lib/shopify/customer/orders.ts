@@ -15,6 +15,7 @@ const CUSTOMER_ORDERS_QUERY = /* GraphQL */ `
             processedAt
             currencyCode
             statusPageUrl
+            note
             totalPrice {
               amount
               currencyCode
@@ -64,6 +65,7 @@ const CUSTOMER_ORDER_QUERY = /* GraphQL */ `
       processedAt
       currencyCode
       statusPageUrl
+      note
       subtotal {
         amount
         currencyCode
@@ -103,6 +105,10 @@ const CUSTOMER_ORDER_QUERY = /* GraphQL */ `
         province
         country
         zip
+      }
+      customAttributes {
+        key
+        value
       }
       lineItems(first: $lineItemLimit) {
         nodes {
@@ -187,6 +193,7 @@ type GraphQLOrder = {
   processedAt?: Maybe<string>
   currencyCode?: Maybe<string>
   statusPageUrl?: Maybe<string>
+  note?: Maybe<string>
   subtotal?: Maybe<Money>
   totalPrice?: Maybe<Money>
   totalTax?: Maybe<Money>
@@ -194,6 +201,12 @@ type GraphQLOrder = {
   totalRefunded?: Maybe<Money>
   billingAddress?: Maybe<GraphQLCustomerAddress>
   shippingAddress?: Maybe<GraphQLCustomerAddress>
+  customAttributes?: Maybe<
+    {
+      key?: Maybe<string>
+      value?: Maybe<string>
+    }[]
+  >
   lineItems?: Maybe<{ nodes?: Maybe<(GraphQLOrderLine | null)[]> }>
   fulfillments?: Maybe<{
     nodes?: Maybe<
@@ -283,6 +296,7 @@ export type OrderSummary = {
   statusPageUrl?: string | null
   lineItemsPreview: OrderLineItem[]
   latestFulfillmentStatus?: string | null
+  note?: string | null
 }
 
 export type CustomerOrdersPage = {
@@ -300,6 +314,7 @@ export type OrderDetail = OrderSummary & {
   totalRefunded?: MoneyValue | null
   billingAddress?: OrderAddress | null
   shippingAddress?: OrderAddress | null
+  customAttributes: Array<{ key: string; value?: string | null }>
   fulfillments: Array<{
     id: string
     createdAt: string | null
@@ -379,6 +394,7 @@ function normalizeSummary(order: Maybe<GraphQLOrder>): OrderSummary | null {
     statusPageUrl: order.statusPageUrl ?? null,
     lineItemsPreview: preview,
     latestFulfillmentStatus: fulfillmentStatus,
+    note: order.note ?? null,
   }
 }
 
@@ -432,6 +448,13 @@ function normalizeDetail(order: Maybe<GraphQLOrder>): OrderDetail | null {
     totalRefunded: toMoneyValue(order?.totalRefunded),
     billingAddress: normalizeAddress(order?.billingAddress),
     shippingAddress: normalizeAddress(order?.shippingAddress),
+    customAttributes:
+      order?.customAttributes
+        ?.map((attr) => ({
+          key: attr?.key ?? "",
+          value: attr?.value ?? null,
+        }))
+        .filter((attr) => Boolean(attr.key)) ?? [],
     fulfillments,
     lineItems,
     fulfilledLineItemQuantities: Object.fromEntries(fulfilledQuantityMap.entries()),
