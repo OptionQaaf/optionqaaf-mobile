@@ -309,11 +309,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     const timer = setTimeout(() => {
       geocodeAddressString(query, controller.signal)
         .then((address) => {
-          if (
-            typeof address.lat === "number" &&
-            typeof address.lng === "number" &&
-            !selectedCoordinate
-          ) {
+          if (typeof address.lat === "number" && typeof address.lng === "number" && !selectedCoordinate) {
             const coordinate = { latitude: address.lat, longitude: address.lng }
             updateCoordinateState(coordinate)
             setRegionForCoordinate(coordinate)
@@ -509,7 +505,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
                 error={errors.saudiNationalAddressCode}
                 keyboardType="default"
                 autoCapitalize="characters"
-                placeholder="e.g. 1234-5678"
+                placeholder="e.g. ABCD5678"
                 maxLength={8}
               />
             ) : null}
