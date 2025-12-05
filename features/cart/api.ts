@@ -5,6 +5,9 @@ import {
   getCart,
   removeLines,
   updateBuyerIdentity,
+  updateCartAttributes,
+  updateCartNote,
+  replaceCartDeliveryAddresses,
   updateDiscountCodes,
   updateLines,
 } from "@/lib/shopify/services/cart"
@@ -150,6 +153,83 @@ export function useUpdateLine() {
     },
     onSuccess: () => {
       if (cartId) qc.invalidateQueries({ queryKey: qk.cart(cartId) as any })
+    },
+  })
+}
+
+export function useUpdateCartAttributes() {
+  const locale = currentLocale()
+  const { cartId } = useCartId()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (attributes: { key: string; value: string }[]) => {
+      if (!cartId) throw new Error("Cart not initialized")
+      const res = await updateCartAttributes(cartId, attributes, locale)
+      return res.cartAttributesUpdate?.cart ?? null
+    },
+    onSuccess: (cart) => {
+      if (!cartId) return
+      const key = qk.cart(cartId) as any
+      if (cart) {
+        qc.setQueryData(key, (prev: any) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            // Shopify returns a partial cart here (id + attributes). Merge to avoid dropping lines/totals.
+            ...(Object.prototype.hasOwnProperty.call(cart, "attributes") ? { attributes: cart.attributes } : {}),
+          }
+        })
+      }
+      qc.invalidateQueries({ queryKey: key })
+    },
+  })
+}
+
+export function useUpdateCartNote() {
+  const locale = currentLocale()
+  const { cartId } = useCartId()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (note: string) => {
+      if (!cartId) throw new Error("Cart not initialized")
+      const res = await updateCartNote(cartId, note, locale)
+      return res.cartNoteUpdate?.cart ?? null
+    },
+    onSuccess: (cart) => {
+      if (!cartId) return
+      const key = qk.cart(cartId) as any
+      if (cart) {
+        qc.setQueryData(key, (prev: any) => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            ...(Object.prototype.hasOwnProperty.call(cart, "note") ? { note: cart.note } : {}),
+          }
+        })
+      }
+      qc.invalidateQueries({ queryKey: key })
+    },
+  })
+}
+
+export function useReplaceCartDeliveryAddresses() {
+  const locale = currentLocale()
+  const { cartId } = useCartId()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (
+      addresses: { address: { copyFromCustomerAddressId: string }; selected?: boolean; oneTimeUse?: boolean }[],
+    ) => {
+      if (!cartId) throw new Error("Cart not initialized")
+      const res = await replaceCartDeliveryAddresses(cartId, addresses, locale)
+      return res.cartDeliveryAddressesReplace?.cart ?? null
+    },
+    onSuccess: (_cart) => {
+      if (!cartId) return
+      qc.invalidateQueries({ queryKey: qk.cart(cartId) as any })
     },
   })
 }

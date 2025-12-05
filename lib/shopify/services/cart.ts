@@ -128,3 +128,95 @@ export async function updateBuyerIdentity(
     return res
   })
 }
+
+type CartAttributesUpdatePayload = {
+  cartAttributesUpdate?: { cart?: { id: string; attributes?: { key?: string | null; value?: string | null }[] }; userErrors?: { message?: string | null }[] }
+}
+
+export async function updateCartAttributes(
+  cartId: string,
+  attributes: { key: string; value: string }[],
+  locale?: { country?: string; language?: string },
+) {
+  const mutation = /* GraphQL */ `
+    mutation CartAttributesUpdate($cartId: ID!, $attributes: [AttributeInput!]!, $country: CountryCode, $language: LanguageCode) {
+      cartAttributesUpdate(cartId: $cartId, attributes: $attributes, country: $country, language: $language) {
+        cart { id attributes { key value } }
+        userErrors { message }
+      }
+    }
+  `
+
+  return callShopify<CartAttributesUpdatePayload>(async () => {
+    const res = await shopifyClient.request(mutation, {
+      cartId,
+      attributes,
+      country: locale?.country,
+      language: locale?.language,
+    })
+    const errors = res.cartAttributesUpdate?.userErrors?.map((e) => e?.message).filter(Boolean)
+    if (errors?.length) throw new ShopifyError(errors.join("; "))
+    return res
+  })
+}
+
+type CartNoteUpdatePayload = { cartNoteUpdate?: { cart?: { id: string; note?: string | null }; userErrors?: { message?: string | null }[] } }
+
+export async function updateCartNote(cartId: string, note: string, locale?: { country?: string; language?: string }) {
+  const mutation = /* GraphQL */ `
+    mutation CartNoteUpdate($cartId: ID!, $note: String!, $country: CountryCode, $language: LanguageCode) {
+      cartNoteUpdate(cartId: $cartId, note: $note, country: $country, language: $language) {
+        cart { id note }
+        userErrors { message }
+      }
+    }
+  `
+
+  return callShopify<CartNoteUpdatePayload>(async () => {
+    const res = await shopifyClient.request(mutation, {
+      cartId,
+      note,
+      country: locale?.country,
+      language: locale?.language,
+    })
+    const errors = res.cartNoteUpdate?.userErrors?.map((e) => e?.message).filter(Boolean)
+    if (errors?.length) throw new ShopifyError(errors.join("; "))
+    return res
+  })
+}
+
+type CartDeliveryAddressesReplacePayload = {
+  cartDeliveryAddressesReplace?: { cart?: { id: string }; userErrors?: { message?: string | null }[] }
+}
+
+export async function replaceCartDeliveryAddresses(
+  cartId: string,
+  addresses: { address: { copyFromCustomerAddressId: string }; selected?: boolean; oneTimeUse?: boolean }[],
+  locale?: { country?: string; language?: string },
+) {
+  const mutation = /* GraphQL */ `
+    mutation CartDeliveryAddressesReplace(
+      $cartId: ID!
+      $addresses: [CartSelectableAddressInput!]!
+      $country: CountryCode
+      $language: LanguageCode
+    ) {
+      cartDeliveryAddressesReplace(cartId: $cartId, addresses: $addresses, country: $country, language: $language) {
+        cart { id }
+        userErrors { message }
+      }
+    }
+  `
+
+  return callShopify<CartDeliveryAddressesReplacePayload>(async () => {
+    const res = await shopifyClient.request(mutation, {
+      cartId,
+      addresses,
+      country: locale?.country,
+      language: locale?.language,
+    })
+    const errors = res.cartDeliveryAddressesReplace?.userErrors?.map((e) => e?.message).filter(Boolean)
+    if (errors?.length) throw new ShopifyError(errors.join("; "))
+    return res
+  })
+}
