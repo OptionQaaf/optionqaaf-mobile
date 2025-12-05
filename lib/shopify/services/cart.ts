@@ -160,6 +160,31 @@ export async function updateCartAttributes(
   })
 }
 
+type CartNoteUpdatePayload = { cartNoteUpdate?: { cart?: { id: string; note?: string | null }; userErrors?: { message?: string | null }[] } }
+
+export async function updateCartNote(cartId: string, note: string, locale?: { country?: string; language?: string }) {
+  const mutation = /* GraphQL */ `
+    mutation CartNoteUpdate($cartId: ID!, $note: String!, $country: CountryCode, $language: LanguageCode) {
+      cartNoteUpdate(cartId: $cartId, note: $note, country: $country, language: $language) {
+        cart { id note }
+        userErrors { message }
+      }
+    }
+  `
+
+  return callShopify<CartNoteUpdatePayload>(async () => {
+    const res = await shopifyClient.request(mutation, {
+      cartId,
+      note,
+      country: locale?.country,
+      language: locale?.language,
+    })
+    const errors = res.cartNoteUpdate?.userErrors?.map((e) => e?.message).filter(Boolean)
+    if (errors?.length) throw new ShopifyError(errors.join("; "))
+    return res
+  })
+}
+
 type CartDeliveryAddressesReplacePayload = {
   cartDeliveryAddressesReplace?: { cart?: { id: string }; userErrors?: { message?: string | null }[] }
 }

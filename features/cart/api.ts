@@ -6,6 +6,7 @@ import {
   removeLines,
   updateBuyerIdentity,
   updateCartAttributes,
+  updateCartNote,
   replaceCartDeliveryAddresses,
   updateDiscountCodes,
   updateLines,
@@ -166,6 +167,26 @@ export function useUpdateCartAttributes() {
       if (!cartId) throw new Error("Cart not initialized")
       const res = await updateCartAttributes(cartId, attributes, locale)
       return res.cartAttributesUpdate?.cart ?? null
+    },
+    onSuccess: (cart) => {
+      if (!cartId) return
+      const key = qk.cart(cartId) as any
+      if (cart) qc.setQueryData(key, cart)
+      qc.invalidateQueries({ queryKey: key })
+    },
+  })
+}
+
+export function useUpdateCartNote() {
+  const locale = currentLocale()
+  const { cartId } = useCartId()
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (note: string) => {
+      if (!cartId) throw new Error("Cart not initialized")
+      const res = await updateCartNote(cartId, note, locale)
+      return res.cartNoteUpdate?.cart ?? null
     },
     onSuccess: (cart) => {
       if (!cartId) return

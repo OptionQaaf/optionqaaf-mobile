@@ -106,10 +106,6 @@ const CUSTOMER_ORDER_QUERY = /* GraphQL */ `
         country
         zip
       }
-      customAttributes {
-        key
-        value
-      }
       lineItems(first: $lineItemLimit) {
         nodes {
           id
@@ -201,12 +197,6 @@ type GraphQLOrder = {
   totalRefunded?: Maybe<Money>
   billingAddress?: Maybe<GraphQLCustomerAddress>
   shippingAddress?: Maybe<GraphQLCustomerAddress>
-  customAttributes?: Maybe<
-    {
-      key?: Maybe<string>
-      value?: Maybe<string>
-    }[]
-  >
   lineItems?: Maybe<{ nodes?: Maybe<(GraphQLOrderLine | null)[]> }>
   fulfillments?: Maybe<{
     nodes?: Maybe<
@@ -448,13 +438,7 @@ function normalizeDetail(order: Maybe<GraphQLOrder>): OrderDetail | null {
     totalRefunded: toMoneyValue(order?.totalRefunded),
     billingAddress: normalizeAddress(order?.billingAddress),
     shippingAddress: normalizeAddress(order?.shippingAddress),
-    customAttributes:
-      order?.customAttributes
-        ?.map((attr) => ({
-          key: attr?.key ?? "",
-          value: attr?.value ?? null,
-        }))
-        .filter((attr) => Boolean(attr.key)) ?? [],
+    customAttributes: [],
     fulfillments,
     lineItems,
     fulfilledLineItemQuantities: Object.fromEntries(fulfilledQuantityMap.entries()),

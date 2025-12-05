@@ -100,9 +100,7 @@ function OrderDetailContent() {
   const orderNote = useMemo(() => {
     if (!data) return null
     const noteFromApi = data.note?.trim()
-    if (noteFromApi) return noteFromApi
-    const attr = data.customAttributes.find((a) => a.key.toLowerCase() === "order_notes")
-    return attr?.value?.trim() || null
+    return noteFromApi && noteFromApi.length ? noteFromApi : null
   }, [data])
 
   const handleLinePress = useCallback(

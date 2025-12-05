@@ -7,6 +7,7 @@ import {
   useReplaceCartDeliveryAddresses,
   useSyncCartChanges,
   useUpdateCartAttributes,
+  useUpdateCartNote,
   useUpdateDiscountCodes,
 } from "@/features/cart/api"
 import { convertAmount } from "@/features/currency/rates"
@@ -64,6 +65,7 @@ export default function CartScreen() {
   const sync = useSyncCartChanges()
   const { mutateAsync: updateDiscountCodesAsync, isPending: updatingDiscounts } = useUpdateDiscountCodes()
   const { mutateAsync: updateCartAttributesAsync, isPending: savingNotes } = useUpdateCartAttributes()
+  const { mutateAsync: updateCartNoteAsync, isPending: savingNoteField } = useUpdateCartNote()
   const { mutateAsync: replaceDeliveryAddresses, isPending: syncingAddresses } = useReplaceCartDeliveryAddresses()
   const [codeInput, setCodeInput] = useState("")
   const NOTE_ATTRIBUTE_KEY = "order_notes"
@@ -158,13 +160,26 @@ export default function CartScreen() {
     try {
       const withoutNote = existingAttributes.filter((attr) => attr.key.toLowerCase() !== NOTE_ATTRIBUTE_KEY)
       const payload = trimmed ? [...withoutNote, { key: NOTE_ATTRIBUTE_KEY, value: trimmed }] : withoutNote
-      await updateCartAttributesAsync(payload)
+      await Promise.all([
+        updateCartAttributesAsync(payload),
+        updateCartNoteAsync(trimmed || ""),
+      ])
       setNoteDirty(false)
     } catch (err: any) {
       const message = err?.message || "Could not save notes"
       show({ title: message, type: "danger" })
     }
-  }, [NOTE_ATTRIBUTE_KEY, cart?.id, existingAttributes, existingNote, noteDirty, noteInput, show, updateCartAttributesAsync])
+  }, [
+    NOTE_ATTRIBUTE_KEY,
+    cart?.id,
+    existingAttributes,
+    existingNote,
+    noteDirty,
+    noteInput,
+    show,
+    updateCartAttributesAsync,
+    updateCartNoteAsync,
+  ])
 
   const handleApplyDiscount = useCallback(async () => {
     const input = codeInput.trim()
@@ -685,7 +700,11 @@ export default function CartScreen() {
                             numberOfLines={3}
                             textAlignVertical="top"
                             style={{ minHeight: 72 }}
-                            helper={savingNotes ? "Saving..." : "Optional instructions for your order."}
+                            helper={
+                              savingNotes || savingNoteField
+                                ? "Saving..."
+                                : "Optional instructions for your order."
+                            }
                           />
                         </View>
                       </View>
