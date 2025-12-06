@@ -6,7 +6,7 @@ import { useToast } from "@/ui/feedback/Toast"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef } from "react"
 import { ActivityIndicator, View } from "react-native"
-import { WebView } from "react-native-webview"
+import { WebView, type WebViewMessageEvent } from "react-native-webview"
 
 export default function AuthorizationScreen() {
   const { url } = useLocalSearchParams<{ url?: string }>()
@@ -14,6 +14,8 @@ export default function AuthorizationScreen() {
   const router = useRouter()
   const { show } = useToast()
   const completedRef = useRef(false)
+  const handledRedirectRef = useRef(false)
+  const webviewRef = useRef<WebView>(null)
 
   const source = useMemo(() => ({ uri: authorizeUrl }), [authorizeUrl])
 
@@ -49,16 +51,30 @@ export default function AuthorizationScreen() {
     }
   }, [cancelLogin])
 
+  const handleRedirect = useCallback(
+    (current: string) => {
+      if (!current.startsWith(SHOPIFY_CUSTOMER_REDIRECT_URI)) {
+        return false
+      }
+
+      if (handledRedirectRef.current) return true
+
+      handledRedirectRef.current = true
+      webviewRef.current?.stopLoading?.()
+      handleAuthRedirect(current)
+      return true
+    },
+    [handleAuthRedirect],
+  )
+
   const handleNavChange = useCallback(
     async (navState: { url?: string }) => {
       const current = navState.url || ""
       if (!current) return
 
-      if (current.startsWith(SHOPIFY_CUSTOMER_REDIRECT_URI)) {
-        handleAuthRedirect(current)
-      }
+      handleRedirect(current)
     },
-    [handleAuthRedirect],
+    [handleRedirect],
   )
 
   const handleShouldStart = useCallback(
@@ -66,14 +82,72 @@ export default function AuthorizationScreen() {
       const current = request.url || ""
       if (!current) return true
 
-      if (current.startsWith(SHOPIFY_CUSTOMER_REDIRECT_URI)) {
-        handleAuthRedirect(current)
-        return false
-      }
+      if (handleRedirect(current)) return false
 
       return true
     },
-    [handleAuthRedirect],
+    [handleRedirect],
+  )
+
+  const injectedRedirectTrap = useMemo(
+    () => `
+      (function() {
+        const target = ${JSON.stringify(SHOPIFY_CUSTOMER_REDIRECT_URI)};
+        function notify(url) {
+          try {
+            const asString = url ? url.toString() : ""
+            if (asString && asString.startsWith(target)) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: "redirect", url: asString }))
+            }
+          } catch (e) {
+            // noop
+          }
+        }
+
+        notify(window.location.href)
+
+        const assign = window.location.assign
+        const replace = window.location.replace
+        const push = history.pushState
+        const replaceState = history.replaceState
+
+        window.location.assign = function(url) {
+          notify(url)
+          return assign.call(this, url)
+        }
+
+        window.location.replace = function(url) {
+          notify(url)
+          return replace.call(this, url)
+        }
+
+        history.pushState = function(state, title, url) {
+          notify(url)
+          return push.call(this, state, title, url)
+        }
+
+        history.replaceState = function(state, title, url) {
+          notify(url)
+          return replaceState.call(this, state, title, url)
+        }
+      })();
+      true;
+    `,
+    [],
+  )
+
+  const handleMessage = useCallback(
+    (event: WebViewMessageEvent) => {
+      try {
+        const data = JSON.parse(event.nativeEvent.data)
+        if (data?.type === "redirect" && typeof data.url === "string") {
+          handleRedirect(data.url)
+        }
+      } catch {
+        // ignore parse errors
+      }
+    },
+    [handleRedirect],
   )
 
   return (
@@ -82,9 +156,12 @@ export default function AuthorizationScreen() {
       <View style={{ flex: 1 }}>
         {authorizeUrl ? (
           <WebView
+            ref={webviewRef}
             source={source}
             onNavigationStateChange={handleNavChange}
             onShouldStartLoadWithRequest={handleShouldStart}
+            onMessage={handleMessage}
+            injectedJavaScript={injectedRedirectTrap}
             startInLoadingState
             renderLoading={() => (
               <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
