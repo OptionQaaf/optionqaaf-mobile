@@ -2,6 +2,7 @@ import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { SHOPIFY_CUSTOMER_REDIRECT_URI as REDIRECT_URI } from "@/lib/shopify/env"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
+import { useFocusEffect } from "@react-navigation/native"
 import { router, useLocalSearchParams } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Text, View } from "react-native"
@@ -45,6 +46,14 @@ export default function AuthScreen() {
       if (!settlingRef.current) cancelLogin()
     }
   }, [cancelLogin])
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (!settlingRef.current) cancelLogin()
+      }
+    }, [cancelLogin]),
+  )
 
   const source = useMemo(() => (authUrl ? { uri: authUrl } : null), [authUrl])
 

@@ -56,12 +56,6 @@
     "plugins": [
       "expo-router",
       [
-        "react-native-maps",
-        {
-          "googleMapsApiKey": "${EXPO_PUBLIC_GOOGLE_MAPS_IOS_KEY}"
-        }
-      ],
-      [
         "expo-build-properties",
         {
           "ios": {

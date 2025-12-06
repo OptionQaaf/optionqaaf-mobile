@@ -46,6 +46,8 @@ export function ShopifyAuthProvider({ children }: { children: React.ReactNode })
       return loginPromiseRef.current.promise
     }
 
+    handledRedirectRef.current = false
+
     const authorizeUrl = await buildAuthorizationUrl()
 
     let resolveFn!: () => void
