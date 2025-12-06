@@ -17,21 +17,40 @@ export class ShopifyError extends Error {
     this.name = "ShopifyError"
   }
 }
-export async function callShopify<T>(fn: () => Promise<T>): Promise<T> {
-  const start = Date.now()
-  try {
-    const res = await fn()
-    const dur = Date.now() - start
-    if (typeof __DEV__ !== "undefined" && __DEV__) {
-      console.log(`[Shopify] ${dur}ms`)
+export async function callShopify<T>(
+  fn: () => Promise<T>,
+  options: { retries?: number; retryDelayMs?: number } = {},
+): Promise<T> {
+  const maxRetries = options.retries ?? 3
+  const baseDelay = options.retryDelayMs ?? 150
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const start = Date.now()
+    try {
+      const res = await fn()
+      const dur = Date.now() - start
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.log(`[Shopify] ${dur}ms`)
+      }
+      return res
+    } catch (err: any) {
+      const dur = Date.now() - start
+      const details = err?.response?.errors?.map((e: any) => e.message).join("; ") || err?.message
+      const isConflict = typeof details === "string" && details.toLowerCase().includes("conflicted with another request")
+      const canRetry = isConflict && attempt < maxRetries
+
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn(`[Shopify] failed in ${dur}ms: ${details || "Unknown error"}${canRetry ? " (retrying)" : ""}`)
+      }
+
+      if (!canRetry) {
+        throw new ShopifyError(details || "Shopify request failed", err)
+      }
+
+      const delay = baseDelay * Math.pow(2, attempt) + Math.random() * baseDelay
+      await new Promise((resolve) => setTimeout(resolve, delay))
     }
-    return res
-  } catch (err: any) {
-    const dur = Date.now() - start
-    const details = err?.response?.errors?.map((e: any) => e.message).join("; ")
-    if (typeof __DEV__ !== "undefined" && __DEV__) {
-      console.warn(`[Shopify] failed in ${dur}ms: ${details || err?.message}`)
-    }
-    throw new ShopifyError(details || err?.message || "Shopify request failed", err)
   }
+  // Should never reach here
+  throw new ShopifyError("Shopify request failed after retries")
 }
