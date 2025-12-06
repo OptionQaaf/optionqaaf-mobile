@@ -45,20 +45,6 @@ const CUSTOMER_ADDRESS_DELETE_MUTATION = /* GraphQL */ `
   }
 `
 
-const CUSTOMER_DEFAULT_ADDRESS_UPDATE_MUTATION = /* GraphQL */ `
-  mutation CustomerDefaultAddressUpdate($addressId: ID!) {
-    customerDefaultAddressUpdate(addressId: $addressId) {
-      customerAddress {
-        id
-      }
-      userErrors {
-        field
-        message
-      }
-    }
-  }
-`
-
 type UserError = { field?: string[] | null; message?: string | null }
 
 type CustomerAddressPayload = { userErrors?: (UserError | null)[] | null }
@@ -73,10 +59,6 @@ type CustomerAddressUpdateResult = {
 
 type CustomerAddressDeleteResult = {
   customerAddressDelete?: (CustomerAddressPayload & { deletedAddressId?: string | null }) | null
-}
-
-type CustomerDefaultAddressUpdateResult = {
-  customerDefaultAddressUpdate?: (CustomerAddressPayload & { customerAddress?: { id: string } | null }) | null
 }
 
 export type CustomerAddressInput = {
@@ -163,14 +145,13 @@ export async function deleteCustomerAddress(
 }
 
 export async function setDefaultCustomerAddress(addressId: string, addressLimit = 6): Promise<CustomerProfile> {
-  const result = await customerGraphQL<CustomerDefaultAddressUpdateResult>(
-    CUSTOMER_DEFAULT_ADDRESS_UPDATE_MUTATION,
-    {
-      addressId,
-    },
-  )
+  const result = await customerGraphQL<CustomerAddressUpdateResult>(CUSTOMER_ADDRESS_UPDATE_MUTATION, {
+    addressId,
+    address: null,
+    defaultAddress: true,
+  })
 
-  const errors = extractErrors(result?.customerDefaultAddressUpdate)
+  const errors = extractErrors(result?.customerAddressUpdate)
   if (errors.length) {
     throw new Error(errors.join("; "))
   }

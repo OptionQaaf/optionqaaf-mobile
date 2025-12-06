@@ -192,16 +192,33 @@ type CartDeliveryAddressesReplacePayload = {
 export async function replaceCartDeliveryAddresses(
   cartId: string,
   addresses: { address: { copyFromCustomerAddressId: string }; selected?: boolean; oneTimeUse?: boolean }[],
-  locale?: { country?: string; language?: string },
+  _locale?: { country?: string; language?: string },
 ) {
+  // Customer Account API returns CustomerAddress IDs, but Storefront expects MailingAddress IDs.
+  const normalizeAddressId = (id: string) => {
+    if (!id) return id
+    if (id.includes("MailingAddress/")) return id
+    const match = id.match(/\/CustomerAddress\/(\d+)/)
+    if (!match) return id
+    const numericId = match[1]
+    const suffix = id.includes("model_name=CustomerAddress") ? "" : "?model_name=CustomerAddress"
+    return `gid://shopify/MailingAddress/${numericId}${suffix}`
+  }
+
+  const normalizedAddresses = addresses.map((addr) => ({
+    ...addr,
+    address: {
+      ...addr.address,
+      copyFromCustomerAddressId: normalizeAddressId(addr.address.copyFromCustomerAddressId),
+    },
+  }))
+
   const mutation = /* GraphQL */ `
     mutation CartDeliveryAddressesReplace(
       $cartId: ID!
       $addresses: [CartSelectableAddressInput!]!
-      $country: CountryCode
-      $language: LanguageCode
     ) {
-      cartDeliveryAddressesReplace(cartId: $cartId, addresses: $addresses, country: $country, language: $language) {
+      cartDeliveryAddressesReplace(cartId: $cartId, addresses: $addresses) {
         cart { id }
         userErrors { message }
       }
@@ -209,12 +226,7 @@ export async function replaceCartDeliveryAddresses(
   `
 
   return callShopify<CartDeliveryAddressesReplacePayload>(async () => {
-    const res = await shopifyClient.request(mutation, {
-      cartId,
-      addresses,
-      country: locale?.country,
-      language: locale?.language,
-    })
+    const res = await shopifyClient.request(mutation, { cartId, addresses: normalizedAddresses })
     const errors = res.cartDeliveryAddressesReplace?.userErrors?.map((e) => e?.message).filter(Boolean)
     if (errors?.length) throw new ShopifyError(errors.join("; "))
     return res
