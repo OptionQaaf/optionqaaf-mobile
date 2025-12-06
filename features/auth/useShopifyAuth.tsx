@@ -1,8 +1,9 @@
 // src/features/auth/useShopifyAuth.tsx
-import { getValidAccessToken, logoutShopify, startLogin } from "@/lib/shopify/customer/auth"
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { buildAuthorizationUrl, completeAuthorizationFromRedirect, getValidAccessToken, logoutShopify } from "@/lib/shopify/customer/auth"
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { AppState } from "react-native"
 import { useCartId } from "@/store/cartId"
+import { router } from "expo-router"
 
 // Minimal types
 type Ctx = {
@@ -13,6 +14,9 @@ type Ctx = {
   silentSignIn: () => Promise<boolean>
   getToken: () => Promise<string | null>
   initializing: boolean
+  authUrl?: string | null
+  handleAuthRedirect: (url: string) => Promise<void>
+  cancelLogin: () => void
 }
 
 const AuthCtx = createContext<Ctx | null>(null)
@@ -20,13 +24,71 @@ const AuthCtx = createContext<Ctx | null>(null)
 export function ShopifyAuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [initializing, setInitializing] = useState(true)
+  const [authUrl, setAuthUrl] = useState<string | null>(null)
+  const loginPromiseRef = useRef<{ promise: Promise<void>; resolve: () => void; reject: (err: any) => void } | null>(null)
+  const handledRedirectRef = useRef(false)
   const isAuthenticated = !!token
 
-  const login = useCallback(async () => {
-    await startLogin()
-    const t = await getValidAccessToken()
-    setToken(t)
+  const settleLogin = useCallback((error?: Error) => {
+    const pending = loginPromiseRef.current
+    loginPromiseRef.current = null
+    setAuthUrl(null)
+    if (!pending) return
+    if (error) {
+      pending.reject(error)
+    } else {
+      pending.resolve()
+    }
   }, [])
+
+  const login = useCallback(async () => {
+    if (loginPromiseRef.current) {
+      return loginPromiseRef.current.promise
+    }
+
+    const authorizeUrl = await buildAuthorizationUrl()
+
+    let resolveFn!: () => void
+    let rejectFn!: (err: any) => void
+    const promise = new Promise<void>((resolve, reject) => {
+      resolveFn = resolve
+      rejectFn = reject
+    })
+
+    loginPromiseRef.current = { promise, resolve: resolveFn, reject: rejectFn }
+    setAuthUrl(authorizeUrl)
+    try {
+      router.push({ pathname: "/auth", params: { url: encodeURIComponent(authorizeUrl) } })
+    } catch (e) {
+      // If navigation fails, reset state and bubble error
+      settleLogin(e instanceof Error ? e : new Error("Could not open login screen"))
+    }
+    return promise
+  }, [settleLogin])
+
+  const handleAuthRedirect = useCallback(
+    async (url: string) => {
+      if (handledRedirectRef.current) return
+      handledRedirectRef.current = true
+      try {
+        await completeAuthorizationFromRedirect(url)
+        const t = await getValidAccessToken()
+        if (!t) throw new Error("No token returned from login")
+        setToken(t || null)
+        settleLogin()
+      } catch (err: any) {
+        const message = err?.message || "Login failed"
+        settleLogin(new Error(message))
+      }
+    },
+    [settleLogin],
+  )
+
+  useEffect(() => {
+    handledRedirectRef.current = false
+  }, [authUrl])
+
+  const cancelLogin = useCallback(() => settleLogin(new Error("Login cancelled")), [settleLogin])
 
   const logout = useCallback(async () => {
     await logoutShopify()
@@ -88,8 +150,11 @@ export function ShopifyAuthProvider({ children }: { children: React.ReactNode })
       silentSignIn,
       getToken,
       initializing,
+      authUrl,
+      handleAuthRedirect,
+      cancelLogin,
     }),
-    [isAuthenticated, token, login, logout, silentSignIn, getToken, initializing],
+    [isAuthenticated, token, login, logout, silentSignIn, getToken, initializing, authUrl, handleAuthRedirect, cancelLogin],
   )
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>

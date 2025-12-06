@@ -74,6 +74,23 @@ async function prepareAuthorizationRequest(options: PrepareAuthorizationOptions 
 
 let silentAuthorizePromise: Promise<string | null> | null = null
 
+export async function buildAuthorizationUrl(options: PrepareAuthorizationOptions = {}): Promise<string> {
+  const { url } = await prepareAuthorizationRequest(options)
+  return url.toString()
+}
+
+export async function completeAuthorizationFromRedirect(redirectUrl: string): Promise<void> {
+  const params = new URL(redirectUrl).searchParams
+  const returnedState = params.get("state") || ""
+  const expectedState = (await sget(K.STATE)) || ""
+  if (returnedState !== expectedState) throw new Error("State mismatch")
+
+  const code = params.get("code")
+  if (!code) throw new Error("No authorization code returned")
+
+  await exchangeToken(code)
+}
+
 async function runSilentAuthorization(): Promise<string | null> {
   const { url, state, verifier } = await prepareAuthorizationRequest({ prompt: "none", persist: false })
 
@@ -150,24 +167,16 @@ export async function authorizeSilently(): Promise<string | null> {
 }
 
 export async function startLogin(): Promise<void> {
-  const { url: authorizeUrl } = await prepareAuthorizationRequest()
+  const authorizeUrl = await buildAuthorizationUrl()
 
-  console.log("AUTHZ DEBUG → authorization_endpoint:", authorizeUrl.toString())
+  console.log("AUTHZ DEBUG → authorization_endpoint:", authorizeUrl)
   console.log("AUTHZ DEBUG → redirect_uri:", REDIRECT_URI)
 
   // Open in-app browser and wait for redirect
-  const result = await WebBrowser.openAuthSessionAsync(authorizeUrl.toString(), REDIRECT_URI)
+  const result = await WebBrowser.openAuthSessionAsync(authorizeUrl, REDIRECT_URI)
   if (result.type !== "success" || !result.url) throw new Error("Login cancelled/failed")
 
-  const params = new URL(result.url).searchParams
-  const returnedState = params.get("state") || ""
-  const expectedState = (await sget(K.STATE)) || ""
-  if (returnedState !== expectedState) throw new Error("State mismatch")
-
-  const code = params.get("code")
-  if (!code) throw new Error("No authorization code returned")
-
-  await exchangeToken(code)
+  await completeAuthorizationFromRedirect(result.url)
 }
 
 export async function exchangeToken(code: string, options: { verifier?: string } = {}): Promise<void> {
