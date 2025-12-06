@@ -39,7 +39,16 @@ function AddressesContent() {
 
   const defaultId = profile?.defaultAddress?.id ?? null
 
-  const addresses = useMemo(() => profile?.addresses ?? [], [profile?.addresses])
+  const addresses = useMemo(() => {
+    const list = profile?.addresses ?? []
+    if (!list.length) return []
+    // Default goes first for quick recognition in UI.
+    return [...list].sort((a, b) => {
+      if (a.id === defaultId) return -1
+      if (b.id === defaultId) return 1
+      return 0
+    })
+  }, [defaultId, profile?.addresses])
 
   const handleSetDefault = useCallback(
     async (addressId: string) => {
@@ -91,7 +100,11 @@ function AddressesContent() {
         .filter((line): line is string => Boolean(line && line.trim().length))
 
       return (
-        <Card key={address.id} padding="lg" className="gap-3">
+        <Card
+          key={address.id}
+          padding="lg"
+          className={`gap-3 ${isDefault ? "bg-[#e0f2fe] border-[#0284c7]" : ""}`}
+        >
           <View className="flex-row items-start justify-between">
             <View className="flex-1 gap-1">
               <Text className="text-[#0f172a] font-geist-semibold text-[15px]">

@@ -49,10 +49,7 @@ export default function CartScreen() {
   const [loginPending, setLoginPending] = useState(false)
   const { mutateAsync: attachBuyerToCustomer, isPending: attachingBuyer } = useAttachCartToCustomer()
   const [buyerLinked, setBuyerLinked] = useState(false)
-  const {
-    data: customerProfile,
-    refetch: refetchProfile,
-  } = useCustomerProfile({ enabled: isAuthenticated })
+  const { data: customerProfile, refetch: refetchProfile } = useCustomerProfile({ enabled: isAuthenticated })
 
   // Ensure there is a cart as early as possible (for codes, etc.)
   const ensure = useEnsureCart()
@@ -64,13 +61,8 @@ export default function CartScreen() {
   const { data: cart, isLoading, isFetching, isError, refetch } = useCartQuery()
   const sync = useSyncCartChanges()
   const { mutateAsync: updateDiscountCodesAsync, isPending: updatingDiscounts } = useUpdateDiscountCodes()
-  const { mutateAsync: updateCartAttributesAsync, isPending: savingNotes } = useUpdateCartAttributes()
-  const { mutateAsync: updateCartNoteAsync, isPending: savingNoteField } = useUpdateCartNote()
   const { mutateAsync: replaceDeliveryAddresses, isPending: syncingAddresses } = useReplaceCartDeliveryAddresses()
   const [codeInput, setCodeInput] = useState("")
-  const NOTE_ATTRIBUTE_KEY = "order_notes"
-  const [noteInput, setNoteInput] = useState("")
-  const [noteDirty, setNoteDirty] = useState(false)
 
   useEffect(() => {
     if (authInitializing) return
@@ -138,48 +130,6 @@ export default function CartScreen() {
       .filter((d) => typeof d?.code === "string" && Boolean(d.code?.trim().length))
       .map((d) => ({ code: (d.code as string).trim(), applicable: d.applicable ?? null }))
   }, [cart?.discountCodes])
-
-  const existingAttributes = useMemo(
-    () => (cart?.attributes ?? []).filter((attr): attr is { key: string; value?: string | null } => Boolean(attr?.key)),
-    [cart?.attributes],
-  )
-
-  const existingNote = useMemo(() => {
-    const match = existingAttributes.find((attr) => attr.key.toLowerCase() === NOTE_ATTRIBUTE_KEY)
-    return match?.value ?? ""
-  }, [NOTE_ATTRIBUTE_KEY, existingAttributes])
-
-  useEffect(() => {
-    if (!noteDirty) setNoteInput(existingNote)
-  }, [existingNote, noteDirty])
-
-  const handleSaveNotes = useCallback(async () => {
-    const trimmed = noteInput.trim()
-    if (!noteDirty && trimmed === existingNote?.trim()) return
-    if (!cart?.id) return
-    try {
-      const withoutNote = existingAttributes.filter((attr) => attr.key.toLowerCase() !== NOTE_ATTRIBUTE_KEY)
-      const payload = trimmed ? [...withoutNote, { key: NOTE_ATTRIBUTE_KEY, value: trimmed }] : withoutNote
-      await Promise.all([
-        updateCartAttributesAsync(payload),
-        updateCartNoteAsync(trimmed || ""),
-      ])
-      setNoteDirty(false)
-    } catch (err: any) {
-      const message = err?.message || "Could not save notes"
-      show({ title: message, type: "danger" })
-    }
-  }, [
-    NOTE_ATTRIBUTE_KEY,
-    cart?.id,
-    existingAttributes,
-    existingNote,
-    noteDirty,
-    noteInput,
-    show,
-    updateCartAttributesAsync,
-    updateCartNoteAsync,
-  ])
 
   const handleApplyDiscount = useCallback(async () => {
     const input = codeInput.trim()
@@ -284,11 +234,11 @@ export default function CartScreen() {
   // Derived money (compact & consistent)
   // Derived money (compact & consistent)
   const { subBefore, subAfter, discount, total, tax, hasItems } = useMemo(() => {
-    const serverTotal = n(cart?.cost?.totalAmount?.amount, NaN)
+    const serverSubtotal = n(cart?.cost?.subtotalAmount?.amount, NaN)
     const taxAmount = n(cart?.cost?.totalTaxAmount?.amount, 0)
 
     let subBeforeDiscounts = 0 // compareAt × qty
-    let subAfterDiscounts = 0 // actual line cost (or unit price) × qty
+    let subAfterDiscounts = 0 // actual line cost (or unit price) × qty (captures promo allocations when provided)
     let itemCount = 0
 
     for (const line of localLines) {
@@ -302,14 +252,15 @@ export default function CartScreen() {
       subAfterDiscounts += Number.isFinite(lineCost) ? lineCost : unitPrice * quantity
     }
 
-    const resolvedTotal = dirty ? subAfterDiscounts : Number.isFinite(serverTotal) ? serverTotal : subAfterDiscounts
+    // Prefer server subtotal (which includes discount codes but excludes shipping), otherwise fall back to line math.
+    const resolvedSubtotal = dirty ? subAfterDiscounts : Number.isFinite(serverSubtotal) ? serverSubtotal : subAfterDiscounts
 
-    const savings = Math.max(0, subBeforeDiscounts - subAfterDiscounts)
+    const savings = Math.max(0, subBeforeDiscounts - resolvedSubtotal)
     return {
       subBefore: subBeforeDiscounts,
-      subAfter: subAfterDiscounts,
+      subAfter: resolvedSubtotal,
       discount: savings,
-      total: resolvedTotal,
+      total: resolvedSubtotal, // exclude shipping; show pure products total
       tax: taxAmount,
       hasItems: itemCount > 0,
     }
@@ -684,28 +635,6 @@ export default function CartScreen() {
                           >
                             Apply
                           </Button>
-                        </View>
-
-                        <View className="gap-2">
-                          <Text className="text-[#0f172a] font-geist-semibold text-[14px]">Order notes</Text>
-                          <Input
-                            value={noteInput}
-                            onChangeText={(text) => {
-                              setNoteInput(text)
-                              setNoteDirty(true)
-                            }}
-                            onBlur={handleSaveNotes}
-                            placeholder="Add delivery notes (Arabic or English)"
-                            multiline
-                            numberOfLines={3}
-                            textAlignVertical="top"
-                            style={{ minHeight: 72 }}
-                            helper={
-                              savingNotes || savingNoteField
-                                ? "Saving..."
-                                : "Optional instructions for your order."
-                            }
-                          />
                         </View>
                       </View>
 

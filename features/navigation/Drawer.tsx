@@ -265,8 +265,10 @@ function DrawerFooter({ onNavigate }: { onNavigate?: () => void }) {
   const [open, setOpen] = useState(false)
   const selected = (currency?.toUpperCase?.() ?? "USD") as keyof typeof CURRENCIES_MAP
   const item = CURRENCIES_MAP[selected] ?? CURRENCIES_MAP.USD
+  const isSAR = selected === "SAR"
 
   const policyLinks = [
+    ...(isSAR ? [{ label: "Saudi National Address Guide", path: "/policies/national-address" }] : []),
     { label: "Shipping Policy", path: "/policies/shipping-policy" },
     { label: "Terms of Service", path: "/policies/terms-of-service" },
     { label: "Privacy Policy", path: "/policies/privacy-policy" },
