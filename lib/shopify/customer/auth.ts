@@ -6,10 +6,8 @@ import {
   USER_AGENT,
 } from "@/lib/shopify/env"
 import { sdel, sget, sset } from "@/lib/storage/secureStore"
-import * as WebBrowser from "expo-web-browser"
+import { router } from "expo-router"
 import { fetchOpenIdConfig } from "./discovery"
-
-WebBrowser.maybeCompleteAuthSession()
 
 const K = {
   CODE_VERIFIER: "shopify.pkce.verifier",
@@ -41,6 +39,13 @@ type PreparedAuthorization = {
   verifier: string
 }
 
+type LoginPromiseHandlers = {
+  resolve: () => void
+  reject: (err: Error) => void
+}
+
+let loginPromise: LoginPromiseHandlers | null = null
+
 async function prepareAuthorizationRequest(options: PrepareAuthorizationOptions = {}): Promise<PreparedAuthorization> {
   const openId = await fetchOpenIdConfig()
 
@@ -70,6 +75,16 @@ async function prepareAuthorizationRequest(options: PrepareAuthorizationOptions 
   }
 
   return { url, state, verifier }
+}
+
+function resolveLogin() {
+  loginPromise?.resolve()
+  loginPromise = null
+}
+
+function rejectLogin(err: Error) {
+  loginPromise?.reject(err)
+  loginPromise = null
 }
 
 let silentAuthorizePromise: Promise<string | null> | null = null
@@ -150,24 +165,61 @@ export async function authorizeSilently(): Promise<string | null> {
 }
 
 export async function startLogin(): Promise<void> {
+  if (loginPromise) {
+    throw new Error("Login already in progress")
+  }
+
   const { url: authorizeUrl } = await prepareAuthorizationRequest()
 
-  console.log("AUTHZ DEBUG → authorization_endpoint:", authorizeUrl.toString())
-  console.log("AUTHZ DEBUG → redirect_uri:", REDIRECT_URI)
+  return new Promise((resolve, reject) => {
+    loginPromise = { resolve, reject }
+    try {
+      router.push({ pathname: "/(auth)/authorize", params: { url: authorizeUrl.toString() } })
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error("Login could not be started")
+      rejectLogin(error)
+    }
+  })
+}
 
-  // Open in-app browser and wait for redirect
-  const result = await WebBrowser.openAuthSessionAsync(authorizeUrl.toString(), REDIRECT_URI)
-  if (result.type !== "success" || !result.url) throw new Error("Login cancelled/failed")
+export async function handleAuthorizationRedirect(redirectUrl: string): Promise<void> {
+  if (!loginPromise) {
+    throw new Error("No active login session")
+  }
 
-  const params = new URL(result.url).searchParams
+  const params = new URL(redirectUrl).searchParams
+  const oauthError = params.get("error")
+  if (oauthError) {
+    const err = new Error(oauthError)
+    rejectLogin(err)
+    throw err
+  }
   const returnedState = params.get("state") || ""
   const expectedState = (await sget(K.STATE)) || ""
-  if (returnedState !== expectedState) throw new Error("State mismatch")
+  if (returnedState !== expectedState) {
+    rejectLogin(new Error("State mismatch"))
+    throw new Error("State mismatch")
+  }
 
   const code = params.get("code")
-  if (!code) throw new Error("No authorization code returned")
+  if (!code) {
+    rejectLogin(new Error("No authorization code returned"))
+    throw new Error("No authorization code returned")
+  }
 
-  await exchangeToken(code)
+  try {
+    await exchangeToken(code)
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error("Could not complete sign in")
+    rejectLogin(error)
+    throw error
+  }
+
+  resolveLogin()
+}
+
+export function cancelLogin(reason = "Login cancelled/failed") {
+  rejectLogin(new Error(reason))
 }
 
 export async function exchangeToken(code: string, options: { verifier?: string } = {}): Promise<void> {
