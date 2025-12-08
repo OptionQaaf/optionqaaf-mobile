@@ -24,12 +24,12 @@ export default function AuthScreen() {
     }
   }, [urlParam])
 
-  const launchExternalGoogleAuth = useCallback(
-    async (target: string) => {
+  const launchExternalAuthSession = useCallback(
+    async (target?: string | null) => {
       settlingRef.current = true
       try {
         await WebBrowser.warmUpAsync()
-        const result = await WebBrowser.openAuthSessionAsync(target, REDIRECT_URI, {
+        const result = await WebBrowser.openAuthSessionAsync(target || undefined, REDIRECT_URI, {
           preferEphemeralSession: false,
         })
         if (result.type === "success" && result.url) {
@@ -53,7 +53,9 @@ export default function AuthScreen() {
       try {
         const parsed = new URL(target)
         if (parsed.hostname.endsWith("accounts.google.com")) {
-          launchExternalGoogleAuth(target)
+          // Restart the Shopify auth flow in an external session so the provider
+          // (Shopify) keeps the state/cookie chain intact when Google redirects.
+          launchExternalAuthSession(authUrl || target)
           return false
         }
       } catch {
@@ -61,7 +63,7 @@ export default function AuthScreen() {
       }
       return true
     },
-    [launchExternalGoogleAuth],
+    [authUrl, launchExternalAuthSession],
   )
 
   const handleIntercept = useCallback(
