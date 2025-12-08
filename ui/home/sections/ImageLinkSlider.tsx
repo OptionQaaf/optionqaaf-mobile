@@ -1,6 +1,6 @@
 import { Image } from "expo-image"
 import { memo, useMemo } from "react"
-import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native"
+import { type DimensionValue, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native"
 
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import type { SectionSize } from "@/lib/shopify/services/home"
@@ -30,7 +30,7 @@ export const ImageLinkSlider = memo(function ImageLinkSlider({ items = [], size,
   const defaultTileWidth = Math.round(Math.min(320, Math.max(120, baseWidth)))
   const tileWidth = twoUp ? Math.max(defaultTileWidth, Math.round(windowWidth / 2)) : defaultTileWidth
   const tileHeight = Math.round(tileWidth * 1.2)
-  const captionFontSize = Math.max(7, Math.min(10, Math.round(8 * scale)))
+  const captionFontSize = Math.max(12, Math.min(18, Math.round(15 * scale)))
 
   if (twoUp) {
     return (
@@ -96,7 +96,7 @@ function SliderTile({ item, width, height, scale, captionSize, onPress, styleWid
 
   return (
     <Pressable
-      style={{ width: styleWidth ?? width, height, overflow: "hidden", backgroundColor: "#f3f3f3" }}
+      style={{ width: (styleWidth ?? width) as DimensionValue, height, overflow: "hidden", backgroundColor: "#f3f3f3" }}
       onPress={onPress}
     >
       <View style={{ flex: 1 }}>
@@ -127,13 +127,13 @@ function SliderTile({ item, width, height, scale, captionSize, onPress, styleWid
         >
           <View
             style={{
-              backgroundColor: "#FFFFFF",
+              backgroundColor: "transparent",
               paddingHorizontal: paddingX,
               paddingVertical: paddingY,
             }}
           >
             <Text
-              style={{ fontSize: captionSize, color: "#000", fontWeight: "400" }}
+              style={{ fontSize: captionSize, color: "#fff", fontWeight: "900" }}
               numberOfLines={1}
               ellipsizeMode="tail"
             >

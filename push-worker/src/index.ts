@@ -30,6 +30,15 @@ export class PushTokensDO {
 			return new Response('OK', { status: 200 });
 		}
 
+		if (url.pathname === '/remove-token' && request.method === 'POST') {
+			const { token } = await request.json<any>();
+			if (!token) {
+				return new Response('Missing token', { status: 400 });
+			}
+			await this.storage.delete(token);
+			return new Response('OK', { status: 200 });
+		}
+
 		if (url.pathname === '/get-all' && request.method === 'GET') {
 			const list = await this.storage.list();
 			const values = [];
@@ -53,6 +62,10 @@ export default {
 		// Register token
 		if (url.pathname === '/api/register' && request.method === 'POST') {
 			return handleRegister(request, env);
+		}
+
+		if (url.pathname === '/api/unregister' && request.method === 'POST') {
+			return handleUnregister(request, env);
 		}
 
 		// Broadcast message
@@ -85,6 +98,19 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
 	return new Response('OK', { status: 200 });
 }
 
+async function handleUnregister(request: Request, env: Env): Promise<Response> {
+	const { token } = await request.json<any>();
+	if (!token) {
+		return new Response('Missing token', { status: 400 });
+	}
+
+	const id = env.PUSH_TOKENS_DO.idFromName('global');
+	const stub = env.PUSH_TOKENS_DO.get(id);
+	await stub.fetch('https://do/remove-token', { method: 'POST', body: JSON.stringify({ token }) });
+
+	return new Response('OK', { status: 200 });
+}
+
 async function handleBroadcast(request: Request, env: Env): Promise<Response> {
 	const body = await request.json<any>();
 
@@ -97,6 +123,8 @@ async function handleBroadcast(request: Request, env: Env): Promise<Response> {
 
 	const title = body.title ?? 'Notification';
 	const message = body.body;
+	const path = typeof body.path === 'string' ? body.path : null;
+	const url = typeof body.url === 'string' ? body.url : null;
 
 	if (!message) {
 		return new Response('Missing message body', { status: 400 });
@@ -119,7 +147,11 @@ async function handleBroadcast(request: Request, env: Env): Promise<Response> {
 		sound: 'default',
 		title,
 		body: message,
-		data: { kind: 'broadcast' },
+		data: {
+			kind: 'broadcast',
+			...(path ? { path } : {}),
+			...(url ? { url } : {}),
+		},
 	}));
 
 	// Send to Expo push API

@@ -1,7 +1,7 @@
 import { useMobileHome } from "@/features/home/api"
 import { useCollectionMeta, useCollectionProducts } from "@/features/plp/api"
 import { useSearch } from "@/features/search/api"
-import { type ProductCollectionSortKeys } from "@/lib/shopify/gql/graphql"
+import { type ProductCollectionSortKeys, type ProductSortKeys } from "@/lib/shopify/gql/graphql"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
@@ -58,7 +58,6 @@ export default function CollectionScreen() {
   const special = SPECIAL[h]
   const { data: specialHome } = useMobileHome(special?.homeHandle ?? "")
   const { data: specialSearch } = useSearch(special?.searchQuery ?? "", 24)
-  const vendorSearch = useSearch(isVendorLanding ? vendorName : "", 24)
   const specialSections = useMemo(() => specialHome?.sections ?? [], [specialHome?.sections])
 
   // controls state
@@ -71,7 +70,11 @@ export default function CollectionScreen() {
 
   const sortKey: ProductCollectionSortKeys =
     sort === "featured" ? "BEST_SELLING" : sort === "newest" ? "CREATED" : "PRICE"
+  const searchSortKey: ProductSortKeys =
+    sort === "featured" ? "BEST_SELLING" : sort === "newest" ? "CREATED_AT" : "PRICE"
   const reverse = sort === "priceDesc" || sort === "newest"
+
+  const vendorSearch = useSearch(isVendorLanding ? vendorName : "", 24, { sortKey: searchSortKey, reverse })
 
   const {
     data,

@@ -5,11 +5,14 @@ import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Card } from "@/ui/surfaces/Card"
+import { Button } from "@/ui/primitives/Button"
 import Constants from "expo-constants"
 import * as Notifications from "expo-notifications"
 import { useRouter } from "expo-router"
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { Platform, ScrollView, Switch, Text, View } from "react-native"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { AppState, Linking, Platform, ScrollView, Switch, Text, View } from "react-native"
+
+const WORKER_URL = (process.env.EXPO_PUBLIC_PUSH_WORKER_URL || "").replace(/\/+$/, "")
 
 export default function NotificationsScreen() {
   const router = useRouter()
@@ -27,25 +30,33 @@ export default function NotificationsScreen() {
 type PermissionsStatus = Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>
 
 function NotificationsContent() {
-  const { pushEnabled, emailEnabled, smsEnabled, setPreferences, setPushPreference } = useNotificationSettings()
+  const { pushEnabled, emailEnabled, setPreferences, setPushPreference, expoPushToken } = useNotificationSettings()
   const { show } = useToast()
   const [permissions, setPermissions] = useState<PermissionsStatus | null>(null)
   const [isChecking, setIsChecking] = useState(false)
+  const autoEnabledRef = useRef(false)
+
+  const refreshPermissions = useCallback(async () => {
+    try {
+      const status = await Notifications.getPermissionsAsync()
+      setPermissions(status)
+    } catch {
+      setPermissions(null)
+    }
+  }, [])
 
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        const status = await Notifications.getPermissionsAsync()
-        if (mounted) setPermissions(status)
-      } catch {
-        if (mounted) setPermissions(null)
-      }
-    })()
+    refreshPermissions()
+    const sub = AppState.addEventListener("change", (state) => {
+      if (!mounted) return
+      if (state === "active") refreshPermissions()
+    })
     return () => {
       mounted = false
+      sub.remove()
     }
-  }, [])
+  }, [refreshPermissions])
 
   const pushBlockedBySystem = useMemo(() => {
     if (!permissions) return false
@@ -54,9 +65,36 @@ function NotificationsContent() {
 
   useEffect(() => {
     if (pushBlockedBySystem && pushEnabled) {
-      setPushPreference(false, null)
+      ;(async () => {
+        try {
+          if (expoPushToken && WORKER_URL) {
+            await fetch(`${WORKER_URL}/api/unregister`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token: expoPushToken }),
+            })
+          }
+        } catch (err) {
+          console.warn("[push] failed to unregister token after system block", err)
+        } finally {
+          setPushPreference(false, null)
+        }
+      })()
     }
-  }, [pushBlockedBySystem, pushEnabled, setPushPreference])
+  }, [expoPushToken, pushBlockedBySystem, pushEnabled, setPushPreference])
+
+  useEffect(() => {
+    if (!permissions?.granted) return
+    if (pushEnabled) return
+    if (autoEnabledRef.current) return
+    autoEnabledRef.current = true
+    // Mirror system permission by enabling in-app toggle; usePushToken will register.
+    setPushPreference(true, expoPushToken ?? null)
+  }, [permissions?.granted, pushEnabled, setPushPreference, expoPushToken])
+
+  const openSystemSettings = useCallback(() => {
+    Linking.openSettings().catch(() => {})
+  }, [])
 
   const registerForPush = useCallback(async () => {
     setIsChecking(true)
@@ -94,8 +132,27 @@ function NotificationsContent() {
   const handleTogglePush = useCallback(
     async (next: boolean) => {
       if (!next) {
+        if (expoPushToken) {
+          try {
+            if (WORKER_URL) {
+              await fetch(`${WORKER_URL}/api/unregister`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token: expoPushToken }),
+              })
+            }
+          } catch (err) {
+            console.warn("[push] failed to unregister token", err)
+          }
+        }
         setPushPreference(false, null)
         show({ title: "Push notifications disabled", type: "info" })
+        return
+      }
+
+      if (pushBlockedBySystem) {
+        show({ title: "Enable notifications in device settings", type: "info" })
+        openSystemSettings()
         return
       }
 
@@ -104,9 +161,11 @@ function NotificationsContent() {
         if (!result.granted) {
           show({
             title: "Enable notifications",
-            message: "Turn on push notifications in your system settings to stay up to date.",
-            type: "warning",
+            type: "info",
           })
+          if (Platform.OS === "ios") {
+            openSystemSettings()
+          }
           setPushPreference(false, null)
           return
         }
@@ -118,21 +177,13 @@ function NotificationsContent() {
         show({ title: message, type: "danger" })
       }
     },
-    [registerForPush, setPushPreference, show],
+    [registerForPush, setPushPreference, show, pushBlockedBySystem, openSystemSettings, expoPushToken],
   )
 
   const handleToggleEmail = useCallback(
     (next: boolean) => {
       setPreferences({ emailEnabled: next })
       show({ title: next ? "Email notifications on" : "Email notifications off", type: "info" })
-    },
-    [setPreferences, show],
-  )
-
-  const handleToggleSms = useCallback(
-    (next: boolean) => {
-      setPreferences({ smsEnabled: next })
-      show({ title: next ? "SMS notifications on" : "SMS notifications off", type: "info" })
     },
     [setPreferences, show],
   )
@@ -162,6 +213,9 @@ function NotificationsContent() {
                 Notifications are turned off from your device settings. Enable them in system settings to receive push
                 alerts.
               </Text>
+              <Button variant="outline" size="sm" className="mt-3" onPress={openSystemSettings} fullWidth>
+                Open device settings
+              </Button>
             </Card>
           ) : null}
 
@@ -170,13 +224,6 @@ function NotificationsContent() {
             description="Stay on top of receipts, delivery updates, and personalised picks."
             value={emailEnabled}
             onValueChange={handleToggleEmail}
-          />
-
-          <PreferenceToggle
-            title="SMS messages"
-            description="Receive delivery alerts and time-sensitive reminders."
-            value={smsEnabled}
-            onValueChange={handleToggleSms}
           />
         </View>
       </View>

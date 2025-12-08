@@ -11,6 +11,7 @@ import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
+import * as Clipboard from "expo-clipboard"
 import { Image } from "expo-image"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { Truck } from "lucide-react-native"
@@ -19,6 +20,7 @@ import { ActivityIndicator, Linking, RefreshControl, ScrollView, Text, View } fr
 
 type SegmentedLineItem = { item: OrderDetail["lineItems"][number]; quantity: number }
 type SegmentedLineItems = Array<SegmentedLineItem & { status: string }>
+const IMILE_TRACKING_URL = "https://www.imile.com/SA-en/track"
 
 export default function OrderDetailScreen() {
   const router = useRouter()
@@ -103,6 +105,33 @@ function OrderDetailContent() {
     return noteFromApi && noteFromApi.length ? noteFromApi : null
   }, [data])
 
+  const trackingNumbers = useMemo(() => {
+    if (!data?.fulfillments?.length) return []
+    const numbers = new Set<string>()
+    data.fulfillments.forEach((fulfillment) => {
+      fulfillment.trackingInfo?.forEach((entry) => {
+        const number = entry?.number?.trim()
+        if (number) numbers.add(number)
+      })
+    })
+    return Array.from(numbers)
+  }, [data])
+
+  const handleTrackingPress = useCallback(
+    async (trackingNumber: string) => {
+      const normalized = trackingNumber.trim()
+      if (!normalized) return
+      try {
+        await Clipboard.setStringAsync(normalized)
+        show({ title: "Tracking number copied", type: "success" })
+      } catch {
+        show({ title: "Unable to copy tracking number", type: "danger" })
+      }
+      Linking.openURL(IMILE_TRACKING_URL).catch(() => show({ title: "Unable to open tracking page", type: "danger" }))
+    },
+    [show],
+  )
+
   const handleLinePress = useCallback(
     async (item: NonNullable<typeof data>["lineItems"][number]) => {
       const productId = item.productId
@@ -169,6 +198,23 @@ function OrderDetailContent() {
             View status page
           </Button>
         ) : null}
+        {trackingNumbers.length ? (
+          <View className="mt-2 gap-2">
+            <Text className="text-[#0f172a] font-geist-medium text-[13px]">Tracking</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {trackingNumbers.map((trackingNumber) => (
+                <PressableOverlay
+                  key={trackingNumber}
+                  className="flex-row items-center gap-2 rounded-xl px-3 py-2 bg-[#f1f5f9]"
+                  onPress={() => handleTrackingPress(trackingNumber)}
+                >
+                  <Truck size={16} color="#0f172a" />
+                  <Text className="text-[#0f172a] text-[13px] font-geist-medium">{trackingNumber}</Text>
+                </PressableOverlay>
+              ))}
+            </View>
+          </View>
+        ) : null}
         {orderNote ? (
           <View className="bg-[#f8fafc] rounded-xl px-3 py-2 mt-2">
             <Text className="text-[#0f172a] font-geist-medium text-[13px]">Order note</Text>
@@ -234,45 +280,6 @@ function OrderDetailContent() {
                       </View>
                     </View>
                   </PressableOverlay>
-                  {(() => {
-                    const trackingEntries =
-                      Array.isArray(item.tracking) && item.tracking.length
-                        ? item.tracking.filter((track) => track && (track.url || track.number || track.company))
-                        : []
-                    const showTrackingSection = status === "FULFILLED" && trackingEntries.length > 0
-                    if (!showTrackingSection) return null
-                    return (
-                      <>
-                        {trackingEntries.map((track, idx) => {
-                          console.log("track", track)
-                          const url = track.url ?? null
-                          if (!url) return null
-                          const key = `${track.url ?? ""}|${track.number ?? ""}|${track.company ?? ""}|${idx}`
-                          const label = track.number ? `Open tracking ${track.number}` : "Open tracking"
-                          return (
-                            <View key={key} className="flex-row items-center gap-2">
-                              <PressableOverlay
-                                className="h-9 w-10 px-0 items-center justify-center rounded-lg"
-                                accessibilityLabel={label}
-                                disabled={!url}
-                                onPress={() => {
-                                  if (!url) {
-                                    console.error("Missing tracking URL")
-                                    return
-                                  }
-                                  Linking.openURL(url).catch(() =>
-                                    show({ title: "Unable to open tracking link", type: "danger" }),
-                                  )
-                                }}
-                              >
-                                <Truck size={16} color="#0f172a" />
-                              </PressableOverlay>
-                            </View>
-                          )
-                        })}
-                      </>
-                    )
-                  })()}
                 </View>
               )
             })}

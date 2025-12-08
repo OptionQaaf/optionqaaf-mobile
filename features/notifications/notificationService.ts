@@ -32,22 +32,26 @@ function getTargetFromNotification(data: NotificationData): string | null {
   if (url) return url
 
   if (data.kind === "broadcast") {
-    return "/account/notifications"
+    return "/"
   }
 
   return null
 }
 
-function navigateFromNotification(data: NotificationData) {
+function navigateFromNotification(data: NotificationData, opts?: { delayMs?: number }) {
   const target = getTargetFromNotification(data)
   if (!target) return
 
-  if (/^https?:\/\//i.test(target)) {
-    Linking.openURL(target).catch(() => {})
-    return
+  const go = () => {
+    if (/^https?:\/\//i.test(target)) {
+      Linking.openURL(target).catch(() => {})
+      return
+    }
+    router.push(target as any)
   }
 
-  router.push(target as any)
+  const delay = opts?.delayMs ?? 0
+  setTimeout(go, delay)
 }
 
 export function useNotificationsService() {
@@ -61,10 +65,14 @@ export function useNotificationsService() {
     })
 
     const checkInitial = async () => {
-      const lastResponse = await Notifications.getLastNotificationResponseAsync()
+      const getLast = typeof Notifications.getLastNotificationResponse === "function"
+      if (!getLast) return
+      const lastResponse = await Notifications.getLastNotificationResponse()
       if (!mounted || !lastResponse || handledInitial.current) return
       handledInitial.current = true
-      navigateFromNotification(lastResponse.notification.request.content.data as Record<string, unknown> | undefined)
+      navigateFromNotification(lastResponse.notification.request.content.data as Record<string, unknown> | undefined, {
+        delayMs: 50,
+      })
     }
 
     checkInitial()

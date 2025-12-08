@@ -6,10 +6,63 @@ import {
   type ProductCollectionSortKeys,
   ProductByHandleDocument,
   type ProductByHandleQuery,
+  type ProductSortKeys,
   type ProductVariant,
-  SearchProductsDocument,
   type SearchProductsQuery,
 } from "@/lib/shopify/gql/graphql"
+
+const SEARCH_PRODUCTS_WITH_SORT_DOCUMENT = gql`
+  query SearchProducts(
+    $query: String!
+    $pageSize: Int!
+    $after: String
+    $sortKey: ProductSortKeys
+    $reverse: Boolean
+    $country: CountryCode
+    $language: LanguageCode
+  ) @inContext(country: $country, language: $language) {
+    products(first: $pageSize, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        handle
+        title
+        vendor
+        availableForSale
+        featuredImage {
+          id
+          url(transform: { preferredContentType: WEBP })
+          altText
+          width
+          height
+        }
+        priceRange {
+          minVariantPrice {
+            amount
+            currencyCode
+          }
+          maxVariantPrice {
+            amount
+            currencyCode
+          }
+        }
+        compareAtPriceRange {
+          minVariantPrice {
+            amount
+            currencyCode
+          }
+          maxVariantPrice {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+`
 
 export async function getProductByHandle(handle: string, locale?: { country?: string; language?: string }) {
   return callShopify<ProductByHandleQuery>(() =>
@@ -45,7 +98,7 @@ export async function getCollectionProducts(
 }
 
 export async function searchProducts(
-  args: { query: string; pageSize?: number; after?: string | null },
+  args: { query: string; pageSize?: number; after?: string | null; sortKey?: ProductSortKeys | null; reverse?: boolean },
   locale?: { country?: string; language?: string },
 ) {
   const trimmed = args.query.trim()
@@ -109,42 +162,44 @@ export async function searchProducts(
     for (const q of queries) {
       try {
         const res = await callShopify<SearchProductsQuery>(() =>
-          shopifyClient.request(SearchProductsDocument, {
+          shopifyClient.request(SEARCH_PRODUCTS_WITH_SORT_DOCUMENT, {
             query: q,
             pageSize: 3,
             after: null,
+            sortKey: args.sortKey ?? null,
+            reverse: args.reverse ?? null,
             country: locale?.country as any,
             language: locale?.language as any,
           }),
         )
         const nodes = res.products?.nodes ?? []
         if (!nodes.length) continue
-    for (const n of nodes) {
-      const handle = (n as any)?.handle
-      if (!handle) continue
-      const full = await productFromHandle(handle)
-      if (!full) continue
-        const match = (full.variants ?? []).find((v) => {
-          const bc = (v as any)?.barcode
-          return bc === normalized || bc === condensed
-        })
-        const barcode = (match as any)?.barcode
-        if (match && barcode) {
-          const node: any = {
-            ...full,
-            availableForSale: full.availableForSale ?? match.availableForSale ?? true,
-            __variantId: match.id,
-            __variantCode: barcode,
+        for (const n of nodes) {
+          const handle = (n as any)?.handle
+          if (!handle) continue
+          const full = await productFromHandle(handle)
+          if (!full) continue
+          const match = (full.variants ?? []).find((v) => {
+            const bc = (v as any)?.barcode
+            return bc === normalized || bc === condensed
+          })
+          const barcode = (match as any)?.barcode
+          if (match && barcode) {
+            const node: any = {
+              ...full,
+              availableForSale: full.availableForSale ?? match.availableForSale ?? true,
+              __variantId: match.id,
+              __variantCode: barcode,
+            }
+            delete node.variants
+            if (__DEV__) console.log("[Search] variant code hit", { code, query: q, handle: node.handle })
+            return node
           }
-          delete node.variants
-          if (__DEV__) console.log("[Search] variant code hit", { code, query: q, handle: node.handle })
-          return node
         }
+      } catch (err) {
+        if (__DEV__) console.warn("[Search] variant code search failed", { code, query: q, err })
+      }
     }
-  } catch (err) {
-    if (__DEV__) console.warn("[Search] variant code search failed", { code, query: q, err })
-  }
-}
     return null
   }
 
@@ -186,10 +241,12 @@ export async function searchProducts(
   }
 
   return callShopify<SearchProductsQuery>(() =>
-    shopifyClient.request(SearchProductsDocument, {
+    shopifyClient.request(SEARCH_PRODUCTS_WITH_SORT_DOCUMENT, {
       query: args.query,
       pageSize: args.pageSize ?? 24,
       after: args.after ?? null,
+      sortKey: args.sortKey ?? null,
+      reverse: args.reverse ?? null,
       country: locale?.country as any,
       language: locale?.language as any,
     }),

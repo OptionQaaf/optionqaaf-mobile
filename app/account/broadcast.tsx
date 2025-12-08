@@ -9,6 +9,7 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Input } from "@/ui/primitives/Input"
 import { Card } from "@/ui/surfaces/Card"
+import { kv } from "@/lib/storage/mmkv"
 import { useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from "react-native"
@@ -23,6 +24,15 @@ const DESTINATION_OPTIONS = [
   { key: "custom", label: "App path" },
   { key: "url", label: "External link" },
 ] as const
+type BroadcastHistoryEntry = {
+  id: string
+  title: string | null
+  body: string
+  destination: string
+  createdAt: string
+}
+const HISTORY_KEY = "broadcast-history"
+const MAX_HISTORY = 20
 
 export default function BroadcastScreen() {
   const router = useRouter()
@@ -32,7 +42,7 @@ export default function BroadcastScreen() {
       requireAuth
       fallback={<AccountSignInFallback onSuccess={() => router.replace("/account/broadcast" as const)} />}
     >
-      <Screen bleedBottom className="bg-[#f8fafc]">
+      <Screen bleedBottom>
         <MenuBar back />
         <BroadcastContent />
       </Screen>
@@ -47,14 +57,15 @@ function BroadcastContent() {
   const router = useRouter()
   const scrollRef = useRef<ScrollView | null>(null)
   const insets = useSafeAreaInsets()
-  const keyboardOffset = Platform.OS === "ios" ? insets.top + 60 : 0
-  const bottomPadding = insets.bottom + 16
+  const keyboardOffset = Platform.OS === "ios" ? insets.top : 0
+  const bottomPadding = insets.bottom + 24
 
   const [title, setTitle] = useState("")
   const [message, setMessage] = useState("")
   const [destination, setDestination] = useState<(typeof DESTINATION_OPTIONS)[number]["key"]>("none")
   const [destinationValue, setDestinationValue] = useState("")
   const [isSending, setIsSending] = useState(false)
+  const [history, setHistory] = useState<BroadcastHistoryEntry[]>([])
 
   const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
   const trimmedTitle = title.trim()
@@ -131,6 +142,19 @@ function BroadcastContent() {
       setTitle("")
       setDestination("none")
       setDestinationValue("")
+
+      const entry: BroadcastHistoryEntry = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        title: trimmedTitle || null,
+        body: trimmedMessage,
+        destination: destinationSummary,
+        createdAt: new Date().toISOString(),
+      }
+      setHistory((prev) => {
+        const next = [entry, ...prev].slice(0, MAX_HISTORY)
+        kv.set(HISTORY_KEY, JSON.stringify(next))
+        return next
+      })
     } catch (err: any) {
       const message = err?.message || "Could not send broadcast"
       show({ title: message, type: "danger" })
@@ -145,6 +169,17 @@ function BroadcastContent() {
       show({ title: message, type: "danger" })
     }
   }, [error, show])
+
+  useEffect(() => {
+    try {
+      const raw = kv.get(HISTORY_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as BroadcastHistoryEntry[]
+      if (Array.isArray(parsed)) setHistory(parsed)
+    } catch {
+      // ignore parse errors
+    }
+  }, [])
 
   if (isLoading && !profile) {
     return (
@@ -170,7 +205,7 @@ function BroadcastContent() {
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-[#f8fafc]"
+      className="flex-1"
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={keyboardOffset}
     >
@@ -279,8 +314,37 @@ function BroadcastContent() {
               Send broadcast
             </Button>
           </Card>
+          <Card padding="lg" className="gap-3">
+            <Text className="text-[#0f172a] font-geist-semibold text-[16px]">History</Text>
+            {history.length === 0 ? (
+              <Text className="text-[#475569] text-[13px]">No broadcasts yet</Text>
+            ) : (
+              history.map((item) => (
+                <View key={item.id} className="border border-[#e2e8f0] rounded-xl p-3 bg-white gap-1">
+                  <View className="flex-row justify-between items-center">
+                    <Text className="text-[#0f172a] font-geist-medium text-[14px]" numberOfLines={1}>
+                      {item.title || "Untitled"}
+                    </Text>
+                    <Text className="text-[#94a3b8] text-[12px]">{formatHistoryDate(item.createdAt)}</Text>
+                  </View>
+                  <Text className="text-[#0f172a] text-[13px]">{item.body}</Text>
+                  <Text className="text-[#475569] text-[12px]">Destination: {item.destination}</Text>
+                </View>
+              ))
+            )}
+          </Card>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   )
+}
+
+function formatHistoryDate(iso: string) {
+  try {
+    const d = new Date(iso)
+    if (!Number.isFinite(d.getTime())) return iso
+    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(d)
+  } catch {
+    return iso
+  }
 }

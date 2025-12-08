@@ -67,6 +67,7 @@ export function usePushToken() {
     let cancelled = false
 
     const syncPushToken = async () => {
+      if (!pushEnabled) return
       if (!WORKER_URL) {
         console.warn("[push] Missing EXPO_PUBLIC_PUSH_WORKER_URL; skipping token registration")
         return
