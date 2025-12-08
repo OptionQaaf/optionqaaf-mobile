@@ -1,12 +1,12 @@
+import { useCustomerProfile, useUpdateCustomerProfile } from "@/features/account/api"
 import { avatarFromNames } from "@/features/account/avatar"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
-import { useCustomerProfile, useUpdateCustomerProfile } from "@/features/account/api"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
-import { Input } from "@/ui/primitives/Input"
 import { Button } from "@/ui/primitives/Button"
+import { Input } from "@/ui/primitives/Input"
 import { useRouter } from "expo-router"
 import { RotateCcw } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -51,11 +51,13 @@ function EditProfileContent() {
   }, [profile, trimmedFirst, trimmedLast])
 
   const avatar = useMemo(() => {
-    const fallbackName = profile?.displayName || profile?.email || "Guest"
-    const nextFirst = profile ? trimmedFirst || profile.firstName : trimmedFirst || ""
-    const nextLast = profile ? trimmedLast || profile.lastName : trimmedLast || ""
-    return avatarFromNames(nextFirst || null, nextLast || null, fallbackName)
-  }, [profile, trimmedFirst, trimmedLast])
+    const fallbackName = (() => {
+      const candidate = profile?.displayName || profile?.email || "Guest"
+      if (candidate.includes("@")) return candidate.split("@")[0] || "Guest"
+      return candidate
+    })()
+    return avatarFromNames(profile?.firstName ?? null, profile?.lastName ?? null, fallbackName)
+  }, [profile])
 
   const handleSave = useCallback(async () => {
     try {
@@ -68,6 +70,7 @@ function EditProfileContent() {
     } catch (err: any) {
       const message = err?.message || "Could not update profile."
       show({ title: message, type: "danger" })
+      console.error("Failed to update profile:", err)
     }
   }, [mutateAsync, trimmedFirst, trimmedLast, show, router])
 

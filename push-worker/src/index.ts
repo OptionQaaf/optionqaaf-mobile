@@ -1,4 +1,5 @@
 export interface Env {
+	IMAGES: R2Bucket;
 	PUSH_TOKENS_DO: DurableObjectNamespace;
 	ADMIN_SECRET: string;
 }
@@ -73,6 +74,10 @@ export default {
 			return handleBroadcast(request, env);
 		}
 
+		if (url.pathname === '/api/upload-image' && request.method === 'POST') {
+			return handleImageUpload(request, env);
+		}
+
 		return new Response('Not found', { status: 404 });
 	},
 };
@@ -111,6 +116,29 @@ async function handleUnregister(request: Request, env: Env): Promise<Response> {
 	return new Response('OK', { status: 200 });
 }
 
+async function handleImageUpload(request: Request, env: Env): Promise<Response> {
+	const contentType = request.headers.get('Content-Type') || '';
+
+	if (!contentType.startsWith('image/')) {
+		return new Response('Invalid image type', { status: 400 });
+	}
+
+	const arrayBuffer = await request.arrayBuffer();
+	const extension = contentType.split('/')[1] || 'jpg';
+	const filename = `${crypto.randomUUID()}.${extension}`;
+
+	// upload to R2
+	await env.IMAGES.put(filename, arrayBuffer, {
+		httpMetadata: { contentType },
+	});
+
+	const accountHash = 'pub-aacc6477b1484e52a2b5b97c6b861fd5';
+
+	const publicUrl = `https://${accountHash}.r2.dev/${filename}`;
+
+	return Response.json({ url: publicUrl });
+}
+
 async function handleBroadcast(request: Request, env: Env): Promise<Response> {
 	const body = await request.json<any>();
 
@@ -125,6 +153,7 @@ async function handleBroadcast(request: Request, env: Env): Promise<Response> {
 	const message = body.body;
 	const path = typeof body.path === 'string' ? body.path : null;
 	const url = typeof body.url === 'string' ? body.url : null;
+	const image = typeof body.image === 'string' ? body.image : null;
 
 	if (!message) {
 		return new Response('Missing message body', { status: 400 });
@@ -151,7 +180,9 @@ async function handleBroadcast(request: Request, env: Env): Promise<Response> {
 			kind: 'broadcast',
 			...(path ? { path } : {}),
 			...(url ? { url } : {}),
+			...(image ? { image } : {}),
 		},
+		...(image ? { image } : {}),
 	}));
 
 	// Send to Expo push API

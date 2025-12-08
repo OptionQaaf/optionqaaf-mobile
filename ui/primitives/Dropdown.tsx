@@ -1,7 +1,7 @@
 import { cn } from "@/ui/utils/cva"
-import DropDownPicker from "react-native-dropdown-picker"
 import { useEffect, useMemo, useState } from "react"
-import { Platform, Text, View } from "react-native"
+import { Modal, Platform, Pressable, Text, View } from "react-native"
+import DropDownPicker from "react-native-dropdown-picker"
 
 export type DropdownOption = { id: string; label: string; disabled?: boolean }
 
@@ -12,7 +12,7 @@ export function Dropdown({
   options,
   onChange,
   className,
-  buttonClassName: _buttonClassName, // kept for backward compatibility but styling handled via hasError
+  buttonClassName: _buttonClassName,
   disabled,
   searchable = false,
   searchPlaceholder = "Search…",
@@ -41,7 +41,99 @@ export function Dropdown({
 
   const containerZIndex = useMemo(() => (open ? 2000 : 1), [open])
   const buttonProps = useMemo(() => ({ activeOpacity: 1 }), [])
+  const isAndroid = Platform.OS === "android"
+  const listMode = isAndroid ? "SCROLLVIEW" : "SCROLLVIEW"
+  const selectedLabel = useMemo(() => items.find((i) => i.value === (value ?? null))?.label ?? "", [items, value])
 
+  if (isAndroid) {
+    return (
+      <View className={cn("w-full", className)} style={{ zIndex: containerZIndex }}>
+        {!!label && (
+          <Text className="mb-2 text-primary" selectable={false}>
+            {label}
+          </Text>
+        )}
+        <Pressable
+          onPress={() => setOpen(true)}
+          disabled={disabled}
+          style={{
+            borderRadius: 12,
+            minHeight: 48,
+            backgroundColor: disabled ? "#e2e8f0" : "#ffffff",
+            borderColor: hasError ? "#ef4444" : "#e2e8f0",
+            borderWidth: 1,
+            paddingHorizontal: 12,
+            justifyContent: "center",
+          }}
+        >
+          <Text style={{ color: selectedLabel ? "#0f172a" : "#94a3b8" }}>{selectedLabel || placeholder}</Text>
+        </Pressable>
+        <Modal
+          visible={open}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setOpen(false)}
+        >
+          <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.3)" }} onPress={() => setOpen(false)} />
+          <View
+            style={{
+              backgroundColor: "#ffffff",
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              paddingHorizontal: 16,
+              paddingTop: 10,
+              paddingBottom: 16,
+              maxHeight: "50%",
+              width: "100%",
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              borderColor: "#e2e8f0",
+              borderWidth: 1,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+              <Pressable onPress={() => setOpen(false)} style={{ padding: 8 }}>
+                <Text style={{ color: "#0f172a", fontWeight: "700" }}>✕</Text>
+              </Pressable>
+              <Text style={{ color: "#0f172a", fontWeight: "700", marginLeft: 4 }}>Select</Text>
+            </View>
+            <View style={{ gap: 4 }}>
+              {items.map((item) => {
+                const active = value === item.value
+                return (
+                  <Pressable
+                    key={item.value}
+                    disabled={item.disabled}
+                    onPress={() => {
+                      if (item.disabled) return
+                      setOpen(false)
+                      onChange?.(item.value as string)
+                    }}
+                    style={{
+                      paddingVertical: 12,
+                      paddingHorizontal: 8,
+                      borderRadius: 10,
+                      backgroundColor: active ? "#f1f5f9" : "#ffffff",
+                      borderColor: "#e2e8f0",
+                      borderWidth: 1,
+                      opacity: item.disabled ? 0.5 : 1,
+                    }}
+                  >
+                    <Text style={{ color: "#0f172a", fontWeight: "600" }}>{item.label}</Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+          </View>
+        </Modal>
+      </View>
+    )
+  }
+
+  // iOS (and other platforms) use DropDownPicker's default behavior
   return (
     <View className={cn("w-full", className)} style={{ zIndex: containerZIndex }}>
       {!!label && (
@@ -66,14 +158,12 @@ export function Dropdown({
         placeholder={placeholder}
         searchable={searchable}
         searchPlaceholder={searchPlaceholder}
-        listMode="SCROLLVIEW"
+        listMode={listMode}
         autoScroll
-        dropDownDirection={Platform.OS === "android" ? "AUTO" : "DEFAULT"}
+        dropDownDirection="DEFAULT"
         disabled={disabled}
         showArrowIcon={!disabled}
-        keyboardShouldPersistTaps="handled"
-        scrollViewProps={{ keyboardShouldPersistTaps: "handled" }}
-        props={buttonProps}
+        onClose={() => setOpen(false)}
         style={{
           borderRadius: 12,
           minHeight: 48,
@@ -89,8 +179,10 @@ export function Dropdown({
           borderColor: "#e2e8f0",
           backgroundColor: "#ffffff",
           overflow: "hidden",
+          paddingHorizontal: 0,
         }}
-        listItemContainerStyle={{ paddingVertical: 12 }}
+        listItemContainerStyle={{ paddingVertical: 12, paddingHorizontal: 8 }}
+        listItemLabelStyle={{ color: "#0f172a", fontWeight: "600", paddingRight: 4 }}
         arrowIconStyle={{ display: disabled ? "none" : "flex" }}
         searchContainerStyle={{
           paddingHorizontal: 12,

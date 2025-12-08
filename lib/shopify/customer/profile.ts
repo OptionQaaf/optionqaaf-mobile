@@ -55,8 +55,8 @@ const CUSTOMER_PROFILE_QUERY = /* GraphQL */ `
 `
 
 const CUSTOMER_PROFILE_UPDATE_MUTATION = /* GraphQL */ `
-  mutation CustomerProfileUpdate($customer: CustomerUpdateInput!, $addressLimit: Int!) {
-    customerUpdate(customer: $customer) {
+  mutation CustomerProfileUpdate($input: CustomerUpdateInput!, $addressLimit: Int!) {
+    customerUpdate(input: $input) {
       customer {
         id
         displayName
@@ -208,9 +208,23 @@ function normalizeCustomer(customer: GraphQLCustomer): CustomerProfile {
 
   const defaultAddress = normalizeAddress(customer.defaultAddress)
 
+  const sanitizedDisplayName = (() => {
+    const display = customer.displayName || ""
+    const email = customer.emailAddress?.emailAddress ?? ""
+    if (display.includes("@")) {
+      const [local] = display.split("@")
+      if (local?.trim()) return local.trim()
+    }
+    if (email.includes("@")) {
+      const [local] = email.split("@")
+      if (local?.trim()) return local.trim()
+    }
+    return display || email || "Guest"
+  })()
+
   return {
     id: customer.id,
-    displayName: customer.displayName,
+    displayName: sanitizedDisplayName,
     firstName: customer.firstName ?? null,
     lastName: customer.lastName ?? null,
     email: customer.emailAddress?.emailAddress ?? null,
@@ -253,7 +267,7 @@ export async function updateCustomerProfile(
   )
 
   const result = await customerGraphQL<CustomerProfileUpdateResult>(CUSTOMER_PROFILE_UPDATE_MUTATION, {
-    customer: payload,
+    input: payload,
     addressLimit,
   })
 

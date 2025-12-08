@@ -139,6 +139,20 @@ function AccountContent() {
     return isLoading ? "Loading profile…" : "Keep your contact details in sync across devices."
   }, [profile?.email, profile?.phone, isLoading])
 
+  const accountName = useMemo(() => {
+    const first = profile?.firstName?.trim() ?? ""
+    const last = profile?.lastName?.trim() ?? ""
+    if (first || last) return `${first} ${last}`.trim()
+    const display = profile?.displayName ?? ""
+    const email = profile?.email ?? ""
+    const source = display || email
+    if (source.includes("@")) {
+      const [local] = source.split("@")
+      if (local?.trim()) return local.trim()
+    }
+    return source || "Your account"
+  }, [profile?.displayName, profile?.email, profile?.firstName, profile?.lastName])
+
   const handleComingSoon = useCallback((label: string) => show({ title: `${label} coming soon`, type: "info" }), [show])
 
   const handleDebugExpireToken = useCallback(async () => {
@@ -173,7 +187,7 @@ function AccountContent() {
                 <View className="flex-row items-center gap-3">
                   <View className="flex-1 gap-1">
                     <Text className="text-[#0f172a] font-geist-semibold text-[18px]">
-                      {profile?.displayName || (isLoading ? "Loading account…" : "Your account")}
+                      {isLoading && !profile ? "Loading account…" : accountName}
                     </Text>
                     <Text className="text-[#475569] text-[14px] leading-[20px]">{contactLine}</Text>
                     {memberSince ? (

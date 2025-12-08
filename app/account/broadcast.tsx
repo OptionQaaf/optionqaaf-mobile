@@ -3,13 +3,15 @@ import { useCustomerProfile } from "@/features/account/api"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { isPushAdmin } from "@/features/notifications/admin"
+import { kv } from "@/lib/storage/mmkv"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Input } from "@/ui/primitives/Input"
 import { Card } from "@/ui/surfaces/Card"
-import { kv } from "@/lib/storage/mmkv"
+import { Image } from "expo-image"
+import * as ImagePicker from "expo-image-picker"
 import { useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from "react-native"
@@ -64,6 +66,7 @@ function BroadcastContent() {
   const [message, setMessage] = useState("")
   const [destination, setDestination] = useState<(typeof DESTINATION_OPTIONS)[number]["key"]>("none")
   const [destinationValue, setDestinationValue] = useState("")
+  const [imageUrl, setImageUrl] = useState("")
   const [isSending, setIsSending] = useState(false)
   const [history, setHistory] = useState<BroadcastHistoryEntry[]>([])
 
@@ -125,6 +128,7 @@ function BroadcastContent() {
 
       if (destinationMeta.path) payload.path = destinationMeta.path
       if (destinationMeta.url) payload.url = destinationMeta.url
+      if (imageUrl.trim()) payload.image = imageUrl.trim()
 
       const res = await fetch(`${WORKER_URL}/api/broadcast`, {
         method: "POST",
@@ -162,6 +166,31 @@ function BroadcastContent() {
       setIsSending(false)
     }
   }, [missingConfig, trimmedMessage, trimmedTitle, destinationMeta, show])
+
+  const pickImage = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
+    if (status !== "granted") {
+      show({ title: "Media permission needed to pick an image", type: "info" })
+      return
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+      allowsMultipleSelection: false,
+    })
+    if (result.canceled || !result.assets?.length) return
+
+    const upload = await fetch(`${WORKER_URL}/api/upload-image`, {
+      method: "POST",
+      headers: {
+        "Content-Type": result.assets[0].mimeType ?? "application/octet-stream",
+      },
+      body: await fetch(result.assets[0].uri).then((res) => res.blob()),
+    })
+
+    const json = await upload.json()
+    setImageUrl(json.url)
+  }, [show])
 
   useEffect(() => {
     if (error) {
@@ -240,6 +269,22 @@ function BroadcastContent() {
               onChangeText={setMessage}
               textAlignVertical="top"
             />
+            <Input
+              label="Image (optional - only works on android for now.)"
+              placeholder="https://example.com/promo.jpg"
+              value={imageUrl}
+              onChangeText={setImageUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Button variant="outline" size="sm" onPress={pickImage}>
+              Pick from gallery
+            </Button>
+            {imageUrl.trim() ? (
+              <View className="rounded-xl overflow-hidden border border-[#e2e8f0]">
+                <Image source={{ uri: imageUrl.trim() }} style={{ width: "100%", height: 180 }} contentFit="cover" />
+              </View>
+            ) : null}
 
             <View className="gap-2">
               <Text className="text-[#0f172a] font-geist-semibold text-[14px]">Tap destination</Text>
