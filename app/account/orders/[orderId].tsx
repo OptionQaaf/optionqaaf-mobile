@@ -13,6 +13,7 @@ import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { Image } from "expo-image"
 import { useLocalSearchParams, useRouter } from "expo-router"
+import { Truck } from "lucide-react-native"
 import { useCallback, useEffect, useMemo } from "react"
 import { ActivityIndicator, Linking, RefreshControl, ScrollView, Text, View } from "react-native"
 
@@ -84,12 +85,11 @@ function OrderDetailContent() {
       }
 
       if (remaining > 0) {
-        const status =
-          orderStatus.includes("CANCEL")
-            ? "CANCELLED"
-            : fulfilledQuantity > 0
-              ? "PARTIALLY_FULFILLED"
-              : "UNFULFILLED"
+        const status = orderStatus.includes("CANCEL")
+          ? "CANCELLED"
+          : fulfilledQuantity > 0
+            ? "PARTIALLY_FULFILLED"
+            : "UNFULFILLED"
         segments.push({ item, quantity: remaining, status })
       }
 
@@ -169,6 +169,12 @@ function OrderDetailContent() {
             View status page
           </Button>
         ) : null}
+        {orderNote ? (
+          <View className="bg-[#f8fafc] rounded-xl px-3 py-2 mt-2">
+            <Text className="text-[#0f172a] font-geist-medium text-[13px]">Order note</Text>
+            <Text className="text-[#475569] text-[13px] mt-[2px]">{orderNote}</Text>
+          </View>
+        ) : null}
       </Card>
 
       <Card padding="lg" className="gap-4">
@@ -189,7 +195,8 @@ function OrderDetailContent() {
               })()
               const totalLabel = item.quantity > quantity ? ` of ${item.quantity}` : ""
               const statusText = (() => {
-                const base = status === "FULFILLED" ? "Fulfilled" : status === "CANCELLED" ? "Cancelled" : "Not fulfilled"
+                const base =
+                  status === "FULFILLED" ? "Fulfilled" : status === "CANCELLED" ? "Cancelled" : "Not fulfilled"
                 return totalLabel ? `${base} ${quantity}${totalLabel}` : `${base} ${quantity}`
               })()
               const badgeStyle = getOrderStatusStyle(status)
@@ -225,9 +232,47 @@ function OrderDetailContent() {
                       <Text className="text-[#64748b] text-[12px]">{statusText}</Text>
                     </View>
                   </View>
-                  {segmentSubtotal ? (
-                    <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{segmentSubtotal}</Text>
-                  ) : null}
+                  <View className="items-end gap-2">
+                    {segmentSubtotal ? (
+                      <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{segmentSubtotal}</Text>
+                    ) : null}
+                    {(() => {
+                      const trackingEntries =
+                        Array.isArray(item.tracking) && item.tracking.length
+                          ? item.tracking.filter((track) => track && (track.url || track.number || track.company))
+                          : []
+                      const showTrackingSection = status === "FULFILLED" && trackingEntries.length > 0
+                      if (!showTrackingSection) return null
+                      return (
+                        <View className="flex-row items-center gap-2">
+                          {trackingEntries.map((track, idx) => {
+                            const url = track.url ?? null
+                            const key = `${track.url ?? ""}|${track.number ?? ""}|${track.company ?? ""}|${idx}`
+                            const label = track.number ? `Open tracking ${track.number}` : "Open tracking"
+                            return (
+                              <Button
+                                key={key}
+                                variant="outline"
+                                size="sm"
+                                className="h-9 w-10 px-0"
+                                accessibilityLabel={label}
+                                leftIcon={<Truck size={16} color="#0f172a" />}
+                                disabled={!url}
+                                onPress={(event) => {
+                                  event.stopPropagation?.()
+                                  if (url) {
+                                    Linking.openURL(url).catch(() =>
+                                      show({ title: "Unable to open tracking link", type: "danger" }),
+                                    )
+                                  }
+                                }}
+                              />
+                            )
+                          })}
+                        </View>
+                      )
+                    })()}
+                  </View>
                 </PressableOverlay>
               )
             })}
@@ -248,82 +293,16 @@ function OrderDetailContent() {
         </View>
       </Card>
 
-      <View className="flex-row gap-4">
-        <Card padding="lg" className="flex-1 gap-3">
+      <View className="gap-4">
+        <Card padding="lg" className="gap-3">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Shipping address</Text>
           <AddressLines address={data.shippingAddress} fallback="No shipping address" />
         </Card>
-        <Card padding="lg" className="flex-1 gap-3">
+        <Card padding="lg" className="gap-3">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Billing address</Text>
           <AddressLines address={data.billingAddress} fallback="No billing address" />
         </Card>
       </View>
-
-      <Card padding="lg" className="gap-3">
-        <Text className="text-[#0f172a] font-geist-semibold text-[16px]">ملاحظات الطلب</Text>
-        <Text className="text-[#475569] text-[13px]">
-          {orderNote ?? "لا توجد ملاحظات مرفقة لهذا الطلب."}
-        </Text>
-      </Card>
-
-      {data.fulfillments.length ? (
-        <Card padding="lg" className="gap-3">
-          <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Fulfillment</Text>
-          <View className="gap-4">
-            {data.fulfillments.map((fulfillment) => {
-              const statusStyle = getOrderStatusStyle(fulfillment.status)
-              return (
-                <View key={fulfillment.id} className="gap-3">
-                  <View className="flex-row items-center justify-between">
-                    <Badge label={statusStyle.label} bg={statusStyle.bg} color={statusStyle.color} />
-                    <Text className="text-[#475569] text-[12px]">
-                      {fulfillment.createdAt ? formatDateWithTime(fulfillment.createdAt) : "—"}
-                    </Text>
-                  </View>
-
-                  {(() => {
-                    const statusUpper = (fulfillment.status ?? "").toUpperCase()
-                    const tracks = fulfillment.trackingInfo.filter((track) => !!track.url)
-                    if (statusUpper !== "SUCCESS" || tracks.length === 0) return null
-                    return (
-                      <View className="gap-2">
-                        {tracks.map((track, idx) => {
-                          const handlePress = () => {
-                            if (track.url) {
-                              Linking.openURL(track.url).catch(() =>
-                                show({ title: "Unable to open tracking link", type: "danger" }),
-                              )
-                            }
-                          }
-                          return (
-                            <PressableOverlay
-                              key={`${fulfillment.id}-track-${idx}`}
-                              onPress={handlePress}
-                              className="rounded-xl border border-border bg-[#f1f5f9] px-3 py-2"
-                            >
-                              <View className="flex-row items-center justify-between">
-                                <View className="gap-[2px] flex-1 pr-3">
-                                  <Text className="text-[#0f172a] font-geist-medium text-[13px]">
-                                    Tracking {track.number ?? "info"}
-                                  </Text>
-                                  <Text className="text-[#64748b] text-[12px]">
-                                    {track.company ?? "No carrier"} • Tap to view
-                                  </Text>
-                                </View>
-                                <Text className="text-brand font-geist-medium text-[12px]">Open</Text>
-                              </View>
-                            </PressableOverlay>
-                          )
-                        })}
-                      </View>
-                    )
-                  })()}
-                </View>
-              )
-            })}
-          </View>
-        </Card>
-      ) : null}
     </ScrollView>
   )
 }
