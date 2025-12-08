@@ -13,6 +13,7 @@ import {
   type MappedAddressSelection,
 } from "@/src/lib/addresses/mapMapper"
 import { useToast } from "@/ui/feedback/Toast"
+import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Button } from "@/ui/primitives/Button"
 import { Dropdown } from "@/ui/primitives/Dropdown"
 import { Input } from "@/ui/primitives/Input"
@@ -510,19 +511,19 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               />
             ) : null}
             {values.countryCode === "KSA" ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="self-start"
+              <PressableOverlay
+                pressableClassName="self-start w-full"
+                className="px-3 py-2 w-full rounded-xl border border-[#e2e8f0] bg-[#f8fafc]"
+                hitSlop={8}
+                haptic="light"
                 onPress={() => router.push("/policies/national-address" as const)}
+                accessibilityLabel="كيف أحصل على العنوان الوطني؟"
               >
-                كيف أحصل على العنوان الوطني؟
-              </Button>
+                <Text className="text-primary text-[14px] text-center font-geist-medium">
+                  كيف أحصل على العنوان الوطني؟
+                </Text>
+              </PressableOverlay>
             ) : null}
-            <Text className="text-[12px] text-[#64748b]">
-              We’ll try to detect your postal code when the address details are filled; if it looks wrong, you can
-              replace it.
-            </Text>
           </View>
         </Card>
 
