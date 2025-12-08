@@ -7,9 +7,10 @@ type Props = {
   bleedTop?: boolean
   bleedBottom?: boolean
   bleedHorizontal?: boolean
+  className?: string
 }
 
-export function Screen({ children, bleedTop, bleedBottom, bleedHorizontal }: Props) {
+export function Screen({ children, bleedTop, bleedBottom, bleedHorizontal, className }: Props) {
   const edges: Array<"top" | "bottom" | "left" | "right"> = []
   if (!bleedTop) edges.push("top")
   if (!bleedBottom) edges.push("bottom")
@@ -19,7 +20,7 @@ export function Screen({ children, bleedTop, bleedBottom, bleedHorizontal }: Pro
   }
 
   return (
-    <SafeAreaView edges={edges} className="flex-1 bg-white">
+    <SafeAreaView edges={edges} className={`flex-1 bg-white ${className ?? ""}`}>
       <View className="flex-1 w-full">{children}</View>
     </SafeAreaView>
   )
