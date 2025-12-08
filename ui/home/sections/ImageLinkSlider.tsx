@@ -136,6 +136,8 @@ function SliderTile({ item, width, height, scale, captionSize, onPress, styleWid
               style={{ fontSize: captionSize, color: "#fff", fontWeight: "900" }}
               numberOfLines={1}
               ellipsizeMode="tail"
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
             >
               {item.label}
             </Text>

@@ -69,7 +69,12 @@ export const BrandCard = memo(function BrandCard({ name, productCount, images, p
       haptic="light"
     >
       <View className="flex-1 pr-4">
-        <Text className="mt-1 text-[18px] font-extrabold text-primary" numberOfLines={1}>
+        <Text
+          className="mt-1 text-[18px] font-extrabold text-primary"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}
+        >
           {name}
         </Text>
         {loading ? (

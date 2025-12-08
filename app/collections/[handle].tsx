@@ -286,7 +286,9 @@ export default function CollectionScreen() {
                       textShadowOffset: { width: 0, height: 1 },
                       textShadowRadius: 2,
                     }}
-                    numberOfLines={2}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
                   >
                     {title}
                   </Text>
@@ -309,7 +311,9 @@ export default function CollectionScreen() {
                     textShadowOffset: { width: 0, height: 1 },
                     textShadowRadius: 2,
                   }}
-                  numberOfLines={2}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.6}
                 >
                   {title}
                 </Text>
