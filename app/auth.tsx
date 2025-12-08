@@ -7,6 +7,7 @@ import { router, useLocalSearchParams } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, Text, View } from "react-native"
 import { WebView } from "react-native-webview"
+import * as WebBrowser from "expo-web-browser"
 
 export default function AuthScreen() {
   const { url: urlParam } = useLocalSearchParams<{ url?: string }>()
@@ -23,9 +24,44 @@ export default function AuthScreen() {
     }
   }, [urlParam])
 
+  const launchExternalGoogleAuth = useCallback(
+    (target: string) => {
+      settlingRef.current = true
+      WebBrowser.openAuthSessionAsync(target, REDIRECT_URI)
+        .then((result) => {
+          if (result.type === "success" && result.url) {
+            return handleAuthRedirect(result.url).then(() => router.back())
+          }
+          throw new Error("Login cancelled")
+        })
+        .catch((err: any) => {
+          settlingRef.current = false
+          setError(err?.message || "Login failed")
+        })
+    },
+    [handleAuthRedirect],
+  )
+
+  const handleExternalIfGoogle = useCallback(
+    (target: string) => {
+      try {
+        const parsed = new URL(target)
+        if (parsed.hostname.endsWith("accounts.google.com")) {
+          launchExternalGoogleAuth(target)
+          return false
+        }
+      } catch {
+        // ignore parsing errors
+      }
+      return true
+    },
+    [launchExternalGoogleAuth],
+  )
+
   const handleIntercept = useCallback(
     (target: string) => {
       if (!target || settlingRef.current) return false
+      if (!handleExternalIfGoogle(target)) return false
       if (target.startsWith(REDIRECT_URI)) {
         settlingRef.current = true
         handleAuthRedirect(target)
@@ -38,7 +74,7 @@ export default function AuthScreen() {
       }
       return true
     },
-    [handleAuthRedirect],
+    [handleAuthRedirect, handleExternalIfGoogle],
   )
 
   useEffect(() => {
