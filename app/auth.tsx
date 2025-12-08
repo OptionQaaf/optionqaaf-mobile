@@ -25,19 +25,25 @@ export default function AuthScreen() {
   }, [urlParam])
 
   const launchExternalGoogleAuth = useCallback(
-    (target: string) => {
+    async (target: string) => {
       settlingRef.current = true
-      WebBrowser.openAuthSessionAsync(target, REDIRECT_URI)
-        .then((result) => {
-          if (result.type === "success" && result.url) {
-            return handleAuthRedirect(result.url).then(() => router.back())
-          }
-          throw new Error("Login cancelled")
+      try {
+        await WebBrowser.warmUpAsync()
+        const result = await WebBrowser.openAuthSessionAsync(target, REDIRECT_URI, {
+          preferEphemeralSession: false,
         })
-        .catch((err: any) => {
-          settlingRef.current = false
-          setError(err?.message || "Login failed")
-        })
+        if (result.type === "success" && result.url) {
+          await handleAuthRedirect(result.url)
+          router.back()
+          return
+        }
+        throw new Error("Login cancelled")
+      } catch (err: any) {
+        settlingRef.current = false
+        setError(err?.message || "Login failed")
+      } finally {
+        await WebBrowser.coolDownAsync()
+      }
     },
     [handleAuthRedirect],
   )
