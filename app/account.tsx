@@ -3,6 +3,7 @@ import { avatarFromProfile } from "@/features/account/avatar"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
+import { isPushAdmin } from "@/features/notifications/admin"
 import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { useToast } from "@/ui/feedback/Toast"
@@ -12,7 +13,7 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { RelativePathString, useRouter } from "expo-router"
-import { Clock, Heart, LogOut, MapPin, Package, Pencil, Settings2 } from "lucide-react-native"
+import { Clock, Heart, LogOut, MapPin, Megaphone, Package, Pencil, Settings2 } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 import { RefreshControl, ScrollView, Text, View } from "react-native"
 
@@ -45,6 +46,7 @@ function AccountContent() {
 
   const avatar = useMemo(() => avatarFromProfile(profile), [profile])
   const showProfileSkeleton = isLoading && !profile
+  const isAdmin = isPushAdmin(profile?.email)
 
   const handleLogout = useCallback(async () => {
     try {
@@ -88,6 +90,18 @@ function AccountContent() {
     [],
   )
 
+  const adminLinks = useMemo<LinkConfig[]>(() => {
+    if (!isAdmin) return []
+    return [
+      {
+        title: "Push broadcast",
+        body: "Send a push notification to all devices.",
+        Icon: Megaphone,
+        path: "/account/broadcast" as RelativePathString,
+      },
+    ]
+  }, [isAdmin])
+
   const supportLinks = useMemo<LinkConfig[]>(
     () => [
       {
@@ -96,8 +110,9 @@ function AccountContent() {
         Icon: Settings2,
         path: "/account/notifications" as RelativePathString,
       },
+      ...adminLinks,
     ],
-    [],
+    [adminLinks],
   )
 
   useEffect(() => {

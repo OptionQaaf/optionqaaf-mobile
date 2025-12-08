@@ -70,6 +70,11 @@ This app provides OptionQaaf's customers with a modern and intuitive mobile shop
 
    # Optional: limit Places suggestions to a specific country (ISO-2, e.g. AT)
    EXPO_PUBLIC_PLACES_COUNTRY=AT
+
+   # Push notifications
+   EXPO_PUBLIC_PUSH_WORKER_URL=https://your-worker-url
+   EXPO_PUBLIC_PUSH_ADMIN_SECRET=your_admin_secret
+   EXPO_PUBLIC_PUSH_ADMIN_EMAILS=admin1@example.com,admin2@example.com
    ```
 
    - **Where to get the keys:** Create credentials in the [Google Cloud Console](https://console.cloud.google.com/)

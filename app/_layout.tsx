@@ -1,6 +1,8 @@
 import { AuthGate } from "@/features/auth/AuthGate"
 import { ShopifyAuthProvider } from "@/features/auth/useShopifyAuth"
 import { DrawerProvider } from "@/features/navigation/Drawer"
+import { useNotificationsService } from "@/features/notifications/notificationService"
+import { usePushToken } from "@/features/notifications/usePushToken"
 import { hydrateCartId } from "@/store/cartId"
 import { FontProvider } from "@/theme/FontProvider"
 import { ToastHost } from "@/ui/feedback/Toast"
@@ -47,6 +49,7 @@ export default function RootLayout() {
     <ShopifyAuthProvider>
       <QueryClientProvider client={client}>
         <GestureHandlerRootView style={{ flex: 1 }}>
+          <AppBootstrap />
           <AuthGate>
             <SafeAreaProvider>
               <FontProvider onReady={() => setFontsReady(true)}>
@@ -72,4 +75,10 @@ export default function RootLayout() {
       </QueryClientProvider>
     </ShopifyAuthProvider>
   )
+}
+
+function AppBootstrap() {
+  useNotificationsService()
+  usePushToken()
+  return null
 }

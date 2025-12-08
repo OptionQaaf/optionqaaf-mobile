@@ -42,10 +42,14 @@ export function Input({
   className,
   onFocus,
   onBlur,
+  multiline,
+  textAlignVertical,
+  style,
   ...p
 }: Props) {
   const [focused, setFocused] = useState(false)
   const [hide, setHide] = useState(!!secureTextEntry)
+  const isMultiline = !!multiline
 
   const state: NonNullable<VariantProps<typeof wrapper>["state"]> = !editable
     ? "disabled"
@@ -59,11 +63,18 @@ export function Input({
     <View className="w-full flex-1">
       {!!label && <Text className="mb-2">{label}</Text>}
 
-      <View className={cn(wrapper({ size, state }), className)}>
+      <View
+        className={cn(
+          wrapper({ size, state }),
+          isMultiline ? "items-start h-auto min-h-[140px] py-3" : "",
+          className,
+        )}
+      >
         {!!leftIcon && <View className="mr-2">{leftIcon}</View>}
 
         <TextInput
           {...p}
+          multiline={multiline}
           className="flex-1 text-primary"
           editable={editable}
           onFocus={(e) => {
@@ -75,6 +86,8 @@ export function Input({
             onBlur?.(e)
           }}
           secureTextEntry={hide}
+          textAlignVertical={textAlignVertical ?? (isMultiline ? "top" : undefined)}
+          style={[isMultiline ? { paddingTop: 0, paddingBottom: 0 } : null, style]}
           placeholderTextColor="#6B7280"
         />
 

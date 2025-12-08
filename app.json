@@ -83,6 +83,10 @@
       "expo-notifications",
       "expo-location"
     ],
+    "notification": {
+      "icon": "./assets/images/white-icon.png",
+      "color": "#0f172a"
+    },
     "experiments": {
       "typedRoutes": true
     },
