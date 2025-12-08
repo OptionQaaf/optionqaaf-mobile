@@ -27,7 +27,7 @@ export function MarkdownRenderer({ source, className }: Props) {
   const palette = useMemo<Palette>(() => {
     const isDark = colorScheme === "dark"
     return {
-      text: isDark ? "#F8F8F8" : "#0B0B0B",
+      text: isDark ? "#1e1e1e" : "#000000",
       surface: isDark ? "#0F172A" : "#F4F4F5",
       border: isDark ? "#1F2937" : "#E5E7EB",
       brand: "#9A1B32",

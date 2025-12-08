@@ -46,7 +46,13 @@ function OrdersContent() {
 
   const router = useRouter()
 
-  const orders = useMemo(() => data?.pages.flatMap((page) => page.orders) ?? [], [data])
+  const orders = useMemo(
+    () =>
+      data?.pages
+        .flatMap((page) => page.orders)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) ?? [],
+    [data],
+  )
 
   const handleLoadMore = useCallback(() => {
     if (!hasNextPage || isFetchingNextPage) return

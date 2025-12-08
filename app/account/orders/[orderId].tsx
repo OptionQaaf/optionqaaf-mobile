@@ -202,78 +202,78 @@ function OrderDetailContent() {
               const badgeStyle = getOrderStatusStyle(status)
 
               return (
-                <PressableOverlay
-                  key={`${item.id}-${status}`}
-                  className="flex-row items-center gap-4 rounded-2xl px-3 py-2 bg-[#f1f5f9]"
-                  onPress={() => handleLinePress(item)}
-                >
-                  <View className="h-14 w-14 rounded-xl bg-white overflow-hidden items-center justify-center">
-                    {item.imageUrl ? (
-                      <Image
-                        source={{ uri: item.imageUrl }}
-                        style={{ width: "100%", height: "100%" }}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <Text className="text-[#64748b] text-[12px]">×{quantity}</Text>
-                    )}
-                  </View>
-                  <View className="flex-1 gap-1">
-                    <Text className="text-[#0f172a] text-[15px] font-geist-medium" numberOfLines={1}>
-                      {item.title}
-                    </Text>
-                    {item.variantTitle ? (
-                      <Text className="text-[#64748b] text-[13px]" numberOfLines={1}>
-                        {item.variantTitle}
-                      </Text>
-                    ) : null}
-                    <View className="flex-row items-center gap-2">
-                      <Badge label={badgeStyle.label} bg={badgeStyle.bg} color={badgeStyle.color} />
-                      <Text className="text-[#64748b] text-[12px]">{statusText}</Text>
+                <View key={`${item.id}-${status}`} className="flex-row w-full gap-4">
+                  <PressableOverlay
+                    key={`${item.id}-${status}`}
+                    className="flex-row w-full items-center gap-4 rounded-2xl px-3 py-2 bg-[#f1f5f9]"
+                    pressableClassName="flex-1"
+                    onPress={() => handleLinePress(item)}
+                  >
+                    <View className="h-14 w-14 rounded-xl bg-white overflow-hidden items-center justify-center">
+                      {item.imageUrl ? (
+                        <Image
+                          source={{ uri: item.imageUrl }}
+                          style={{ width: "100%", height: "100%" }}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <Text className="text-[#64748b] text-[12px]">×{quantity}</Text>
+                      )}
                     </View>
-                  </View>
-                  <View className="items-end gap-2">
-                    {segmentSubtotal ? (
-                      <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{segmentSubtotal}</Text>
-                    ) : null}
-                    {(() => {
-                      const trackingEntries =
-                        Array.isArray(item.tracking) && item.tracking.length
-                          ? item.tracking.filter((track) => track && (track.url || track.number || track.company))
-                          : []
-                      const showTrackingSection = status === "FULFILLED" && trackingEntries.length > 0
-                      if (!showTrackingSection) return null
-                      return (
-                        <View className="flex-row items-center gap-2">
-                          {trackingEntries.map((track, idx) => {
-                            const url = track.url ?? null
-                            const key = `${track.url ?? ""}|${track.number ?? ""}|${track.company ?? ""}|${idx}`
-                            const label = track.number ? `Open tracking ${track.number}` : "Open tracking"
-                            return (
-                              <Button
-                                key={key}
-                                variant="outline"
-                                size="sm"
-                                className="h-9 w-10 px-0"
+                    <View className="flex-1 gap-1">
+                      <Text className="text-[#0f172a] text-[15px] font-geist-medium" numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      {item.variantTitle ? (
+                        <Text className="text-[#64748b] text-[13px]" numberOfLines={1}>
+                          {item.variantTitle}
+                        </Text>
+                      ) : null}
+                      <View className="flex-row items-center gap-2">
+                        <Badge label={badgeStyle.label} bg={badgeStyle.bg} color={badgeStyle.color} />
+                      </View>
+                    </View>
+                  </PressableOverlay>
+                  {(() => {
+                    const trackingEntries =
+                      Array.isArray(item.tracking) && item.tracking.length
+                        ? item.tracking.filter((track) => track && (track.url || track.number || track.company))
+                        : []
+                    const showTrackingSection = status === "FULFILLED" && trackingEntries.length > 0
+                    if (!showTrackingSection) return null
+                    return (
+                      <>
+                        {trackingEntries.map((track, idx) => {
+                          console.log("track", track)
+                          const url = track.url ?? null
+                          if (!url) return null
+                          const key = `${track.url ?? ""}|${track.number ?? ""}|${track.company ?? ""}|${idx}`
+                          const label = track.number ? `Open tracking ${track.number}` : "Open tracking"
+                          return (
+                            <View key={key} className="flex-row items-center gap-2">
+                              <PressableOverlay
+                                className="h-9 w-10 px-0 items-center justify-center rounded-lg"
                                 accessibilityLabel={label}
-                                leftIcon={<Truck size={16} color="#0f172a" />}
                                 disabled={!url}
-                                onPress={(event) => {
-                                  event.stopPropagation?.()
-                                  if (url) {
-                                    Linking.openURL(url).catch(() =>
-                                      show({ title: "Unable to open tracking link", type: "danger" }),
-                                    )
+                                onPress={() => {
+                                  if (!url) {
+                                    console.error("Missing tracking URL")
+                                    return
                                   }
+                                  Linking.openURL(url).catch(() =>
+                                    show({ title: "Unable to open tracking link", type: "danger" }),
+                                  )
                                 }}
-                              />
-                            )
-                          })}
-                        </View>
-                      )
-                    })()}
-                  </View>
-                </PressableOverlay>
+                              >
+                                <Truck size={16} color="#0f172a" />
+                              </PressableOverlay>
+                            </View>
+                          )
+                        })}
+                      </>
+                    )
+                  })()}
+                </View>
               )
             })}
           </View>
