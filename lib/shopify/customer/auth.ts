@@ -106,7 +106,9 @@ async function runSilentAuthorization(): Promise<string | null> {
       credentials: "include",
     })
   } catch (networkError) {
-    console.warn("Silent authorize failed (network)", networkError)
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn("Silent authorize failed (network)", networkError)
+    }
     return null
   }
 
@@ -122,7 +124,9 @@ async function runSilentAuthorization(): Promise<string | null> {
     try {
       redirectUrl = new URL(location, REDIRECT_URI)
     } catch {
-      console.warn("Silent authorize failed: invalid redirect URL", location)
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        console.warn("Silent authorize failed: invalid redirect URL", location)
+      }
       return null
     }
   }
@@ -132,13 +136,17 @@ async function runSilentAuthorization(): Promise<string | null> {
     if (error === "login_required" || error === "interaction_required") {
       return null
     }
-    console.warn("Silent authorize failed:", error)
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn("Silent authorize failed:", error)
+    }
     return null
   }
 
   const returnedState = redirectUrl.searchParams.get("state") || ""
   if (returnedState && returnedState !== state) {
-    console.warn("Silent authorize failed: state mismatch")
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn("Silent authorize failed: state mismatch")
+    }
     return null
   }
 
@@ -150,7 +158,9 @@ async function runSilentAuthorization(): Promise<string | null> {
   try {
     await exchangeToken(code, { verifier })
   } catch (err) {
-    console.warn("Silent authorize failed: token exchange error", err)
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn("Silent authorize failed: token exchange error", err)
+    }
     return null
   }
 
@@ -168,9 +178,6 @@ export async function authorizeSilently(): Promise<string | null> {
 
 export async function startLogin(): Promise<void> {
   const authorizeUrl = await buildAuthorizationUrl()
-
-  console.log("AUTHZ DEBUG → authorization_endpoint:", authorizeUrl)
-  console.log("AUTHZ DEBUG → redirect_uri:", REDIRECT_URI)
 
   // Open in-app browser and wait for redirect
   const result = await WebBrowser.openAuthSessionAsync(authorizeUrl, REDIRECT_URI)
@@ -219,9 +226,6 @@ export async function exchangeToken(code: string, options: { verifier?: string }
   await sset(K.RT, json.refresh_token)
   await sset(K.IDT, json.id_token)
   await sset(K.EXP, String(exp))
-
-  // 👇 TEMP: prove we got a customer access token
-  console.log("TOKEN PREFIX →", json.access_token?.slice(0, 7)) // should log 'shcat_'
 }
 
 export async function getValidAccessToken(): Promise<string | null> {

@@ -530,7 +530,7 @@ function detectedImageFieldCount(node: any) {
 }
 
 function logHomeSections(raw: AppHomeSection[], filtered: AppHomeSection[]) {
-  if (typeof console === "undefined") return
+  if (typeof console === "undefined" || (typeof __DEV__ !== "undefined" && !__DEV__)) return
   const summarize = (items: AppHomeSection[]) =>
     items.map((item) => ({
       id: item.id,

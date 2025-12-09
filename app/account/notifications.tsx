@@ -63,6 +63,14 @@ function NotificationsContent() {
     return !permissions.granted && permissions.canAskAgain === false
   }, [permissions])
 
+  // If the system permission is currently off (even if ask-again is allowed), ensure we don't display push as enabled.
+  useEffect(() => {
+    if (!permissions) return
+    if (permissions.granted) return
+    if (!pushEnabled && !expoPushToken) return
+    setPushPreference(false, null)
+  }, [permissions, pushEnabled, expoPushToken, setPushPreference])
+
   useEffect(() => {
     if (pushBlockedBySystem && pushEnabled) {
       ;(async () => {
@@ -75,7 +83,9 @@ function NotificationsContent() {
             })
           }
         } catch (err) {
-          console.warn("[push] failed to unregister token after system block", err)
+          if (typeof __DEV__ !== "undefined" && __DEV__) {
+            console.warn("[push] failed to unregister token after system block", err)
+          }
         } finally {
           setPushPreference(false, null)
         }
@@ -142,7 +152,9 @@ function NotificationsContent() {
               })
             }
           } catch (err) {
-            console.warn("[push] failed to unregister token", err)
+            if (typeof __DEV__ !== "undefined" && __DEV__) {
+              console.warn("[push] failed to unregister token", err)
+            }
           }
         }
         setPushPreference(false, null)
@@ -175,6 +187,7 @@ function NotificationsContent() {
       } catch (err: any) {
         const message = err?.message ?? "Could not update push notifications."
         show({ title: message, type: "danger" })
+        setPushPreference(false, null)
       }
     },
     [registerForPush, setPushPreference, show, pushBlockedBySystem, openSystemSettings, expoPushToken],

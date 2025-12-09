@@ -78,7 +78,9 @@ export async function fetchCustomerApiConfig(): Promise<CustomerApiConfig> {
 
   memoCAC = endpoint ? { graphql: { endpoint } } : {}
   if (!endpoint) {
-    console.warn("Customer Account discovery raw JSON (no graphql endpoint found):", JSON.stringify(json, null, 2))
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn("Customer Account discovery raw JSON (no graphql endpoint found):", JSON.stringify(json, null, 2))
+    }
   }
   return memoCAC
 }

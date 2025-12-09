@@ -121,8 +121,10 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
 
   useEffect(() => {
     if (!isLoading && rootItems?.length === 0) {
-      // eslint-disable-next-line no-console
-      console.warn("[Drawer] Menu empty. isError:", isError, "error:", error)
+      if (typeof __DEV__ !== "undefined" && __DEV__) {
+        // eslint-disable-next-line no-console
+        console.warn("[Drawer] Menu empty. isError:", isError, "error:", error)
+      }
     }
   }, [isLoading, rootItems?.length, isError, error])
 

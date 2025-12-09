@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.optionqaaf.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSLocationWhenInUseUsageDescription": "We use your location to help you drop a pin on your saved addresses."
+        "NSLocationWhenInUseUsageDescription": "We use your location to help you drop a pin on your saved addresses.",
+        "NSPhotoLibraryUsageDescription": "We need photo library access so you can attach images to broadcast notifications."
       }
     },
     "android": {

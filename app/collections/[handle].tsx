@@ -230,7 +230,6 @@ export default function CollectionScreen() {
       if (ABS.test(url)) Linking.openURL(url)
       else router.push(url as any)
     }
-    console.log("Rendering special collection page for", sections, sections.length)
     return (
       <Screen bleedBottom bleedTop>
         <View className="flex-1 bg-white">

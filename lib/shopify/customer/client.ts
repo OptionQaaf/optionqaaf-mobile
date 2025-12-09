@@ -10,8 +10,6 @@ export async function customerGraphQL<T>(query: string, variables?: Record<strin
   const token = await getValidAccessToken()
   if (!token) throw new Error("Not authenticated")
 
-  console.log("GRAPHQL TOKEN PREFIX →", token.slice(0, 7)) // should log 'shcat_'
-
   const res = await fetch(url, {
     method: "POST",
     headers: {

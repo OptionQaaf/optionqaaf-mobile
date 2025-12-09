@@ -4,7 +4,7 @@ import { useNotificationSettings } from "@/store/notifications"
 import Constants from "expo-constants"
 import * as Notifications from "expo-notifications"
 import { useEffect, useRef } from "react"
-import { Platform } from "react-native"
+import { AppState, Platform } from "react-native"
 
 const WORKER_URL = (process.env.EXPO_PUBLIC_PUSH_WORKER_URL || "").replace(/\/+$/, "")
 
@@ -38,7 +38,9 @@ async function requestPushToken(): Promise<PushRegistrationResult> {
 
 async function registerWithWorker(token: string, email: string | null) {
   if (!WORKER_URL) {
-    console.warn("[push] Missing EXPO_PUBLIC_PUSH_WORKER_URL; skipping token registration")
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn("[push] Missing EXPO_PUBLIC_PUSH_WORKER_URL; skipping token registration")
+    }
     return
   }
 
@@ -64,18 +66,39 @@ export function usePushToken() {
   const lastRegisteredKey = useRef<string | null>(null)
 
   useEffect(() => {
+    if (!pushEnabled || !expoPushToken) {
+      lastRegisteredKey.current = null
+    }
+  }, [pushEnabled, expoPushToken])
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        // Force a re-register attempt when the app resumes to recover from revoked tokens.
+        lastRegisteredKey.current = null
+        // Re-run sync flow by toggling dependency changes via setPreferences when needed.
+        setPreferences((prev) => ({ pushEnabled: prev.pushEnabled, expoPushToken: prev.expoPushToken }))
+      }
+    })
+    return () => sub.remove()
+  }, [setPreferences])
+
+  useEffect(() => {
     let cancelled = false
 
     const syncPushToken = async () => {
       if (!pushEnabled) return
       if (!WORKER_URL) {
-        console.warn("[push] Missing EXPO_PUBLIC_PUSH_WORKER_URL; skipping token registration")
+        if (typeof __DEV__ !== "undefined" && __DEV__) {
+          console.warn("[push] Missing EXPO_PUBLIC_PUSH_WORKER_URL; skipping token registration")
+        }
         return
       }
 
       try {
         const result = await requestPushToken()
         if (!result.granted || !result.token || cancelled) {
+          setPreferences({ pushEnabled: false, expoPushToken: null })
           return
         }
 
@@ -94,8 +117,11 @@ export function usePushToken() {
           lastRegisteredKey.current = payloadKey
         }
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn("[push] Unable to register push token", err)
+        if (typeof __DEV__ !== "undefined" && __DEV__) {
+          // eslint-disable-next-line no-console
+          console.warn("[push] Unable to register push token", err)
+        }
+        setPreferences({ pushEnabled: false, expoPushToken: null })
       }
     }
 
