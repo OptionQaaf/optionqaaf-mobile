@@ -1,12 +1,12 @@
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
+import { requestPushPermissionsAndToken } from "@/features/notifications/permissions"
 import { useNotificationSettings } from "@/store/notifications"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Card } from "@/ui/surfaces/Card"
 import { Button } from "@/ui/primitives/Button"
-import Constants from "expo-constants"
 import * as Notifications from "expo-notifications"
 import { useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -109,31 +109,9 @@ function NotificationsContent() {
   const registerForPush = useCallback(async () => {
     setIsChecking(true)
     try {
-      let status = await Notifications.getPermissionsAsync()
-
-      if (!status.granted && status.canAskAgain) {
-        status = await Notifications.requestPermissionsAsync()
-      }
-
-      setPermissions(status)
-
-      if (!status.granted) {
-        return { granted: false as const, token: null }
-      }
-
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("default", {
-          name: "Default",
-          importance: Notifications.AndroidImportance.DEFAULT,
-        })
-      }
-
-      const projectId = Constants?.easConfig?.projectId ?? Constants?.expoConfig?.extra?.eas?.projectId
-      const tokenResponse = projectId
-        ? await Notifications.getExpoPushTokenAsync({ projectId })
-        : await Notifications.getExpoPushTokenAsync()
-
-      return { granted: true as const, token: tokenResponse.data }
+      const result = await requestPushPermissionsAndToken()
+      setPermissions(result.status)
+      return { granted: result.granted, token: result.token }
     } finally {
       setIsChecking(false)
     }

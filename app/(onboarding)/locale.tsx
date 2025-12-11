@@ -1,32 +1,49 @@
 import type { CurrencyCode } from "@/features/currency/config"
 import type { CountryCode } from "@/features/locale/countries"
 import { COUNTRIES } from "@/features/locale/countries"
+import { requestPushPermissionsAndToken } from "@/features/notifications/permissions"
 import { markOnboardingDone } from "@/lib/storage/flags"
+import { useNotificationSettings } from "@/store/notifications"
 import { usePrefs, type LanguageCode } from "@/store/prefs"
+import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { Button } from "@/ui/primitives/Button"
 import { H3, Muted } from "@/ui/primitives/Typography"
 import { cn } from "@/ui/utils/cva"
-import { router } from "expo-router"
-import { useMemo, useState } from "react"
-import { Image, Text as RNText, View } from "react-native"
+import { useRouter } from "expo-router"
+import { Bell } from "lucide-react-native"
+import { useCallback, useState } from "react"
+import { Image, Modal, Pressable, Text as RNText, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
+type PushRequestResult = Awaited<ReturnType<typeof requestPushPermissionsAndToken>>
+
+async function requestPushWithTimeout(ms: number): Promise<PushRequestResult> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const timer = new Promise<PushRequestResult>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error("Push setup took too long. Please try again.")), ms)
+  })
+
+  try {
+    return await Promise.race([requestPushPermissionsAndToken(), timer])
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
+}
+
 export default function LocaleOnboarding() {
+  const router = useRouter()
   const { setPrefs } = usePrefs()
-  const [language, setLanguage] = useState<LanguageCode>("EN")
+  const { setPushPreference } = useNotificationSettings()
+  const { show } = useToast()
+
+  const [language] = useState<LanguageCode>("EN")
   const [country, setCountry] = useState<CountryCode>("SA")
   const [currency, setCurrency] = useState<CurrencyCode>("SAR")
-
-  const languages = useMemo(
-    () => [
-      { id: "EN", label: "English" },
-      { id: "AR", label: "العربية" },
-    ],
-    [],
-  )
+  const [showPushModal, setShowPushModal] = useState(false)
+  const [isEnablingPush, setIsEnablingPush] = useState(false)
 
   const applyCountry = (c: CountryCode) => {
     setCountry(c)
@@ -34,11 +51,43 @@ export default function LocaleOnboarding() {
     if (match) setCurrency(match.currency) // auto-set currency
   }
 
-  const continueHandler = async () => {
+  const continueHandler = () => {
     setPrefs({ language, country, currency })
+    setShowPushModal(true)
+  }
+
+  const finishOnboarding = useCallback(async () => {
     await markOnboardingDone()
     router.replace("/home")
-  }
+  }, [router])
+
+  const handleEnablePush = useCallback(async () => {
+    setIsEnablingPush(true)
+    try {
+      const result = await requestPushWithTimeout(12000)
+      setPushPreference(result.granted, result.token ?? null)
+
+      if (result.granted) {
+        show({ title: "Push notifications enabled", type: "success" })
+      } else {
+        show({ title: "Enable notifications anytime in Settings", type: "info" })
+      }
+    } catch (err: any) {
+      const message = err?.message ?? "Could not enable notifications."
+      show({ title: message, type: "danger" })
+      setPushPreference(false, null)
+    } finally {
+      setIsEnablingPush(false)
+      setShowPushModal(false)
+      await finishOnboarding()
+    }
+  }, [finishOnboarding, setPushPreference, show])
+
+  const handleSkipPush = useCallback(async () => {
+    setPushPreference(false, null)
+    setShowPushModal(false)
+    await finishOnboarding()
+  }, [finishOnboarding, setPushPreference])
 
   return (
     <Screen bleedTop bleedBottom>
@@ -59,35 +108,6 @@ export default function LocaleOnboarding() {
           <SafeAreaView className="flex-1 justify-between px-4 pt-8" edges={["bottom"]}>
             {/* FORM GROUP */}
             <View className="flex-col gap-4">
-              {/* Language */}
-              {/* <View className="flex-col gap-2">
-                <View>
-                  <H3>Language</H3>
-                  <Muted className="text-md">Select your language</Muted>
-                </View>
-                <View className="flex-row w-full gap-3">
-                  {languages.map((l) => {
-                    const active = language === (l.id as LanguageCode)
-                    return (
-                      <PressableOverlay
-                        haptic="light"
-                        key={l.id}
-                        onPress={() => setLanguage(l.id as LanguageCode)}
-                        className={cn(
-                          "items-center justify-center rounded-2xl border py-3",
-                          active ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
-                        )}
-                        pressableClassName="flex-1"
-                      >
-                        <RNText className={cn("text-xl font-bold", active ? "text-brand" : "text-primary")}>
-                          {l.label}
-                        </RNText>
-                      </PressableOverlay>
-                    )
-                  })}
-                </View>
-              </View> */}
-
               {/* Country (pills grid; no FlatList) */}
               <View className="flex-col gap-4">
                 <View>
@@ -147,6 +167,35 @@ export default function LocaleOnboarding() {
           </SafeAreaView>
         </PageScrollView>
       </View>
+
+      <Modal visible={showPushModal} animationType="fade" transparent onRequestClose={handleSkipPush}>
+        <View className="flex-1 justify-end bg-black/30">
+          <Pressable className="flex-1" onPress={handleSkipPush} accessibilityLabel="Dismiss push prompt" />
+
+          <View className="gap-5 rounded-t-[28px] bg-white px-5 pb-6 pt-6">
+            <View className="items-center gap-3">
+              <View className="h-12 w-12 items-center justify-center rounded-full border border-[#cbd5f5] bg-[#e2e8f0]">
+                <Bell color="#0f172a" size={24} strokeWidth={2.2} />
+              </View>
+              <RNText className="text-center font-geist-semibold text-[18px] text-[#0f172a]">
+                Enable notifications to get order updates, delivery alerts, and exclusive pricing.
+              </RNText>
+              <RNText className="text-center text-[13px] leading-[18px] text-[#475569]">
+                We will ask your device for permission on the next step.
+              </RNText>
+            </View>
+
+            <View className="gap-3">
+              <Button size="lg" fullWidth onPress={handleEnablePush} isLoading={isEnablingPush}>
+                Enable notifications
+              </Button>
+              <Button size="lg" variant="outline" fullWidth onPress={handleSkipPush} disabled={isEnablingPush}>
+                Not now
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   )
 }

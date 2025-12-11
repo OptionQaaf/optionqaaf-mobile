@@ -2,15 +2,16 @@
   "expo": {
     "name": "OptionQaaf",
     "slug": "optionqaaf-app",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/white-icon.png",
     "scheme": ["optionqaafmobile", "shop.85072904499.app"],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "buildNumber": "1",
       "supportsTablet": true,
-      "bundleIdentifier": "com.optionqaaf.app",
+      "bundleIdentifier": "co.shopney.optionqaaf",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "We use your location to help you drop a pin on your saved addresses.",
@@ -18,6 +19,7 @@
       }
     },
     "android": {
+      "versionCode": 1,
       "intentFilters": [
         {
           "action": "VIEW",
@@ -47,7 +49,7 @@
           "apiKey": "${EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_KEY}"
         }
       },
-      "package": "com.optionqaaf.app"
+      "package": "co.shopney.optionqaaf"
     },
     "web": {
       "bundler": "metro",
@@ -59,9 +61,6 @@
       [
         "expo-build-properties",
         {
-          "ios": {
-            "useFrameworks": "static"
-          },
           "android": {
             "newArchEnabled": true
           }
