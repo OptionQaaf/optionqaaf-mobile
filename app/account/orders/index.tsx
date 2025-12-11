@@ -140,6 +140,10 @@ function OrdersContent() {
   return (
     <>
       <H1 className="px-5">Orders</H1>
+      <Text className="px-5 pt-1 text-[#64748b] text-[12px]" numberOfLines={2}>
+        Recent orders from the last 60 days are shown here. Older orders are still safe—contact us if you need the full
+        history.
+      </Text>
       <FlatList
         data={orders}
         keyExtractor={(order) => order.id}

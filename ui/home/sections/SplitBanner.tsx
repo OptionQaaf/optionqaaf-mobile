@@ -1,8 +1,9 @@
 import { Pressable, Text as RNText, View, useWindowDimensions, StyleSheet, PixelRatio } from "react-native"
 import { Image } from "expo-image"
 import { optimizeImageUrl, DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
-import type { SectionSize } from "@/lib/shopify/services/home"
+import type { AlignSetting, SectionSize } from "@/lib/shopify/services/home"
 import { sizeScale } from "./sectionSize"
+import { parseAlign } from "./align"
 
 // Lazy import so it doesn't explode if not installed; we fall back to a flat tint.
 let LinearGradient: any
@@ -17,7 +18,7 @@ type Props = {
   ctaLabel?: string
   image?: { url: string }
   theme?: "light" | "dark" | "brand" | (string & {})
-  align?: "left" | "center" | "right"
+  align?: AlignSetting
   onPress?: () => void
   height?: number
   /** 0..1 scrim strength */
@@ -33,7 +34,7 @@ export function SplitBanner({
   ctaLabel,
   image,
   theme = "light",
-  align = "left",
+  align,
   onPress,
   height = 320,
   tint = 0.45,
@@ -43,12 +44,10 @@ export function SplitBanner({
   const { width } = useWindowDimensions()
   const scale = sizeScale(size)
   const bannerHeight = Math.round((height ?? 320) * scale)
-  const aClass =
-    align === "center"
-      ? "items-center text-center"
-      : align === "right"
-        ? "items-end text-right"
-        : "items-start text-left"
+  const { horizontal, vertical } = parseAlign(align, { horizontal: "center", vertical: "bottom" })
+  const alignItemsClass = horizontal === "center" ? "items-center" : horizontal === "right" ? "items-end" : "items-start"
+  const justifyClass = vertical === "top" ? "justify-start" : vertical === "center" ? "justify-center" : "justify-end"
+  const textAlign = horizontal === "center" ? "center" : horizontal === "right" ? "right" : "left"
 
   // palette
   const isDark = theme === "dark"
@@ -71,7 +70,11 @@ export function SplitBanner({
           lineHeight: titleLine,
           letterSpacing: 0.5,
           textTransform: uppercaseTitle ? "uppercase" : "none",
+          textAlign,
         }}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
       >
         {title}
       </RNText>
@@ -158,7 +161,10 @@ export function SplitBanner({
         )}
 
         {/* content */}
-        <View className={`flex-1 justify-end ${aClass}`} style={{ padding: Math.round(16 * scale) }}>
+        <View
+          className={`flex-1 ${justifyClass} ${alignItemsClass}`}
+          style={{ padding: Math.round(16 * scale) }}
+        >
           <Eyebrow />
           <Title />
           <CTA />

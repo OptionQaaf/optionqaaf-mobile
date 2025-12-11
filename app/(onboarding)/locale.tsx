@@ -16,34 +16,19 @@ import { useRouter } from "expo-router"
 import { Bell } from "lucide-react-native"
 import { useCallback, useState } from "react"
 import { Image, Modal, Pressable, Text as RNText, View } from "react-native"
+import * as Notifications from "expo-notifications"
 import { SafeAreaView } from "react-native-safe-area-context"
-
-type PushRequestResult = Awaited<ReturnType<typeof requestPushPermissionsAndToken>>
-
-async function requestPushWithTimeout(ms: number): Promise<PushRequestResult> {
-  let timeout: ReturnType<typeof setTimeout> | undefined
-  const timer = new Promise<PushRequestResult>((_, reject) => {
-    timeout = setTimeout(() => reject(new Error("Push setup took too long. Please try again.")), ms)
-  })
-
-  try {
-    return await Promise.race([requestPushPermissionsAndToken(), timer])
-  } finally {
-    if (timeout) clearTimeout(timeout)
-  }
-}
 
 export default function LocaleOnboarding() {
   const router = useRouter()
   const { setPrefs } = usePrefs()
-  const { setPushPreference } = useNotificationSettings()
+  const { setPushPreference, pushEnabled } = useNotificationSettings()
   const { show } = useToast()
 
   const [language] = useState<LanguageCode>("EN")
   const [country, setCountry] = useState<CountryCode>("SA")
   const [currency, setCurrency] = useState<CurrencyCode>("SAR")
   const [showPushModal, setShowPushModal] = useState(false)
-  const [isEnablingPush, setIsEnablingPush] = useState(false)
 
   const applyCountry = (c: CountryCode) => {
     setCountry(c)
@@ -51,43 +36,64 @@ export default function LocaleOnboarding() {
     if (match) setCurrency(match.currency) // auto-set currency
   }
 
-  const continueHandler = () => {
-    setPrefs({ language, country, currency })
-    setShowPushModal(true)
-  }
-
   const finishOnboarding = useCallback(async () => {
     await markOnboardingDone()
     router.replace("/home")
   }, [router])
 
-  const handleEnablePush = useCallback(async () => {
-    setIsEnablingPush(true)
-    try {
-      const result = await requestPushWithTimeout(12000)
-      setPushPreference(result.granted, result.token ?? null)
+  const handlePushSetup = useCallback(
+    async (shouldToast: boolean) => {
+      try {
+        const result = await requestPushPermissionsAndToken()
+        setPushPreference(result.granted, result.token ?? null)
 
-      if (result.granted) {
-        show({ title: "Push notifications enabled", type: "success" })
-      } else {
-        show({ title: "Enable notifications anytime in Settings", type: "info" })
+        if (shouldToast) {
+          if (result.granted) {
+            show({ title: "Push notifications enabled", type: "success" })
+          } else {
+            show({ title: "Enable notifications anytime in Settings", type: "info" })
+          }
+        }
+      } catch (err: any) {
+        const message = err?.message ?? "Could not enable notifications."
+        if (shouldToast) show({ title: message, type: "danger" })
+        setPushPreference(false, null)
       }
-    } catch (err: any) {
-      const message = err?.message ?? "Could not enable notifications."
-      show({ title: message, type: "danger" })
-      setPushPreference(false, null)
-    } finally {
-      setIsEnablingPush(false)
-      setShowPushModal(false)
-      await finishOnboarding()
-    }
-  }, [finishOnboarding, setPushPreference, show])
+    },
+    [setPushPreference, show],
+  )
+
+  const handleEnablePush = useCallback(() => {
+    setShowPushModal(false)
+    void handlePushSetup(true)
+    finishOnboarding().catch(() => {})
+  }, [finishOnboarding, handlePushSetup])
 
   const handleSkipPush = useCallback(async () => {
     setPushPreference(false, null)
     setShowPushModal(false)
     await finishOnboarding()
   }, [finishOnboarding, setPushPreference])
+
+  const handleContinue = useCallback(async () => {
+    setPrefs({ language, country, currency })
+    if (pushEnabled) {
+      finishOnboarding().catch(() => {})
+      return
+    }
+
+    try {
+      const status = await Notifications.getPermissionsAsync()
+      if (status.granted) {
+        void handlePushSetup(false)
+        finishOnboarding().catch(() => {})
+        return
+      }
+    } catch {
+      // fall through to showing modal
+    }
+    setShowPushModal(true)
+  }, [country, currency, finishOnboarding, handlePushSetup, language, pushEnabled, setPrefs])
 
   return (
     <Screen bleedTop bleedBottom>
@@ -160,7 +166,7 @@ export default function LocaleOnboarding() {
               </View>
 
               {/* CTA */}
-              <Button size="lg" onPress={continueHandler}>
+              <Button size="lg" onPress={handleContinue}>
                 Continue
               </Button>
             </View>
@@ -186,10 +192,10 @@ export default function LocaleOnboarding() {
             </View>
 
             <View className="gap-3">
-              <Button size="lg" fullWidth onPress={handleEnablePush} isLoading={isEnablingPush}>
+              <Button size="lg" fullWidth onPress={handleEnablePush}>
                 Enable notifications
               </Button>
-              <Button size="lg" variant="outline" fullWidth onPress={handleSkipPush} disabled={isEnablingPush}>
+              <Button size="lg" variant="outline" fullWidth onPress={handleSkipPush}>
                 Not now
               </Button>
             </View>

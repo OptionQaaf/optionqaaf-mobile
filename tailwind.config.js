@@ -36,9 +36,9 @@ module.exports = {
         secondary: "#525252", // subtext
         muted: "#8A8A8A",
 
-        // brand (your maroon)
-        brand: "#9A1B32",
-        brandAccent: "#B0283D",
+        // brand (now black)
+        brand: "#0B0B0B",
+        brandAccent: "#111827",
 
         // states
         success: "#16A34A",

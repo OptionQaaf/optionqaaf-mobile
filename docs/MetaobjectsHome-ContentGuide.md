@@ -113,7 +113,7 @@ Swipeable image carousel that also auto-advances every ~4.5s if untouched.
 ### Duo Poster — `duo_poster`
 Side-by-side half-width images.
 - ✅ Required: left image (`image`), right image (`image2`).
-- ➕ Optional: left link (`url`), right link (`url2` or `link2`).
+- ➕ Optional: titles as a list (`title`, `title2`) plus matching subtitles (`subtitle`, `subtitle2`), left link (`url`), right link (`url2` or `link2`).
 
 ### Trio Grid — `trio_grid`
 Three equal tiles in one row.

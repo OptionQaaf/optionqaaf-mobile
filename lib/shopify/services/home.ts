@@ -4,6 +4,17 @@ import { currentLocale } from "@/store/prefs"
 
 export type ImageRef = { url: string; w?: number | null; h?: number | null; alt?: string | null }
 export type SectionSize = "small" | "medium" | "large"
+export type HorizontalAlign = "left" | "center" | "right"
+export type VerticalAlign = "top" | "center" | "bottom"
+export type AlignSetting =
+  | HorizontalAlign
+  | VerticalAlign
+  | `${VerticalAlign}-${HorizontalAlign}`
+  | `${VerticalAlign} ${HorizontalAlign}`
+  | `${HorizontalAlign}-${VerticalAlign}`
+  | `${HorizontalAlign} ${VerticalAlign}`
+  | (string & {})
+
 export type PosterCell = {
   image?: ImageRef
   url?: string
@@ -12,7 +23,7 @@ export type PosterCell = {
   eyebrow?: string
   background?: string
   foreground?: string
-  align?: "left" | "center" | "right"
+  align?: AlignSetting
   layout?: string
 }
 export type SliderLinkItem = {
@@ -31,6 +42,7 @@ export type AppHomeSection =
       image?: ImageRef
       url?: string
       theme?: string
+      align?: AlignSetting
       size?: SectionSize
       country?: string
       language?: string
@@ -72,7 +84,7 @@ export type AppHomeSection =
       image?: ImageRef
       url?: string
       theme?: string
-      align?: "left" | "center" | "right"
+      align?: AlignSetting
       eyebrow?: string
       ctaLabel?: string
       height?: number
@@ -151,8 +163,9 @@ export type AppHomeSection =
   | {
       kind: "duo_poster"
       id: string
-      left?: { image?: ImageRef; url?: string }
-      right?: { image?: ImageRef; url?: string }
+      left?: { image?: ImageRef; url?: string; title?: string; subtitle?: string }
+      right?: { image?: ImageRef; url?: string; title?: string; subtitle?: string }
+      align?: AlignSetting
       size?: SectionSize
       country?: string
       language?: string
@@ -606,6 +619,7 @@ function toSection(node: any): AppHomeSection | null {
         title,
         url,
         theme,
+        align: (val(node, "align") as any) ?? undefined,
         image: imgFrom(imageRef),
         ...targeting,
       }
@@ -789,11 +803,20 @@ function toSection(node: any): AppHomeSection | null {
       const imageR = ref(node, "image2") ?? ref(node, "image_right") ?? orderedImages[1]
       const urlRight =
         urlAt(node, "url", 1) ?? urlAt(node, "link", 1) ?? fieldUrl(node, "url2") ?? fieldUrl(node, "link2")
+      const titleLeft = valAt(node, "title", 0) ?? val(node, "title") ?? val(node, "title_left")
+      const titleRight = valAt(node, "title", 1) ?? val(node, "title2") ?? val(node, "title_right")
+      const align = (val(node, "align") as any) ?? undefined
       return {
         kind,
         id: node.id,
-        left: { image: imgFrom(imageL), url },
-        right: { image: imgFrom(imageR), url: urlRight },
+        left: { image: imgFrom(imageL), url, title: titleLeft ?? undefined, subtitle: undefined },
+        right: {
+          image: imgFrom(imageR),
+          url: urlRight,
+          title: titleRight ?? undefined,
+          subtitle: undefined,
+        },
+        align,
         ...targeting,
       }
     }

@@ -72,31 +72,13 @@ function OrderDetailContent() {
   const segmentedLineItems = useMemo<SegmentedLineItems>(() => {
     if (!data) return []
 
-    const orderStatus = (data.latestFulfillmentStatus ?? "").toUpperCase()
-
-    return data.lineItems.flatMap((item) => {
-      const totalQuantity = Number.isFinite(item.quantity) ? item.quantity : 0
-      if (totalQuantity <= 0) return []
-
-      const fulfilledQuantity = data.fulfilledLineItemQuantities[item.id] ?? 0
-      const remaining = Math.max(0, totalQuantity - fulfilledQuantity)
-      const segments: SegmentedLineItems = []
-
-      if (fulfilledQuantity > 0) {
-        segments.push({ item, quantity: fulfilledQuantity, status: "FULFILLED" })
-      }
-
-      if (remaining > 0) {
-        const status = orderStatus.includes("CANCEL")
-          ? "CANCELLED"
-          : fulfilledQuantity > 0
-            ? "PARTIALLY_FULFILLED"
-            : "UNFULFILLED"
-        segments.push({ item, quantity: remaining, status })
-      }
-
-      return segments
-    })
+    return data.lineItems
+      .map((item) => {
+        const totalQuantity = Number.isFinite(item.quantity) ? item.quantity : 0
+        if (totalQuantity <= 0) return null
+        return { item, quantity: totalQuantity, status: data.latestFulfillmentStatus ?? null }
+      })
+      .filter(Boolean) as SegmentedLineItems
   }, [data])
 
   const orderNote = useMemo(() => {
@@ -193,11 +175,7 @@ function OrderDetailContent() {
         {data.confirmationNumber ? (
           <Text className="text-[#64748b] text-[13px]">Confirmation {data.confirmationNumber}</Text>
         ) : null}
-        {statusPageUrl ? (
-          <Button variant="outline" size="sm" onPress={openStatusPage} className="mt-4" fullWidth>
-            View status page
-          </Button>
-        ) : null}
+        {statusPageUrl ? null : null}
         {trackingNumbers.length ? (
           <View className="mt-2 gap-2">
             <Text className="text-[#0f172a] font-geist-medium text-[13px]">Tracking</Text>
@@ -245,7 +223,7 @@ function OrderDetailContent() {
                   status === "FULFILLED" ? "Fulfilled" : status === "CANCELLED" ? "Cancelled" : "Not fulfilled"
                 return totalLabel ? `${base} ${quantity}${totalLabel}` : `${base} ${quantity}`
               })()
-              const badgeStyle = getOrderStatusStyle(status)
+              const badgeStyle = getOrderStatusStyle(data.latestFulfillmentStatus ?? status)
 
               return (
                 <View key={`${item.id}-${status}`} className="flex-row w-full gap-4">
@@ -275,9 +253,9 @@ function OrderDetailContent() {
                           {item.variantTitle}
                         </Text>
                       ) : null}
-                      <View className="flex-row items-center gap-2">
+                      {/* <View className="flex-row items-center gap-2">
                         <Badge label={badgeStyle.label} bg={badgeStyle.bg} color={badgeStyle.color} />
-                      </View>
+                      </View> */}
                     </View>
                   </PressableOverlay>
                 </View>

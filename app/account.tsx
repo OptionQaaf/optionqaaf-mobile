@@ -5,6 +5,8 @@ import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
+import { clearOnboardingFlag } from "@/lib/storage/flags"
+import { kv } from "@/lib/storage/mmkv"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -13,7 +15,7 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { RelativePathString, useRouter } from "expo-router"
-import { Clock, Heart, LogOut, MapPin, Megaphone, Package, Pencil, Settings2 } from "lucide-react-native"
+import { Clock, Heart, LogOut, MapPin, Megaphone, Package, Pencil, RefreshCcw, Settings2 } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, type ReactNode } from "react"
 import { RefreshControl, ScrollView, Text, View } from "react-native"
 
@@ -165,6 +167,19 @@ function AccountContent() {
     }
   }, [show])
 
+  const handleResetOnboarding = useCallback(async () => {
+    try {
+      kv.del("notification-settings")
+      kv.del("prefs")
+      await clearOnboardingFlag()
+      show({ title: "Cache cleared. Restarting onboarding…", type: "success" })
+      router.replace("/(onboarding)/locale" as const)
+    } catch (err: any) {
+      const message = err?.message || "Unable to reset onboarding cache"
+      show({ title: message, type: "danger" })
+    }
+  }, [router, show])
+
   return (
     <ScrollView
       contentContainerStyle={{ paddingBottom: 32 }}
@@ -246,15 +261,26 @@ function AccountContent() {
         </Section>
 
         {__DEV__ ? (
-          <Button
-            variant="outline"
-            size="lg"
-            fullWidth
-            onPress={handleDebugExpireToken}
-            leftIcon={<Clock color="#111827" size={18} strokeWidth={2} />}
-          >
-            Expire token (debug)
-          </Button>
+          <View className="gap-3">
+            <Button
+              variant="outline"
+              size="lg"
+              fullWidth
+              onPress={handleResetOnboarding}
+              leftIcon={<RefreshCcw color="#111827" size={18} strokeWidth={2} />}
+            >
+              Reset onboarding/cache (dev)
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              fullWidth
+              onPress={handleDebugExpireToken}
+              leftIcon={<Clock color="#111827" size={18} strokeWidth={2} />}
+            >
+              Expire token (debug)
+            </Button>
+          </View>
         ) : null}
 
         <Button

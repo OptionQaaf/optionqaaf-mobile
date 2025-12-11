@@ -25,6 +25,7 @@ Section metaobject (`mobile_home_section`):
 - Common fields: `kind`, `title`, `subtitle`, `url` (or `link`), `theme`, `country`, `language`, `startAt`, `endAt`.
 - Global field: `size` — choose `small`, `medium` (default), or `large` to control how much vertical space the section occupies.
 - Kind fields: images (`image`, `image2`, `image3`…), `speed`, `align`, `background`, `foreground`, `count`, `collection`, etc.
+- Align values: use `left` / `center` / `right` or 2D hints like `top-left`, `top`, `center-right`, `bottom`, etc. (vertical defaults to bottom when omitted).
 - The service accepts `foo2` or `foo_2` style suffixes for second/third items (`image2`, `image_2`, …).
 - List fields: you can set `image` as a **Files (list)** field and `title`/`url`/`link` as **Text (list)** fields; we read the items in order without needing `image2`, `title2`, etc.
 
@@ -93,7 +94,7 @@ All sections respect the optional targeting/scheduling fields: `country`, `langu
 ### `split_banner`
 - Purpose: Single hero with scrim and optional CTA alignment.
 - Required: `image`.
-- Optional: `title`, `url`, `align` (`left` default; accepts `center`, `right`), `theme`, gating fields.
+- Optional: `title`, `url`, `align` (`left` default; accepts `center`, `right`, and 2D hints like `top`, `top-left`, `center-right`, `bottom-right`), `theme`, gating fields.
 
 ### `poster_triptych`
 - Purpose: Up to six stacked posters rendered in a 3-up layout.
@@ -137,7 +138,7 @@ All sections respect the optional targeting/scheduling fields: `country`, `langu
 ### `duo_poster`
 - Purpose: Two half-width posters.
 - Required: `image` (left), `image2` (right).
-- Optional: `url` (left), `url2`/`link2` (right), gating fields.
+- Optional: `title`/`subtitle` list or pairs (`title`, `title2`, `subtitle`, `subtitle2`) for per-side labels, `url` (left), `url2`/`link2` (right), gating fields.
 
 ### `brand_cloud`
 - Purpose: Interactive brand tag cloud sourced from the storefront vendor index.

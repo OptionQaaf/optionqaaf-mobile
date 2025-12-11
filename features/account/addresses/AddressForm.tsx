@@ -244,9 +244,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     if (!values.phoneNumber.trim()) nextErrors.phoneNumber = "Phone number is required"
     if (values.countryCode === "KSA") {
       const nationalCode = values.saudiNationalAddressCode.trim()
-      if (!nationalCode) {
-        nextErrors.saudiNationalAddressCode = "Saudi National Address code is required"
-      } else if (nationalCode.length !== 8) {
+      if (nationalCode && nationalCode.length !== 8) {
         nextErrors.saudiNationalAddressCode = "Saudi National Address code must be exactly 8 characters"
       }
     }
@@ -508,6 +506,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
                 autoCapitalize="characters"
                 placeholder="e.g. ABCD5678"
                 maxLength={8}
+                required={false}
               />
             ) : null}
             {values.countryCode === "KSA" ? (

@@ -2,8 +2,9 @@ import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { Image } from "expo-image"
 import { memo } from "react"
 import { PixelRatio, Pressable, Text, View } from "react-native"
-import type { SectionSize } from "@/lib/shopify/services/home"
+import type { AlignSetting, SectionSize } from "@/lib/shopify/services/home"
 import { sizeScale } from "./sectionSize"
+import { parseAlign } from "./align"
 
 type QuiltItem = {
   image?: { url: string }
@@ -13,7 +14,7 @@ type QuiltItem = {
   eyebrow?: string
   background?: string
   foreground?: string
-  align?: "left" | "center" | "right"
+  align?: AlignSetting
   layout?: string
 }
 
@@ -44,9 +45,24 @@ export const PosterQuilt = memo(function PosterQuilt({ items = [], onPressItem, 
 
   const renderTile = (item: QuiltItem, index: number, fallbackLayout: string) => {
     const ratio = layoutRatio(item.layout) ?? layoutRatio(fallbackLayout) ?? (fallbackLayout === "statement" ? 1 : 4 / 3)
-    const align = item.align ?? (fallbackLayout === "statement" ? "center" : "left")
-    const justify = align === "left" ? "items-start" : align === "right" ? "items-end" : "items-center"
-    const titleAlign = align === "left" ? "text-left" : align === "right" ? "text-right" : "text-center"
+    const alignValue = parseAlign(item.align, {
+      horizontal: "center",
+      vertical: "bottom",
+    })
+    const justify =
+      alignValue.vertical === "top"
+        ? "justify-start"
+        : alignValue.vertical === "center"
+          ? "justify-center"
+          : "justify-end"
+    const alignItems =
+      alignValue.horizontal === "center"
+        ? "items-center"
+        : alignValue.horizontal === "right"
+          ? "items-end"
+          : "items-start"
+    const textAlign =
+      alignValue.horizontal === "center" ? "center" : alignValue.horizontal === "right" ? "right" : "left"
     const background = item.background ?? (fallbackLayout === "statement" ? "#e11935" : "rgba(0,0,0,0.45)")
     const foreground = item.foreground ?? "#FFFFFF"
 
@@ -81,7 +97,7 @@ export const PosterQuilt = memo(function PosterQuilt({ items = [], onPressItem, 
 
           <View className="absolute inset-0">
             <View
-              className={`flex-1 justify-end ${justify}`}
+              className={`flex-1 ${justify} ${alignItems}`}
               style={{ paddingHorizontal: 16 * scale, paddingVertical: 16 * scale }}
             >
               {item.eyebrow ? (
@@ -95,17 +111,19 @@ export const PosterQuilt = memo(function PosterQuilt({ items = [], onPressItem, 
               ) : null}
               {item.title ? (
                 <Text
-                  className={`text-[22px] font-extrabold ${titleAlign}`}
-                  style={{ color: foreground, fontSize: 22 * scale }}
-                  numberOfLines={3}
+                  className="text-[22px] font-extrabold"
+                  style={{ color: foreground, fontSize: 22 * scale, textAlign }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.6}
                 >
                   {item.title}
                 </Text>
               ) : null}
               {item.subtitle ? (
                 <Text
-                  className={`mt-2 text-sm opacity-85 ${titleAlign}`}
-                  style={{ color: foreground, fontSize: 14 * scale }}
+                  className="mt-2 text-sm opacity-85"
+                  style={{ color: foreground, fontSize: 14 * scale, textAlign }}
                   numberOfLines={3}
                 >
                   {item.subtitle}
