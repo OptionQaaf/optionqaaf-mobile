@@ -15,7 +15,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "We use your location to help you drop a pin on your saved addresses.",
-        "NSPhotoLibraryUsageDescription": "We need photo library access so you can attach images to broadcast notifications."
+        "NSPhotoLibraryUsageDescription": "We need photo library access so you can attach images to broadcast notifications.",
+        "NSUserTrackingUsageDescription": "We do not track users across apps or websites. This permission is requested to comply with App Store requirements."
       }
     },
     "android": {
