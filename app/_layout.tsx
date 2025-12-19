@@ -4,6 +4,7 @@ import { DrawerProvider } from "@/features/navigation/Drawer"
 import { useNotificationsService } from "@/features/notifications/notificationService"
 import { usePushToken } from "@/features/notifications/usePushToken"
 import { hydrateCartId } from "@/store/cartId"
+import { requestTrackingAuthorizationIfNeeded } from "@/lib/TrackingAuthorizationManager"
 import { FontProvider } from "@/theme/FontProvider"
 import { ToastHost } from "@/ui/feedback/Toast"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
@@ -80,5 +81,9 @@ export default function RootLayout() {
 function AppBootstrap() {
   useNotificationsService()
   usePushToken()
+
+  useEffect(() => {
+    requestTrackingAuthorizationIfNeeded()
+  }, [])
   return null
 }
