@@ -1,5 +1,6 @@
 import { useCustomerProfile } from "@/features/account/api"
 import { avatarFromProfile } from "@/features/account/avatar"
+import { isDeletionRequestPending } from "@/features/account/deletion"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
@@ -15,8 +16,19 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { RelativePathString, useRouter } from "expo-router"
-import { Clock, Heart, LogOut, MapPin, Megaphone, Package, Pencil, RefreshCcw, Settings2 } from "lucide-react-native"
-import { useCallback, useEffect, useMemo, type ReactNode } from "react"
+import {
+  Clock,
+  Heart,
+  LogOut,
+  MapPin,
+  Megaphone,
+  Package,
+  Pencil,
+  RefreshCcw,
+  Settings2,
+  Trash2,
+} from "lucide-react-native"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { RefreshControl, ScrollView, Text, View } from "react-native"
 
 export default function AccountScreen() {
@@ -36,6 +48,7 @@ function AccountContent() {
   const router = useRouter()
   const { logout, isAuthenticated } = useShopifyAuth()
   const { show } = useToast()
+  const [deletionPending, setDeletionPending] = useState(false)
   const {
     data: profile,
     isLoading,
@@ -112,10 +125,24 @@ function AccountContent() {
         Icon: Settings2,
         path: "/account/notifications" as RelativePathString,
       },
+      {
+        title: "Delete account",
+        body: "Request permanent removal of your account.",
+        Icon: Trash2,
+        path: "/account/delete" as RelativePathString,
+      },
       ...adminLinks,
     ],
     [adminLinks],
   )
+
+  useEffect(() => {
+    if (!profile?.email) {
+      setDeletionPending(false)
+      return
+    }
+    setDeletionPending(isDeletionRequestPending(new Date(), profile.email))
+  }, [profile?.email])
 
   useEffect(() => {
     if (error) {
@@ -187,6 +214,14 @@ function AccountContent() {
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} tintColor="#111827" />}
     >
       <View className="px-5 pt-6 pb-4 gap-7">
+        {deletionPending ? (
+          <Card padding="lg" className="border border-[#fecaca] bg-[#fef2f2] gap-2">
+            <Text className="text-[#991b1b] font-geist-semibold text-[15px]">This account is scheduled for deletion.</Text>
+            <Text className="text-[#b91c1c] text-[13px] leading-[18px]">
+              Your account will remain available while the request is reviewed.
+            </Text>
+          </Card>
+        ) : null}
         <Card padding="lg" className="gap-5">
           {showProfileSkeleton ? (
             <AccountHeaderSkeleton />
