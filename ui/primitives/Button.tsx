@@ -11,6 +11,7 @@ const buttonStyles = cva("flex-row items-center justify-center rounded-xl gap-2"
       outline: "bg-surface border border-border",
       ghost: "bg-transparent",
       link: "bg-transparent",
+      danger: "bg-danger/10 border border-danger/40",
     },
     size: {
       sm: "h-9 px-3",
@@ -18,9 +19,17 @@ const buttonStyles = cva("flex-row items-center justify-center rounded-xl gap-2"
       lg: "h-12 px-6",
     },
     fullWidth: { true: "w-full", false: "" },
-    disabled: { true: "opacity-50 ", false: "" },
+    disabled: { true: "", false: "" },
   },
-  compoundVariants: [{ variant: "link", className: "px-0 py-0 h-auto" }],
+  compoundVariants: [
+    { variant: "link", className: "px-0 py-0 h-auto" },
+    { variant: "danger", className: "text-danger" },
+    { variant: "solid", disabled: true, className: "!bg-brand/40" },
+    { variant: "outline", disabled: true, className: "!border-border/60 !bg-surface" },
+    { variant: "ghost", disabled: true, className: "!bg-transparent" },
+    { variant: "link", disabled: true, className: "!bg-transparent" },
+    { variant: "danger", disabled: true, className: "!bg-danger/5 !border-danger/20" },
+  ],
   defaultVariants: { variant: "solid", size: "md", fullWidth: false, disabled: false },
 })
 
@@ -31,14 +40,23 @@ const labelStyles = cva("font-geist-bold", {
       outline: "text-primary",
       ghost: "text-primary",
       link: "text-primary underline",
+      danger: "text-danger",
     },
     size: {
       sm: "text-[14px]",
       md: "text-[16px]",
       lg: "text-[17px]",
     },
+    disabled: { true: "", false: "" },
   },
-  defaultVariants: { variant: "solid", size: "md" },
+  compoundVariants: [
+    { variant: "solid", disabled: true, className: "text-white/70" },
+    { variant: "outline", disabled: true, className: "text-primary/50" },
+    { variant: "ghost", disabled: true, className: "text-primary/50" },
+    { variant: "link", disabled: true, className: "text-primary/50 underline" },
+    { variant: "danger", disabled: true, className: "text-danger/60" },
+  ],
+  defaultVariants: { variant: "solid", size: "md", disabled: false },
 })
 
 type ButtonBaseProps = {
@@ -70,15 +88,16 @@ export function Button({
   accessibilityLabel,
   textClassName,
 }: ButtonProps) {
-  const spinnerColor = !variant || variant === "solid" ? "#FFFFFF" : "#0B0B0B"
+  const isDisabled = !!disabled || !!isLoading
+  const spinnerColor = variant === "danger" ? "#DC2626" : !variant || variant === "solid" ? "#FFFFFF" : "#0B0B0B"
 
   return (
     <PressableOverlay
       haptic="light"
-      {...a11yButton(typeof children === "string" ? children : undefined, disabled || isLoading)}
-      disabled={disabled || isLoading}
+      {...a11yButton(typeof children === "string" ? children : undefined, isDisabled)}
+      disabled={isDisabled}
       onPress={onPress}
-      className={cn(buttonStyles({ variant, size, fullWidth, disabled }), className)}
+      className={cn(buttonStyles({ variant, size, fullWidth, disabled: isDisabled }), className)}
     >
       <>
         {/* Left icon or spinner */}
@@ -86,7 +105,10 @@ export function Button({
 
         {/* Label */}
         {typeof children === "string" ? (
-          <RNText accessibilityLabel={accessibilityLabel} className={cn(textClassName, labelStyles({ variant, size }))}>
+          <RNText
+            accessibilityLabel={accessibilityLabel}
+            className={cn(textClassName, labelStyles({ variant, size, disabled: isDisabled }))}
+          >
             {children}
           </RNText>
         ) : (

@@ -125,23 +125,25 @@ function AccountContent() {
         Icon: Settings2,
         path: "/account/notifications" as RelativePathString,
       },
-      {
-        title: "Delete account",
-        body: "Request permanent removal of your account.",
-        Icon: Trash2,
-        path: "/account/delete" as RelativePathString,
-      },
       ...adminLinks,
     ],
     [adminLinks],
   )
 
   useEffect(() => {
-    if (!profile?.email) {
-      setDeletionPending(false)
-      return
+    let isActive = true
+    const run = async () => {
+      if (!profile?.email) {
+        if (isActive) setDeletionPending(false)
+        return
+      }
+      const pending = await isDeletionRequestPending(new Date(), profile.email)
+      if (isActive) setDeletionPending(pending)
     }
-    setDeletionPending(isDeletionRequestPending(new Date(), profile.email))
+    void run()
+    return () => {
+      isActive = false
+    }
   }, [profile?.email])
 
   useEffect(() => {
@@ -216,9 +218,11 @@ function AccountContent() {
       <View className="px-5 pt-6 pb-4 gap-7">
         {deletionPending ? (
           <Card padding="lg" className="border border-[#fecaca] bg-[#fef2f2] gap-2">
-            <Text className="text-[#991b1b] font-geist-semibold text-[15px]">This account is scheduled for deletion.</Text>
+            <Text className="text-[#991b1b] font-geist-semibold text-[15px]">
+              This account is going through deletion.
+            </Text>
             <Text className="text-[#b91c1c] text-[13px] leading-[18px]">
-              Your account will remain available while the request is reviewed.
+              Your account and all data will be permanently deleted soon. Any changes or activity will be lost.
             </Text>
           </Card>
         ) : null}
@@ -296,7 +300,7 @@ function AccountContent() {
         </Section>
 
         {__DEV__ ? (
-          <View className="gap-3">
+          <View className="gap-2">
             <Button
               variant="outline"
               size="lg"
@@ -318,15 +322,28 @@ function AccountContent() {
           </View>
         ) : null}
 
-        <Button
-          variant="outline"
-          size="lg"
-          fullWidth
-          onPress={handleLogout}
-          leftIcon={<LogOut color="#111827" size={18} strokeWidth={2} />}
-        >
-          Sign out
-        </Button>
+        <View className="gap-2">
+          {!deletionPending && (
+            <Button
+              variant="danger"
+              size="lg"
+              fullWidth
+              onPress={() => router.push("/account/delete" as const)}
+              leftIcon={<Trash2 color="#DC2626" size={18} strokeWidth={2} />}
+            >
+              Delete Account
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="lg"
+            fullWidth
+            onPress={handleLogout}
+            leftIcon={<LogOut color="#111827" size={18} strokeWidth={2} />}
+          >
+            Sign out
+          </Button>
+        </View>
       </View>
     </ScrollView>
   )

@@ -1,33 +1,33 @@
-import { kv } from "@/lib/storage/mmkv"
+import { kv } from "@/lib/storage/storage"
 
 const DELETION_REQUEST_KEY = "account-deletion-requested-at"
 const DELETION_EMAIL_KEY = "account-deletion-requested-email"
 const BUSINESS_DAYS = 3
 
-export function setDeletionRequestTimestamp(date: Date = new Date(), email?: string | null) {
-  kv.set(DELETION_REQUEST_KEY, date.toISOString())
+export async function setDeletionRequestTimestamp(date: Date = new Date(), email?: string | null) {
+  await kv.set(DELETION_REQUEST_KEY, date.toISOString())
   if (email) {
-    kv.set(DELETION_EMAIL_KEY, email.trim().toLowerCase())
+    await kv.set(DELETION_EMAIL_KEY, email.trim().toLowerCase())
   } else {
-    kv.del(DELETION_EMAIL_KEY)
+    await kv.del(DELETION_EMAIL_KEY)
   }
 }
 
-export function getDeletionRequestTimestamp(): Date | null {
-  const raw = kv.get(DELETION_REQUEST_KEY)
+export async function getDeletionRequestTimestamp(): Promise<Date | null> {
+  const raw = await kv.get(DELETION_REQUEST_KEY)
   if (!raw) return null
   const parsed = new Date(raw)
   if (Number.isNaN(parsed.getTime())) {
-    kv.del(DELETION_REQUEST_KEY)
+    await kv.del(DELETION_REQUEST_KEY)
     return null
   }
   return parsed
 }
 
-export function isDeletionRequestPending(now: Date = new Date(), email?: string | null): boolean {
-  const requestedAt = getDeletionRequestTimestamp()
+export async function isDeletionRequestPending(now: Date = new Date(), email?: string | null): Promise<boolean> {
+  const requestedAt = await getDeletionRequestTimestamp()
   if (!requestedAt) return false
-  const requestedEmail = kv.get(DELETION_EMAIL_KEY)
+  const requestedEmail = await kv.get(DELETION_EMAIL_KEY)
   if (requestedEmail && email) {
     if (requestedEmail !== email.trim().toLowerCase()) {
       return false
@@ -39,8 +39,8 @@ export function isDeletionRequestPending(now: Date = new Date(), email?: string 
   const expiresAt = endOfBusinessDay(addBusinessDays(requestedAt, BUSINESS_DAYS))
   if (now <= expiresAt) return true
 
-  kv.del(DELETION_REQUEST_KEY)
-  kv.del(DELETION_EMAIL_KEY)
+  await kv.del(DELETION_REQUEST_KEY)
+  await kv.del(DELETION_EMAIL_KEY)
   return false
 }
 
