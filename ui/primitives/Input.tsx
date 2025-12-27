@@ -50,6 +50,9 @@ export function Input({
   const [focused, setFocused] = useState(false)
   const [hide, setHide] = useState(!!secureTextEntry)
   const isMultiline = !!multiline
+  const multilineRows = isMultiline ? (p.numberOfLines ?? 4) : undefined
+  const multilineMinHeight = multilineRows ? multilineRows * 28 : undefined
+  const wrapperMinHeightStyle = isMultiline && multilineMinHeight ? { minHeight: multilineMinHeight } : undefined
 
   const state: NonNullable<VariantProps<typeof wrapper>["state"]> = !editable
     ? "disabled"
@@ -60,16 +63,10 @@ export function Input({
         : "default"
 
   return (
-    <View className="w-full flex-1">
+    <View className={cn("w-full", !isMultiline && "flex-1")} style={wrapperMinHeightStyle}>
       {!!label && <Text className="mb-2">{label}</Text>}
 
-      <View
-        className={cn(
-          wrapper({ size, state }),
-          isMultiline ? "items-start h-auto min-h-[140px] py-3" : "",
-          className,
-        )}
-      >
+      <View className={cn(wrapper({ size, state }), isMultiline ? "items-start h-auto py-3 flex-1" : "", className)}>
         {!!leftIcon && <View className="mr-2">{leftIcon}</View>}
 
         <TextInput

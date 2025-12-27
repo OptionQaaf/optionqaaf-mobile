@@ -1,10 +1,12 @@
 import { useCustomerProfile } from "@/features/account/api"
 import { avatarFromProfile } from "@/features/account/avatar"
+import { isDeletionRequestPending } from "@/features/account/deletion"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
+import { qk } from "@/lib/shopify/queryKeys"
 import { clearOnboardingFlag } from "@/lib/storage/flags"
 import { kv } from "@/lib/storage/mmkv"
 import { Skeleton } from "@/ui/feedback/Skeleton"
@@ -15,8 +17,20 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { RelativePathString, useRouter } from "expo-router"
-import { Clock, Heart, LogOut, MapPin, Megaphone, Package, Pencil, RefreshCcw, Settings2 } from "lucide-react-native"
-import { useCallback, useEffect, useMemo, type ReactNode } from "react"
+import {
+  Clock,
+  Heart,
+  LogOut,
+  MapPin,
+  Megaphone,
+  Package,
+  Pencil,
+  RefreshCcw,
+  Settings2,
+  Trash2,
+} from "lucide-react-native"
+import { useQueryClient } from "@tanstack/react-query"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { RefreshControl, ScrollView, Text, View } from "react-native"
 
 export default function AccountScreen() {
@@ -34,8 +48,12 @@ export default function AccountScreen() {
 
 function AccountContent() {
   const router = useRouter()
-  const { logout, isAuthenticated } = useShopifyAuth()
+  const { logout, isAuthenticated, token } = useShopifyAuth()
   const { show } = useToast()
+  const qc = useQueryClient()
+  const lastTokenRef = useRef<string | null | undefined>(null)
+  const [deletionPending, setDeletionPending] = useState(false)
+  const [deletionPendingLoaded, setDeletionPendingLoaded] = useState(false)
   const {
     data: profile,
     isLoading,
@@ -47,8 +65,18 @@ function AccountContent() {
   })
 
   const avatar = useMemo(() => avatarFromProfile(profile), [profile])
-  const showProfileSkeleton = isLoading && !profile
+  const showProfileSkeleton = (isLoading && !profile) || !deletionPendingLoaded
   const isAdmin = isPushAdmin(profile?.email)
+  const deletionCacheRef = useRef(new Map<string, boolean>())
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    if (token && token !== lastTokenRef.current) {
+      lastTokenRef.current = token
+      qc.removeQueries({ queryKey: qk.customerProfile() })
+      refetch()
+    }
+  }, [isAuthenticated, qc, refetch, token])
 
   const handleLogout = useCallback(async () => {
     try {
@@ -116,6 +144,39 @@ function AccountContent() {
     ],
     [adminLinks],
   )
+
+  useEffect(() => {
+    let isActive = true
+    const email = profile?.email?.trim().toLowerCase()
+    setDeletionPendingLoaded(false)
+    if (!email) {
+      setDeletionPending(false)
+      setDeletionPendingLoaded(true)
+      return () => {
+        isActive = false
+      }
+    }
+
+    const cached = deletionCacheRef.current.get(email)
+    if (cached !== undefined) {
+      setDeletionPending(cached)
+    } else {
+      setDeletionPending(false)
+    }
+
+    const run = async () => {
+      const pending = await isDeletionRequestPending(new Date(), email)
+      deletionCacheRef.current.set(email, pending)
+      if (isActive) {
+        setDeletionPending(pending)
+        setDeletionPendingLoaded(true)
+      }
+    }
+    void run()
+    return () => {
+      isActive = false
+    }
+  }, [profile?.email])
 
   useEffect(() => {
     if (error) {
@@ -187,6 +248,16 @@ function AccountContent() {
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} tintColor="#111827" />}
     >
       <View className="px-5 pt-6 pb-4 gap-7">
+        {deletionPending ? (
+          <Card padding="lg" className="border border-[#fecaca] bg-[#fef2f2] gap-2">
+            <Text className="text-[#991b1b] font-geist-semibold text-[15px]">
+              This account is going through deletion.
+            </Text>
+            <Text className="text-[#b91c1c] text-[13px] leading-[18px]">
+              Your account and all data will be permanently deleted soon. Any changes or activity will be lost.
+            </Text>
+          </Card>
+        ) : null}
         <Card padding="lg" className="gap-5">
           {showProfileSkeleton ? (
             <AccountHeaderSkeleton />
@@ -261,7 +332,7 @@ function AccountContent() {
         </Section>
 
         {__DEV__ ? (
-          <View className="gap-3">
+          <View className="gap-2">
             <Button
               variant="outline"
               size="lg"
@@ -283,15 +354,28 @@ function AccountContent() {
           </View>
         ) : null}
 
-        <Button
-          variant="outline"
-          size="lg"
-          fullWidth
-          onPress={handleLogout}
-          leftIcon={<LogOut color="#111827" size={18} strokeWidth={2} />}
-        >
-          Sign out
-        </Button>
+        <View className="gap-2">
+          {!deletionPending && (
+            <Button
+              variant="danger"
+              size="lg"
+              fullWidth
+              onPress={() => router.push("/account/delete" as const)}
+              leftIcon={<Trash2 color="#DC2626" size={18} strokeWidth={2} />}
+            >
+              Delete Account
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="lg"
+            fullWidth
+            onPress={handleLogout}
+            leftIcon={<LogOut color="#111827" size={18} strokeWidth={2} />}
+          >
+            Sign out
+          </Button>
+        </View>
       </View>
     </ScrollView>
   )
