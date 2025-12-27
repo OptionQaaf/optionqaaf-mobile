@@ -6,6 +6,7 @@ import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
+import { qk } from "@/lib/shopify/queryKeys"
 import { clearOnboardingFlag } from "@/lib/storage/flags"
 import { kv } from "@/lib/storage/mmkv"
 import { Skeleton } from "@/ui/feedback/Skeleton"
@@ -28,7 +29,8 @@ import {
   Settings2,
   Trash2,
 } from "lucide-react-native"
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useQueryClient } from "@tanstack/react-query"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { RefreshControl, ScrollView, Text, View } from "react-native"
 
 export default function AccountScreen() {
@@ -46,9 +48,12 @@ export default function AccountScreen() {
 
 function AccountContent() {
   const router = useRouter()
-  const { logout, isAuthenticated } = useShopifyAuth()
+  const { logout, isAuthenticated, token } = useShopifyAuth()
   const { show } = useToast()
+  const qc = useQueryClient()
+  const lastTokenRef = useRef<string | null | undefined>(null)
   const [deletionPending, setDeletionPending] = useState(false)
+  const [deletionPendingLoaded, setDeletionPendingLoaded] = useState(false)
   const {
     data: profile,
     isLoading,
@@ -60,8 +65,18 @@ function AccountContent() {
   })
 
   const avatar = useMemo(() => avatarFromProfile(profile), [profile])
-  const showProfileSkeleton = isLoading && !profile
+  const showProfileSkeleton = (isLoading && !profile) || !deletionPendingLoaded
   const isAdmin = isPushAdmin(profile?.email)
+  const deletionCacheRef = useRef(new Map<string, boolean>())
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    if (token && token !== lastTokenRef.current) {
+      lastTokenRef.current = token
+      qc.removeQueries({ queryKey: qk.customerProfile() })
+      refetch()
+    }
+  }, [isAuthenticated, qc, refetch, token])
 
   const handleLogout = useCallback(async () => {
     try {
@@ -132,13 +147,30 @@ function AccountContent() {
 
   useEffect(() => {
     let isActive = true
-    const run = async () => {
-      if (!profile?.email) {
-        if (isActive) setDeletionPending(false)
-        return
+    const email = profile?.email?.trim().toLowerCase()
+    setDeletionPendingLoaded(false)
+    if (!email) {
+      setDeletionPending(false)
+      setDeletionPendingLoaded(true)
+      return () => {
+        isActive = false
       }
-      const pending = await isDeletionRequestPending(new Date(), profile.email)
-      if (isActive) setDeletionPending(pending)
+    }
+
+    const cached = deletionCacheRef.current.get(email)
+    if (cached !== undefined) {
+      setDeletionPending(cached)
+    } else {
+      setDeletionPending(false)
+    }
+
+    const run = async () => {
+      const pending = await isDeletionRequestPending(new Date(), email)
+      deletionCacheRef.current.set(email, pending)
+      if (isActive) {
+        setDeletionPending(pending)
+        setDeletionPendingLoaded(true)
+      }
     }
     void run()
     return () => {
