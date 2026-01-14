@@ -1,4 +1,4 @@
-import { cityLookupById } from "@/src/lib/addresses/addresses"
+import { cityLookupById, formatPhoneNumber, stripCountryDialCode } from "@/src/lib/addresses/addresses"
 import { COUNTRY_MAP, mapGeocodedAddressToSelection } from "@/src/lib/addresses/mapMapper"
 import type { CustomerAddress } from "@/lib/shopify/customer/profile"
 import type { CustomerAddressInput } from "@/lib/shopify/customer/addresses"
@@ -107,12 +107,13 @@ export function formToInput(values: AddressFormSubmitData): CustomerAddressInput
   })
   const address2WithArea = [values.area, address2, metadata].filter(Boolean).join(" • ") || null
   const territoryCode = resolveTerritoryCode(countryCode)
+  const phoneNumber = formatPhoneNumber(countryCode, values.phoneNumber)
 
   return {
     firstName: values.firstName.trim() || null,
     lastName: values.lastName.trim() || null,
     company: values.company.trim() || null,
-    phoneNumber: values.phoneNumber.trim() || null,
+    phoneNumber: phoneNumber || null,
     address1: addressLine,
     address2: address2WithArea,
     city: cityName,
@@ -137,12 +138,17 @@ export function buildInitialValuesFromAddress(
     rawStreet: address.address1 ?? undefined,
     rawZip: address.zip ?? undefined,
   })
+  const phoneCountry = selection.countryCode ?? address.territoryCode ?? address.country ?? null
+  const normalizedPhoneCountry =
+    phoneCountry && COUNTRY_MAP[phoneCountry.toUpperCase()]
+      ? COUNTRY_MAP[phoneCountry.toUpperCase()]
+      : phoneCountry
 
   return {
     firstName: address.firstName ?? "",
     lastName: address.lastName ?? "",
     company: address.company ?? "",
-    phoneNumber: address.phoneNumber ?? "",
+    phoneNumber: stripCountryDialCode(address.phoneNumber ?? "", normalizedPhoneCountry),
     addressLine: address.address1 ?? selection.addressLine ?? "",
     address2: address2Value ?? "",
     countryCode: selection.countryCode ?? address.territoryCode ?? null,

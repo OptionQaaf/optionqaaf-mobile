@@ -4,6 +4,8 @@ import {
   cityOptionsByCountry,
   countryOptions,
   getAreaOptions,
+  COUNTRY_DIAL_CODES,
+  normalizePhoneDigits,
   type AreaOption,
   type CityOption,
 } from "@/src/lib/addresses/addresses"
@@ -22,9 +24,10 @@ import { Card } from "@/ui/surfaces/Card"
 import * as Location from "expo-location"
 import { useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Platform, Switch, View } from "react-native"
+import { Modal, Platform, Pressable, Switch, View } from "react-native"
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view"
 import type { MapPressEvent, Region } from "react-native-maps"
+import { Info } from "lucide-react-native"
 import {
   applyArea,
   applyCity,
@@ -71,6 +74,15 @@ const DEFAULT_REGION: Region = {
   longitudeDelta: 0.08,
 }
 
+function formatLocalPhone(input: string) {
+  const digits = normalizePhoneDigits(input).replace(/^0+/, "").slice(0, 9)
+  if (!digits) return ""
+  const first = digits.slice(0, 1)
+  const mid = digits.slice(1, 5)
+  const last = digits.slice(5, 9)
+  return [first, mid, last].filter(Boolean).join(" ")
+}
+
 export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit, onDelete }: AddressFormProps) {
   const { show } = useToast()
   const router = useRouter()
@@ -78,7 +90,11 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   const mapModule = ReactNativeMapsModule
   const MapViewComponent = mapModule?.default
   const MarkerComponent = mapModule?.Marker
-  const [values, setValues] = useState<AddressFormState>(() => createInitialAddressState(initialValues))
+  const [values, setValues] = useState<AddressFormState>(() => {
+    const next = createInitialAddressState(initialValues)
+    if (next.phoneNumber) next.phoneNumber = formatLocalPhone(next.phoneNumber)
+    return next
+  })
   const [errors, setErrors] = useState<FormErrors>({})
   const zipEditedManually = useRef(false)
   const [region, setRegion] = useState<Region>(() =>
@@ -96,11 +112,14 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   )
   const [geo, setGeo] = useState<{ lat: number; lng: number } | undefined>(initialCoordinate)
   const [isLocating, setIsLocating] = useState(false)
+  const [showPhoneInfo, setShowPhoneInfo] = useState(false)
 
   useEffect(() => {
     if (!initialValues) return
     const { __coordinate, ...rest } = initialValues
-    setValues((prev) => ({ ...prev, ...createInitialAddressState(rest) }))
+    const next = createInitialAddressState(rest)
+    if (next.phoneNumber) next.phoneNumber = formatLocalPhone(next.phoneNumber)
+    setValues((prev) => ({ ...prev, ...next }))
     if (__coordinate) {
       const coordinate = { latitude: __coordinate.lat, longitude: __coordinate.lng }
       setSelectedCoordinate(coordinate)
@@ -130,6 +149,10 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
       latitudeDelta: prev.latitudeDelta ?? DEFAULT_REGION.latitudeDelta,
       longitudeDelta: prev.longitudeDelta ?? DEFAULT_REGION.longitudeDelta,
     }))
+  }, [])
+
+  const togglePhoneInfo = useCallback(() => {
+    setShowPhoneInfo((prev) => !prev)
   }, [])
 
   const ensurePermission = useCallback(async () => {
@@ -232,8 +255,37 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     }
   }, [ensurePermission, reverseGeocode, setRegionForCoordinate, show, updateCoordinateState])
 
+  useEffect(() => {
+    let isMounted = true
+    const loadCurrentLocation = async () => {
+      try {
+        if (!isMounted) return
+        setIsLocating(true)
+        await ensurePermission()
+        const position = await Location.getCurrentPositionAsync({})
+        if (!isMounted) return
+        const coordinate = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        }
+        setRegionForCoordinate(coordinate)
+        updateCoordinateState(coordinate)
+        await reverseGeocode(coordinate)
+      } catch (error) {
+        // Permission denied or location unavailable; keep manual entry.
+      } finally {
+        if (isMounted) setIsLocating(false)
+      }
+    }
+    loadCurrentLocation()
+    return () => {
+      isMounted = false
+    }
+  }, [ensurePermission, reverseGeocode, setRegionForCoordinate, updateCoordinateState])
+
   const submit = useCallback(() => {
     const nextErrors: FormErrors = {}
+    const phoneDigits = normalizePhoneDigits(values.phoneNumber)
 
     if (!values.firstName.trim()) nextErrors.firstName = "First name is required"
     if (!values.lastName.trim()) nextErrors.lastName = "Last name is required"
@@ -241,7 +293,13 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     if (!values.countryCode?.trim()) nextErrors.countryCode = "Country is required"
     if (!values.cityId?.trim()) nextErrors.cityId = "City is required"
     if (!values.zip.trim()) nextErrors.zip = "Postal code is required"
-    if (!values.phoneNumber.trim()) nextErrors.phoneNumber = "Phone number is required"
+    if (!phoneDigits.trim()) nextErrors.phoneNumber = "Phone number is required"
+    if (phoneDigits && phoneDigits.length !== 9) {
+      nextErrors.phoneNumber = "Phone number must be 9 digits"
+    }
+    if (phoneDigits.startsWith("0")) {
+      nextErrors.phoneNumber = "Phone number should not start with 0"
+    }
     if (values.countryCode === "KSA") {
       const nationalCode = values.saudiNationalAddressCode.trim()
       if (nationalCode && nationalCode.length !== 8) {
@@ -344,7 +402,10 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   return (
     <KeyboardAwareScrollView
       enableOnAndroid
-      extraScrollHeight={40}
+      enableAutomaticScroll={false}
+      extraScrollHeight={0}
+      extraHeight={0}
+      keyboardOpeningTime={0}
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ paddingBottom: 48 }}
       className="bg-[#f8fafc]"
@@ -374,15 +435,6 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               value={values.company}
               onChangeText={(text) => updateValue("company", text)}
               autoCapitalize="words"
-              returnKeyType="next"
-            />
-            <Input
-              label="Phone number"
-              value={values.phoneNumber}
-              onChangeText={(text) => updateValue("phoneNumber", text)}
-              error={errors.phoneNumber}
-              keyboardType="phone-pad"
-              placeholder="+16135551111"
               returnKeyType="next"
             />
           </View>
@@ -433,9 +485,6 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
                 Tap on the map to drop a pin or use your current location. We’ll fill in as many address fields as we
                 can.
               </Text>
-              <Button variant="outline" onPress={handleUseCurrentLocation} isLoading={isLocating}>
-                Use current location
-              </Button>
             </View>
             <Input
               label="Address line"
@@ -485,6 +534,37 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               placeholder={values.cityId ? "Select an area" : "Choose a city first"}
               disabled={!values.cityId}
             />
+            <View className="gap-2">
+              <View className="flex-row items-center justify-between">
+                <Text className="text-[#0f172a]">Phone number</Text>
+                <View>
+                  <PressableOverlay
+                    haptic="light"
+                    onPress={togglePhoneInfo}
+                    className="h-6 w-6 items-center justify-center rounded-full border border-[#e2e8f0] bg-white"
+                    accessibilityLabel="Show WhatsApp contact info"
+                  >
+                    <Info size={14} color="#64748b" />
+                  </PressableOverlay>
+                </View>
+              </View>
+              <Input
+                value={values.phoneNumber}
+                onChangeText={(text) => {
+                  updateValue("phoneNumber", formatLocalPhone(text))
+                }}
+                error={errors.phoneNumber}
+                keyboardType="phone-pad"
+                returnKeyType="next"
+                leftIcon={
+                  <Text className="text-[#0f172a] font-geist-medium">
+                    {values.countryCode ? `+${COUNTRY_DIAL_CODES[values.countryCode] ?? ""}` : "+"}
+                  </Text>
+                }
+                editable={!!values.countryCode}
+                placeholder={values.countryCode ? "Enter phone number" : "Select a country first"}
+              />
+            </View>
             <Input
               label="Postal code"
               value={values.zip}
@@ -506,7 +586,6 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
                 autoCapitalize="characters"
                 placeholder="e.g. ABCD5678"
                 maxLength={8}
-                required={false}
               />
             ) : null}
             {values.countryCode === "KSA" ? (
@@ -554,6 +633,34 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
           ) : null}
         </View>
       </View>
+      <Modal visible={showPhoneInfo} transparent animationType="fade" onRequestClose={() => setShowPhoneInfo(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: "rgba(15,23,42,0.15)" }} onPress={() => setShowPhoneInfo(false)}>
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 }}>
+            <View
+              style={{
+                width: "100%",
+                maxWidth: 320,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "#e2e8f0",
+                backgroundColor: "#ffffff",
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                shadowColor: "#0f172a",
+                shadowOpacity: 0.1,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 4,
+              }}
+            >
+              <Text className="text-[#0f172a] font-geist-semibold text-[14px]">WhatsApp contact</Text>
+              <Text className="text-[#64748b] text-[12px] leading-[16px] mt-1">
+                We may contact you via WhatsApp if needed, so make sure this number works on WhatsApp.
+              </Text>
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
     </KeyboardAwareScrollView>
   )
 }

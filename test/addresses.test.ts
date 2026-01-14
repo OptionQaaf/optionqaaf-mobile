@@ -22,8 +22,12 @@ test("filters invalid provinces and cities", () => {
 
 test("builds country and area options", () => {
   assert.ok(countryOptions.find((option) => option.id === "KSA"), "Includes KSA in countries")
-  const firstCityId = Object.keys(cityLookupById)[0]
-  const areas = getAreaOptions(firstCityId)
+  const cityWithAreas = Object.values(cityLookupById).find((entry) => entry.areas.length > 0)
+  if (!cityWithAreas) {
+    throw new Error("Finds a city with areas")
+  }
+  const cityId = `${cityWithAreas.countryCode}|${cityWithAreas.provinceName}|${cityWithAreas.cityName}`
+  const areas = getAreaOptions(cityId)
   assert.ok(areas.length > 0, "Areas populated for known city")
 })
 

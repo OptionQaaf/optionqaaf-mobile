@@ -1,6 +1,6 @@
 import type { CurrencyCode } from "@/features/currency/config"
 
-export type CountryCode = "SA" | "AE" | "KW" | "QA" | "BH" | "OM"
+export type CountryCode = "SA" | "AE" | "KW" | "QA" | "BH" | "OM" | "JO"
 
 export type CountryInfo = {
   id: CountryCode
@@ -16,5 +16,5 @@ export const COUNTRIES: CountryInfo[] = [
   { id: "QA", label: "Qatar / قطر", flag: "🇶🇦", currency: "QAR" },
   { id: "BH", label: "Bahrain / البحرين", flag: "🇧🇭", currency: "BHD" },
   { id: "OM", label: "Oman / عمان", flag: "🇴🇲", currency: "OMR" },
+  { id: "JO", label: "Jordan / الأردن", flag: "🇯🇴", currency: "JOD" },
 ]
-

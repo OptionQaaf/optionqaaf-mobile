@@ -11,6 +11,7 @@ const perUSD: Record<CurrencyCode, number> = {
   QAR: 3.64, // Fixed
   BHD: 0.376, // Fixed
   OMR: 0.3845, // Approximate; 1 USD ≈ 0.3845 OMR
+  JOD: 0.709, // Approximate; 1 USD ≈ 0.709 JOD
 }
 
 export function convertAmount(amount: number, from: string, to: string): number {

@@ -1,4 +1,4 @@
-export type CurrencyCode = "USD" | "SAR" | "AED" | "KWD" | "QAR" | "BHD" | "OMR"
+export type CurrencyCode = "USD" | "SAR" | "AED" | "KWD" | "QAR" | "BHD" | "OMR" | "JOD"
 
 export type CurrencyInfo = {
   code: CurrencyCode
@@ -15,6 +15,7 @@ export const CURRENCIES: CurrencyInfo[] = [
   { code: "QAR", label: "Qatari Riyal", flag: "🇶🇦", symbol: "ر.ق" },
   { code: "BHD", label: "Bahraini Dinar", flag: "🇧🇭", symbol: "ب.د" },
   { code: "OMR", label: "Omani Rial", flag: "🇴🇲", symbol: "ر.ع" },
+  { code: "JOD", label: "Jordanian Dinar", flag: "🇯🇴", symbol: "د.ا" },
   { code: "USD", label: "US Dollar", flag: "🇺🇸", symbol: "$" },
 ]
 
@@ -25,4 +26,3 @@ export const CURRENCIES_MAP: Record<CurrencyCode, CurrencyInfo> = CURRENCIES.red
   },
   {} as Record<CurrencyCode, CurrencyInfo>,
 )
-

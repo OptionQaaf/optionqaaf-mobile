@@ -49,6 +49,26 @@ const countryOptions: CountryOption[] = []
 const cityIndexByCountry: Record<CountryCode, CityIndexEntry[]> = {}
 const cityLookupById: Record<string, CityIndexEntry> = {}
 const cityOptionsByCountry: Record<CountryCode, CityOption[]> = {}
+const COUNTRY_LABELS: Record<CountryCode, string> = {
+  KSA: "Saudi Arabia / السعودية",
+  UAE: "United Arab Emirates / الإمارات",
+  KWT: "Kuwait / الكويت",
+  QAT: "Qatar / قطر",
+  BHR: "Bahrain / البحرين",
+  OMN: "Oman / عمان",
+  JOR: "Jordan / الأردن",
+  IRQ: "Iraq / العراق",
+}
+export const COUNTRY_DIAL_CODES: Record<CountryCode, string> = {
+  KSA: "966",
+  UAE: "971",
+  KWT: "965",
+  QAT: "974",
+  BHR: "973",
+  OMN: "968",
+  JOR: "962",
+  IRQ: "964",
+}
 
 function hydrate(raw: RawAddresses) {
   Object.entries(raw).forEach(([countryCode, provinces]) => {
@@ -61,9 +81,6 @@ function hydrate(raw: RawAddresses) {
         const areas = Array.isArray(rawAreas)
           ? rawAreas.map((area) => area?.toString().trim()).filter((area): area is string => !!area)
           : []
-
-        if (areas.length === 0) return
-
         provinceHasCity = true
 
         const entry: CityIndexEntry = {
@@ -91,7 +108,8 @@ function hydrate(raw: RawAddresses) {
   Object.keys(cityIndexByCountry)
     .sort((a, b) => a.localeCompare(b))
     .forEach((countryCode) => {
-      countryOptions.push({ id: countryCode, label: countryCode })
+      const label = COUNTRY_LABELS[countryCode] ?? countryCode
+      countryOptions.push({ id: countryCode, label })
       cityOptionsByCountry[countryCode] = cityIndexByCountry[countryCode]
         .map<CityOption>((entry) => ({
           id: buildCityId(entry),
@@ -110,7 +128,30 @@ export function getAreaOptions(cityId: string | null | undefined): AreaOption[] 
   if (!cityId) return []
   const city = cityLookupById[cityId]
   if (!city) return []
+  if (city.areas.length === 0) {
+    return [{ id: buildAreaId(city, city.cityName), label: city.cityName }]
+  }
   return city.areas.map<AreaOption>((area) => ({ id: buildAreaId(city, area), label: area }))
+}
+
+export function normalizePhoneDigits(value?: string | null): string {
+  return (value ?? "").replace(/\D/g, "")
+}
+
+export function stripCountryDialCode(phoneNumber: string | null | undefined, countryCode: string | null): string {
+  const digits = normalizePhoneDigits(phoneNumber)
+  if (!digits) return ""
+  const dial = countryCode ? COUNTRY_DIAL_CODES[countryCode.toUpperCase()] : undefined
+  const withoutDial = dial && digits.startsWith(dial) ? digits.slice(dial.length) : digits
+  return withoutDial.replace(/^0+/, "")
+}
+
+export function formatPhoneNumber(countryCode: string | null, localNumber: string): string {
+  const digits = normalizePhoneDigits(localNumber).replace(/^0+/, "")
+  if (!digits) return ""
+  const dial = countryCode ? COUNTRY_DIAL_CODES[countryCode.toUpperCase()] : undefined
+  if (!dial) return digits
+  return `+${dial}${digits}`
 }
 
 export { countryOptions, cityIndexByCountry, cityLookupById, cityOptionsByCountry }
