@@ -102,7 +102,7 @@ export default function CollectionScreen() {
   const activeHasNextPage = isVendorLanding ? vendorSearch.hasNextPage : hasNextPage
   const activeIsFetchingNextPage = isVendorLanding ? vendorSearch.isFetchingNextPage : isFetchingNextPage
   const activeFetchNextPage = isVendorLanding ? vendorSearch.fetchNextPage : fetchNextPage
-  const reachedCap = isVendorLanding ? !activeHasNextPage : pageCount >= 5
+  const reachedCap = !activeHasNextPage
 
   // derive hero image from first product if collection image not available
   const heroImage = isVendorLanding

@@ -3,6 +3,7 @@ import {
   cityLookupById,
   cityOptionsByCountry,
   countryOptions,
+  COUNTRY_PHONE_LENGTHS,
   getAreaOptions,
   COUNTRY_DIAL_CODES,
   normalizePhoneDigits,
@@ -74,13 +75,34 @@ const DEFAULT_REGION: Region = {
   longitudeDelta: 0.08,
 }
 
-function formatLocalPhone(input: string) {
-  const digits = normalizePhoneDigits(input).replace(/^0+/, "").slice(0, 9)
+function resolvePhoneLength(countryCode: string | null | undefined) {
+  if (!countryCode) return 9
+  const normalized = countryCode.trim().toUpperCase()
+  return COUNTRY_PHONE_LENGTHS[normalized] ?? 9
+}
+
+function formatLocalPhone(input: string, countryCode?: string | null) {
+  const maxLen = resolvePhoneLength(countryCode)
+  const digits = normalizePhoneDigits(input).replace(/^0+/, "").slice(0, maxLen)
   if (!digits) return ""
-  const first = digits.slice(0, 1)
-  const mid = digits.slice(1, 5)
-  const last = digits.slice(5, 9)
-  return [first, mid, last].filter(Boolean).join(" ")
+  if (maxLen === 9) {
+    const first = digits.slice(0, 1)
+    const mid = digits.slice(1, 5)
+    const last = digits.slice(5, 9)
+    return [first, mid, last].filter(Boolean).join(" ")
+  }
+  if (maxLen === 8) {
+    const first = digits.slice(0, 4)
+    const last = digits.slice(4, 8)
+    return [first, last].filter(Boolean).join(" ")
+  }
+  if (maxLen === 10) {
+    const first = digits.slice(0, 3)
+    const mid = digits.slice(3, 6)
+    const last = digits.slice(6, 10)
+    return [first, mid, last].filter(Boolean).join(" ")
+  }
+  return digits
 }
 
 export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit, onDelete }: AddressFormProps) {
@@ -92,7 +114,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   const MarkerComponent = mapModule?.Marker
   const [values, setValues] = useState<AddressFormState>(() => {
     const next = createInitialAddressState(initialValues)
-    if (next.phoneNumber) next.phoneNumber = formatLocalPhone(next.phoneNumber)
+    if (next.phoneNumber) next.phoneNumber = formatLocalPhone(next.phoneNumber, next.countryCode)
     return next
   })
   const [errors, setErrors] = useState<FormErrors>({})
@@ -118,7 +140,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     if (!initialValues) return
     const { __coordinate, ...rest } = initialValues
     const next = createInitialAddressState(rest)
-    if (next.phoneNumber) next.phoneNumber = formatLocalPhone(next.phoneNumber)
+    if (next.phoneNumber) next.phoneNumber = formatLocalPhone(next.phoneNumber, next.countryCode)
     setValues((prev) => ({ ...prev, ...next }))
     if (__coordinate) {
       const coordinate = { latitude: __coordinate.lat, longitude: __coordinate.lng }
@@ -132,6 +154,13 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
       }))
     }
   }, [initialValues])
+
+  useEffect(() => {
+    if (!values.phoneNumber) return
+    const formatted = formatLocalPhone(values.phoneNumber, values.countryCode)
+    if (formatted === values.phoneNumber) return
+    setValues((prev) => ({ ...prev, phoneNumber: formatted }))
+  }, [values.countryCode, values.phoneNumber])
 
   const updateValue = useCallback(<K extends keyof AddressFormState>(key: K, value: AddressFormState[K]) => {
     setValues((prev) => ({ ...prev, [key]: value }))
@@ -256,6 +285,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   }, [ensurePermission, reverseGeocode, setRegionForCoordinate, show, updateCoordinateState])
 
   useEffect(() => {
+    if (initialValues) return
     let isMounted = true
     const loadCurrentLocation = async () => {
       try {
@@ -286,16 +316,16 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   const submit = useCallback(() => {
     const nextErrors: FormErrors = {}
     const phoneDigits = normalizePhoneDigits(values.phoneNumber)
+    const phoneLength = resolvePhoneLength(values.countryCode)
 
     if (!values.firstName.trim()) nextErrors.firstName = "First name is required"
     if (!values.lastName.trim()) nextErrors.lastName = "Last name is required"
     if (!values.addressLine.trim()) nextErrors.addressLine = "Street address is required"
     if (!values.countryCode?.trim()) nextErrors.countryCode = "Country is required"
     if (!values.cityId?.trim()) nextErrors.cityId = "City is required"
-    if (!values.zip.trim()) nextErrors.zip = "Postal code is required"
     if (!phoneDigits.trim()) nextErrors.phoneNumber = "Phone number is required"
-    if (phoneDigits && phoneDigits.length !== 9) {
-      nextErrors.phoneNumber = "Phone number must be 9 digits"
+    if (phoneDigits && phoneDigits.length !== phoneLength) {
+      nextErrors.phoneNumber = `Phone number must be ${phoneLength} digits`
     }
     if (phoneDigits.startsWith("0")) {
       nextErrors.phoneNumber = "Phone number should not start with 0"
@@ -366,7 +396,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     const timer = setTimeout(() => {
       geocodeAddressString(query, controller.signal)
         .then((address) => {
-          if (typeof address.lat === "number" && typeof address.lng === "number" && !selectedCoordinate) {
+          if (typeof address.lat === "number" && typeof address.lng === "number") {
             const coordinate = { latitude: address.lat, longitude: address.lng }
             updateCoordinateState(coordinate)
             setRegionForCoordinate(coordinate)
@@ -551,7 +581,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               <Input
                 value={values.phoneNumber}
                 onChangeText={(text) => {
-                  updateValue("phoneNumber", formatLocalPhone(text))
+                  updateValue("phoneNumber", formatLocalPhone(text, values.countryCode))
                 }}
                 error={errors.phoneNumber}
                 keyboardType="phone-pad"
@@ -656,6 +686,12 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               <Text className="text-[#0f172a] font-geist-semibold text-[14px]">WhatsApp contact</Text>
               <Text className="text-[#64748b] text-[12px] leading-[16px] mt-1">
                 We may contact you via WhatsApp if needed, so make sure this number works on WhatsApp.
+              </Text>
+              <Text
+                className="text-[#64748b] text-[12px] leading-[16px] mt-1"
+                style={{ writingDirection: "rtl" }}
+              >
+                قد نتواصل معك عبر واتساب عند الحاجة، لذلك تأكد أن هذا الرقم يعمل على واتساب.
               </Text>
             </View>
           </View>

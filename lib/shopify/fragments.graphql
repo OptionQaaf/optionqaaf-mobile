@@ -107,6 +107,11 @@ fragment CartCommon on Cart {
     code
     applicable
   }
+  discountAllocations {
+    discountedAmount {
+      ...Money
+    }
+  }
   cost {
     subtotalAmount {
       ...Money
@@ -152,6 +157,11 @@ fragment CartCommon on Cart {
       }
       cost {
         subtotalAmount {
+          ...Money
+        }
+      }
+      discountAllocations {
+        discountedAmount {
           ...Money
         }
       }

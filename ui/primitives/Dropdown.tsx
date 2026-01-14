@@ -42,9 +42,17 @@ export function Dropdown({
 }) {
   const [open, setOpen] = useState(false)
   const instanceId = useRef(`dropdown-${Math.random().toString(36).slice(2, 10)}`)
-  const [items, setItems] = useState(() =>
-    options.map((option) => ({ label: option.label, value: option.id, disabled: option.disabled })),
-  )
+  const [items, setItems] = useState(() => {
+    const seen = new Set<string>()
+    return options
+      .filter((option) => {
+        const key = String(option.id)
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .map((option) => ({ label: option.label, value: option.id, disabled: option.disabled }))
+  })
 
   useEffect(() => {
     const handleActiveChange = (activeId: string | null) => {
@@ -59,7 +67,16 @@ export function Dropdown({
   }, [])
 
   useEffect(() => {
-    setItems(options.map((option) => ({ label: option.label, value: option.id, disabled: option.disabled })))
+    const seen = new Set<string>()
+    const next = options
+      .filter((option) => {
+        const key = String(option.id)
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .map((option) => ({ label: option.label, value: option.id, disabled: option.disabled }))
+    setItems(next)
   }, [options])
 
   const containerZIndex = useMemo(() => (open ? 2000 : 1), [open])
@@ -195,8 +212,9 @@ export function Dropdown({
         searchable={searchable}
         searchPlaceholder={searchPlaceholder}
         listMode={listMode}
-        dropDownDirection="AUTO"
+        dropDownDirection="DEFAULT"
         maxHeight={maxPickerHeight}
+        modalContentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12 }}
         autoScroll
         disabled={disabled}
         showArrowIcon={!disabled}

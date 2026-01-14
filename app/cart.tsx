@@ -236,9 +236,15 @@ export default function CartScreen() {
   const { subBefore, subAfter, discount, total, tax, hasItems } = useMemo(() => {
     const serverSubtotal = n(cart?.cost?.subtotalAmount?.amount, NaN)
     const taxAmount = n(cart?.cost?.totalTaxAmount?.amount, 0)
+    const cartDiscountAllocations = (cart as any)?.discountAllocations ?? []
+    const cartDiscount = cartDiscountAllocations.reduce(
+      (sum: number, alloc: any) => sum + n(alloc?.discountedAmount?.amount, 0),
+      0,
+    )
 
     let subBeforeDiscounts = 0 // compareAt × qty
-    let subAfterDiscounts = 0 // actual line cost (or unit price) × qty (captures promo allocations when provided)
+    let lineSubtotal = 0 // line cost (or unit price) × qty (before discount allocations)
+    let lineDiscount = 0
     let itemCount = 0
 
     for (const line of localLines) {
@@ -246,21 +252,29 @@ export default function CartScreen() {
       const unitPrice = n(line?.merchandise?.price?.amount)
       const compareAt = n(line?.merchandise?.compareAtPrice?.amount ?? unitPrice)
       const lineCost = n(line?.cost?.subtotalAmount?.amount, NaN)
+      const lineDiscounts = (line as any)?.discountAllocations ?? []
+      const lineDiscountTotal = lineDiscounts.reduce(
+        (sum: number, alloc: any) => sum + n(alloc?.discountedAmount?.amount, 0),
+        0,
+      )
 
       itemCount += quantity
       subBeforeDiscounts += compareAt * quantity
-      subAfterDiscounts += Number.isFinite(lineCost) ? lineCost : unitPrice * quantity
+      lineSubtotal += Number.isFinite(lineCost) ? lineCost : unitPrice * quantity
+      lineDiscount += lineDiscountTotal
     }
 
-    // Prefer server subtotal (which includes discount codes but excludes shipping), otherwise fall back to line math.
-    const resolvedSubtotal = dirty ? subAfterDiscounts : Number.isFinite(serverSubtotal) ? serverSubtotal : subAfterDiscounts
+    const appliedDiscount = cartDiscount > 0 ? cartDiscount : lineDiscount
+    const baseSavings = Math.max(0, subBeforeDiscounts - lineSubtotal)
+    const resolvedSubtotal = dirty ? lineSubtotal : Number.isFinite(serverSubtotal) ? serverSubtotal : lineSubtotal
+    const subtotalAfterDiscounts = Math.max(0, resolvedSubtotal - appliedDiscount)
 
-    const savings = Math.max(0, subBeforeDiscounts - resolvedSubtotal)
+    const savings = Math.max(0, baseSavings + appliedDiscount)
     return {
       subBefore: subBeforeDiscounts,
-      subAfter: resolvedSubtotal,
+      subAfter: subtotalAfterDiscounts,
       discount: savings,
-      total: resolvedSubtotal, // exclude shipping; show pure products total
+      total: subtotalAfterDiscounts, // exclude shipping; show pure products total
       tax: taxAmount,
       hasItems: itemCount > 0,
     }
@@ -872,6 +886,7 @@ type LineNode = {
   cost?: {
     subtotalAmount?: { amount?: number | string; currencyCode?: string }
   }
+  discountAllocations?: { discountedAmount?: { amount?: number | string; currencyCode?: string } }[]
 }
 
 function n(x: unknown, fallback = 0): number {

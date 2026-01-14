@@ -1,4 +1,9 @@
-import { cityLookupById, formatPhoneNumber, stripCountryDialCode } from "@/src/lib/addresses/addresses"
+import {
+  cityLookupById,
+  formatPhoneNumber,
+  normalizeName,
+  stripCountryDialCode,
+} from "@/src/lib/addresses/addresses"
 import { COUNTRY_MAP, mapGeocodedAddressToSelection } from "@/src/lib/addresses/mapMapper"
 import type { CustomerAddress } from "@/lib/shopify/customer/profile"
 import type { CustomerAddressInput } from "@/lib/shopify/customer/addresses"
@@ -69,6 +74,33 @@ function resolveTerritoryCode(code: string | null): string | null {
   return TERRITORY_CODE_MAP[normalized] ?? normalized
 }
 
+const KUWAIT_ZONE_CODE_MAP: Record<string, string> = {
+  "al ahmadi": "AH",
+  ahmadi: "AH",
+  "al farwaniyah": "FA",
+  farwaniyah: "FA",
+  hawalli: "HA",
+  "al jahra": "JA",
+  jahra: "JA",
+  "al asimah": "KU",
+  "al assima": "KU",
+  kuwait: "KU",
+  "mubarak al kabeer": "MU",
+  "mubarak al kabeer governorate": "MU",
+  "mubarak al-kabeer": "MU",
+}
+
+function resolveZoneCode(countryCode: string | null, provinceName: string | null): string | null {
+  if (!provinceName) return null
+  const normalizedCountry = countryCode?.trim().toUpperCase() ?? ""
+  if (normalizedCountry === "KWT") {
+    const normalizedProvince = normalizeName(provinceName)
+    const cleaned = normalizedProvince.replace(/\bgovernorate\b|\bgovernate\b/g, "").replace(/\s+/g, " ").trim()
+    return KUWAIT_ZONE_CODE_MAP[cleaned] ?? KUWAIT_ZONE_CODE_MAP[normalizedProvince] ?? null
+  }
+  return provinceName
+}
+
 function splitAddress2(address2?: string | null): {
   rawArea?: string
   address2Value: string
@@ -107,7 +139,12 @@ export function formToInput(values: AddressFormSubmitData): CustomerAddressInput
   })
   const address2WithArea = [values.area, address2, metadata].filter(Boolean).join(" • ") || null
   const territoryCode = resolveTerritoryCode(countryCode)
-  const phoneNumber = formatPhoneNumber(countryCode, values.phoneNumber)
+  const datasetCountryCode =
+    countryCode && TERRITORY_CODE_MAP[countryCode.trim().toUpperCase()]
+      ? TERRITORY_CODE_MAP[countryCode.trim().toUpperCase()]
+      : countryCode
+  const phoneNumber = formatPhoneNumber(datasetCountryCode ?? null, values.phoneNumber)
+  const zoneCode = resolveZoneCode(countryCode, provinceName)
 
   return {
     firstName: values.firstName.trim() || null,
@@ -118,7 +155,7 @@ export function formToInput(values: AddressFormSubmitData): CustomerAddressInput
     address2: address2WithArea,
     city: cityName,
     zip: values.zip.trim() || null,
-    zoneCode: provinceName,
+    zoneCode,
     territoryCode,
   }
 }

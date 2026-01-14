@@ -70,6 +70,17 @@ export const COUNTRY_DIAL_CODES: Record<CountryCode, string> = {
   IRQ: "964",
 }
 
+export const COUNTRY_PHONE_LENGTHS: Record<CountryCode, number> = {
+  KSA: 9,
+  UAE: 9,
+  KWT: 8,
+  QAT: 8,
+  BHR: 8,
+  OMN: 8,
+  JOR: 9,
+  IRQ: 10,
+}
+
 function hydrate(raw: RawAddresses) {
   Object.entries(raw).forEach(([countryCode, provinces]) => {
     const countryCities: CityIndexEntry[] = []
