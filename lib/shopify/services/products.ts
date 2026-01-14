@@ -64,6 +64,79 @@ const SEARCH_PRODUCTS_WITH_SORT_DOCUMENT = gql`
   }
 `
 
+const COLLECTION_PRODUCTS_WITH_IMAGES_DOCUMENT = gql`
+  query CollectionByHandleWithImages(
+    $handle: String!
+    $pageSize: Int!
+    $after: String
+    $country: CountryCode
+    $language: LanguageCode
+    $sortKey: ProductCollectionSortKeys
+    $reverse: Boolean
+  ) @inContext(country: $country, language: $language) {
+    collection(handle: $handle) {
+      id
+      title
+      image {
+        id
+        url(transform: { preferredContentType: WEBP })
+        altText
+        width
+        height
+      }
+      products(first: $pageSize, after: $after, sortKey: $sortKey, reverse: $reverse) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          id
+          handle
+          title
+          vendor
+          availableForSale
+          featuredImage {
+            id
+            url(transform: { preferredContentType: WEBP })
+            altText
+            width
+            height
+          }
+          images(first: 6) {
+            nodes {
+              id
+              url(transform: { preferredContentType: WEBP })
+              altText
+              width
+              height
+            }
+          }
+          priceRange {
+            minVariantPrice {
+              amount
+              currencyCode
+            }
+            maxVariantPrice {
+              amount
+              currencyCode
+            }
+          }
+          compareAtPriceRange {
+            minVariantPrice {
+              amount
+              currencyCode
+            }
+            maxVariantPrice {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+  }
+`
+
 export async function getProductByHandle(handle: string, locale?: { country?: string; language?: string }) {
   return callShopify<ProductByHandleQuery>(() =>
     shopifyClient.request(ProductByHandleDocument, {
@@ -86,6 +159,29 @@ export async function getCollectionProducts(
 ) {
   return callShopify<CollectionByHandleQuery>(() =>
     shopifyClient.request(CollectionByHandleDocument, {
+      handle: args.handle,
+      pageSize: args.pageSize ?? 24,
+      after: args.after ?? null,
+      sortKey: args.sortKey ?? null,
+      reverse: args.reverse ?? null,
+      country: locale?.country as any,
+      language: locale?.language as any,
+    }),
+  )
+}
+
+export async function getCollectionProductsWithImages(
+  args: {
+    handle: string
+    pageSize?: number
+    after?: string | null
+    sortKey?: ProductCollectionSortKeys | null
+    reverse?: boolean
+  },
+  locale?: { country?: string; language?: string },
+) {
+  return callShopify<any>(() =>
+    shopifyClient.request(COLLECTION_PRODUCTS_WITH_IMAGES_DOCUMENT, {
       handle: args.handle,
       pageSize: args.pageSize ?? 24,
       after: args.after ?? null,

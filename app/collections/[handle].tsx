@@ -1,5 +1,5 @@
 import { useMobileHome } from "@/features/home/api"
-import { useCollectionMeta, useCollectionProducts } from "@/features/plp/api"
+import { useCollectionMeta, useCollectionProductsWithImages } from "@/features/plp/api"
 import { useSearch } from "@/features/search/api"
 import { type ProductCollectionSortKeys, type ProductSortKeys } from "@/lib/shopify/gql/graphql"
 import { Skeleton } from "@/ui/feedback/Skeleton"
@@ -83,7 +83,7 @@ export default function CollectionScreen() {
     isFetchingNextPage,
     isPending: isCollectionPending,
     isFetching: isCollectionFetching,
-  } = useCollectionProducts(h || "", 24, {
+  } = useCollectionProductsWithImages(h || "", 24, {
     sortKey,
     reverse,
   })
@@ -400,6 +400,7 @@ export default function CollectionScreen() {
                     ) : (
                       <ProductTile
                         image={item?.featuredImage?.url ?? ""}
+                        images={(item?.images?.nodes ?? []).map((node: any) => node?.url).filter(Boolean)}
                         brand={item?.vendor ?? ""}
                         title={item?.title ?? ""}
                         price={Number(item?.priceRange?.minVariantPrice?.amount ?? 0)}

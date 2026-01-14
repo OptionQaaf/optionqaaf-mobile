@@ -1,14 +1,19 @@
 // ui/product/ProductTile.tsx
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
+import { ProductTileCarousel } from "@/ui/product/ProductTileCarousel"
 import { Price, type PriceSize } from "@/ui/product/Price"
+import { useTapOrSwipe } from "@/ui/product/useTapOrSwipe"
 import { cn } from "@/ui/utils/cva"
 import { Image } from "expo-image"
-import { PixelRatio, Pressable, Text, View } from "react-native"
+import { useMemo } from "react"
+import { PixelRatio, Text, View } from "react-native"
+import { GestureDetector } from "react-native-gesture-handler"
 
 type PaddingSize = "xs" | "sm" | "md" | "lg"
 
 type Props = {
   image: string
+  images?: string[]
   brand: string
   title: string
   titleLines?: number
@@ -62,6 +67,7 @@ const TILE_PRICE_SIZE_OVERRIDES: Record<
 
 export function ProductTile({
   image,
+  images,
   brand,
   title,
   titleLines = 1,
@@ -92,7 +98,24 @@ export function ProductTile({
   const targetW = width ? Math.round(width) : undefined
   const targetH = targetW ? Math.round(targetW * imageRatio) : undefined
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
-  const src = optimizeImageUrl(image, { width: targetW, height: targetH, format: "webp", dpr }) || image
+  const tileImages = useMemo(() => {
+    const urls = [image, ...(images ?? [])].filter(Boolean) as string[]
+    const seen = new Set<string>()
+    const unique = urls.filter((url) => {
+      if (seen.has(url)) return false
+      seen.add(url)
+      return true
+    })
+    return unique.slice(0, 6)
+  }, [image, images])
+  const optimizedImages = useMemo(
+    () =>
+      tileImages.map((url) => optimizeImageUrl(url, { width: targetW, height: targetH, format: "webp", dpr }) || url),
+    [tileImages, targetW, targetH, dpr],
+  )
+  const src = optimizedImages[0] || image
+  const enableCarousel = Boolean(targetW && optimizedImages.length > 1)
+  const tapGesture = useTapOrSwipe({ onPress, maxDistance: 12 })
   const titleLineHeight = 20
   const priceSize: PriceSize = (() => {
     if (typeof targetW !== "number") {
@@ -108,26 +131,31 @@ export function ProductTile({
   const priceOverride = TILE_PRICE_SIZE_OVERRIDES[priceSize]
 
   return (
-    <Pressable
-      onPress={onPress}
-      className={cn(
-        "active:opacity-95 overflow-hidden",
-        edgeToEdge ? undefined : "rounded-sm border-gray-200 border",
-        className,
-      )}
+    <GestureDetector gesture={tapGesture}>
+      <View
+      className={cn("overflow-hidden", edgeToEdge ? undefined : "rounded-sm border-gray-200 border", className)}
       style={width ? { width } : undefined}
-    >
+      >
       <View className={cn(cardChrome, "overflow-hidden")}>
         <View style={{ aspectRatio: imageRatio, backgroundColor: "#F5F5F7", overflow: "hidden" }}>
-          <Image
-            source={{ uri: src }}
-            style={{ width: "100%", height: "100%" }}
-            contentFit="cover"
-            transition={priority === "high" ? 0 : 150}
-            cachePolicy="disk"
-            priority={priority ?? (width && width > 0 ? "normal" : "low")}
-            placeholder={DEFAULT_PLACEHOLDER}
-          />
+          {enableCarousel ? (
+            <ProductTileCarousel
+              images={optimizedImages}
+              width={targetW as number}
+              height={targetH as number}
+              priority={priority}
+            />
+          ) : (
+            <Image
+              source={{ uri: src }}
+              style={{ width: "100%", height: "100%" }}
+              contentFit="cover"
+              transition={priority === "high" ? 0 : 150}
+              cachePolicy="disk"
+              priority={priority ?? (width && width > 0 ? "normal" : "low")}
+              placeholder={DEFAULT_PLACEHOLDER}
+            />
+          )}
         </View>
 
         <View className={cn(pad, "gap-2")}>
@@ -151,6 +179,7 @@ export function ProductTile({
           />
         </View>
       </View>
-    </Pressable>
+      </View>
+    </GestureDetector>
   )
 }

@@ -1,6 +1,6 @@
+import { ADDRESS_METADATA_PREFIX, stripAddressMetadata } from "@/features/account/addresses/formMapping"
 import { useCustomerProfile, useDeleteCustomerAddress, useSetDefaultCustomerAddress } from "@/features/account/api"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
-import { ADDRESS_METADATA_PREFIX, stripAddressMetadata } from "@/features/account/addresses/formMapping"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { CustomerAddress } from "@/lib/shopify/customer/profile"
 import { useToast } from "@/ui/feedback/Toast"
@@ -100,18 +100,14 @@ function AddressesContent() {
         .filter((line): line is string => Boolean(line && line.trim().length))
 
       return (
-        <Card
-          key={address.id}
-          padding="lg"
-          className={`gap-3 ${isDefault ? "bg-[#e0f2fe] border-[#0284c7]" : ""}`}
-        >
+        <Card key={address.id} padding="lg" className={`gap-3 ${isDefault ? "bg-[#e0f2fe] border-[#0284c7]" : ""}`}>
           <View className="flex-row items-start justify-between">
             <View className="flex-1 gap-1">
               <Text className="text-[#0f172a] font-geist-semibold text-[15px]">
                 {isDefault ? "Default address" : "Saved address"}
               </Text>
-              {lines.map((line) => (
-                <Text key={line} className="text-[#475569] text-[13px] leading-[18px]">
+              {lines.map((line, index) => (
+                <Text key={`${line}-${index}`} className="text-[#475569] text-[13px] leading-[18px]">
                   {line}
                 </Text>
               ))}
