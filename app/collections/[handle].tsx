@@ -450,10 +450,11 @@ export default function CollectionScreen() {
           }
           contentContainerStyle={{ paddingHorizontal: gridPadding, paddingBottom: 32 }}
           scrollEventThrottle={16}
-          removeClippedSubviews
-          initialNumToRender={12}
-          maxToRenderPerBatch={12}
-          windowSize={7}
+          removeClippedSubviews={false}
+          initialNumToRender={18}
+          maxToRenderPerBatch={18}
+          updateCellsBatchingPeriod={50}
+          windowSize={11}
         />
       </View>
     </Screen>

@@ -1,11 +1,12 @@
 // ui/product/ProductTile.tsx
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { ProductTileCarousel } from "@/ui/product/ProductTileCarousel"
+import { Skeleton } from "@/ui/feedback/Skeleton"
 import { Price, type PriceSize } from "@/ui/product/Price"
 import { useTapOrSwipe } from "@/ui/product/useTapOrSwipe"
 import { cn } from "@/ui/utils/cva"
 import { Image } from "expo-image"
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { PixelRatio, Text, View } from "react-native"
 import { GestureDetector } from "react-native-gesture-handler"
 
@@ -117,6 +118,7 @@ export function ProductTile({
   const enableCarousel = Boolean(targetW && optimizedImages.length > 1)
   const tapGesture = useTapOrSwipe({ onPress, maxDistance: 12 })
   const titleLineHeight = 20
+  const imageHeight = typeof targetH === "number" ? targetH : undefined
   const priceSize: PriceSize = (() => {
     if (typeof targetW !== "number") {
       if (resolvedPadding === "lg") return "md"
@@ -129,6 +131,11 @@ export function ProductTile({
     return "xs"
   })()
   const priceOverride = TILE_PRICE_SIZE_OVERRIDES[priceSize]
+  const [imageLoaded, setImageLoaded] = useState(false)
+
+  useEffect(() => {
+    setImageLoaded(false)
+  }, [src])
 
   return (
     <GestureDetector gesture={tapGesture}>
@@ -137,7 +144,15 @@ export function ProductTile({
       style={width ? { width } : undefined}
       >
       <View className={cn(cardChrome, "overflow-hidden")}>
-        <View style={{ aspectRatio: imageRatio, backgroundColor: "#F5F5F7", overflow: "hidden" }}>
+        <View
+          style={{
+            width: "100%",
+            height: imageHeight,
+            aspectRatio: imageHeight ? undefined : imageRatio,
+            backgroundColor: "#F5F5F7",
+            overflow: "hidden",
+          }}
+        >
           {enableCarousel ? (
             <ProductTileCarousel
               images={optimizedImages}
@@ -154,8 +169,15 @@ export function ProductTile({
               cachePolicy="disk"
               priority={priority ?? (width && width > 0 ? "normal" : "low")}
               placeholder={DEFAULT_PLACEHOLDER}
+              onLoadStart={() => setImageLoaded(false)}
+              onLoadEnd={() => setImageLoaded(true)}
             />
           )}
+          {!enableCarousel && !imageLoaded ? (
+            <View className="absolute inset-0">
+              <Skeleton className="w-full h-full" />
+            </View>
+          ) : null}
         </View>
 
         <View className={cn(pad, "gap-2")}>
