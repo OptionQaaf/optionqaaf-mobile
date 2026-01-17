@@ -71,7 +71,7 @@ export function ProductRail({ collectionHandle, size }: Props) {
             currency={item.currency}
             width={cardWidth}
             padding="xs"
-            imageRatio={0.82}
+            imageAspect={0.82}
             edgeToEdge
             onPress={() => {
               if (collectionHandle) router.push(`/collections/${collectionHandle}` as any)

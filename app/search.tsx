@@ -169,7 +169,7 @@ export default function SearchScreen() {
               })()}
               currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
               width={itemW}
-              imageRatio={3 / 4}
+              imageAspect={3 / 4}
               padding="sm"
               priority={index < 6 ? "high" : "normal"}
               onPress={() =>

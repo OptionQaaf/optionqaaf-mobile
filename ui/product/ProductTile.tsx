@@ -1,12 +1,12 @@
 // ui/product/ProductTile.tsx
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
-import { ProductTileCarousel } from "@/ui/product/ProductTileCarousel"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { Price, type PriceSize } from "@/ui/product/Price"
+import { ProductTileCarousel } from "@/ui/product/ProductTileCarousel"
 import { useTapOrSwipe } from "@/ui/product/useTapOrSwipe"
 import { cn } from "@/ui/utils/cva"
 import { Image } from "expo-image"
-import { useEffect, useMemo, useState } from "react"
+import { memo, useEffect, useMemo, useState } from "react"
 import { PixelRatio, Text, View } from "react-native"
 import { GestureDetector } from "react-native-gesture-handler"
 
@@ -25,7 +25,7 @@ type Props = {
   className?: string
   width?: number
   padding?: PaddingSize
-  imageRatio?: number
+  imageAspect?: number
   variant?: "card" | "plain"
   priority?: "low" | "normal" | "high"
   edgeToEdge?: boolean
@@ -66,7 +66,44 @@ const TILE_PRICE_SIZE_OVERRIDES: Record<
   },
 }
 
-export function ProductTile({
+const TileImage = memo(function TileImage({
+  src,
+  width,
+  priority,
+}: {
+  src: string
+  width?: number
+  priority?: "low" | "normal" | "high"
+}) {
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    setLoaded(false)
+  }, [src])
+
+  return (
+    <>
+      <Image
+        source={{ uri: src }}
+        style={{ width: "100%", height: "100%" }}
+        contentFit="cover"
+        transition={priority === "high" ? 0 : 150}
+        cachePolicy="disk"
+        priority={priority ?? (width && width > 0 ? "normal" : "low")}
+        placeholder={DEFAULT_PLACEHOLDER}
+        onLoadStart={() => setLoaded(false)}
+        onLoadEnd={() => setLoaded(true)}
+      />
+      {!loaded ? (
+        <View className="absolute inset-0">
+          <Skeleton className="w-full h-full" />
+        </View>
+      ) : null}
+    </>
+  )
+})
+
+export const ProductTile = memo(function ProductTile({
   image,
   images,
   brand,
@@ -79,7 +116,7 @@ export function ProductTile({
   className,
   width,
   padding = "md",
-  imageRatio = 1,
+  imageAspect = 1,
   variant = "card",
   priority,
   edgeToEdge = false,
@@ -95,9 +132,9 @@ export function ProductTile({
     xs: "p-2",
   }
   const pad = padMap[resolvedPadding]
-  const cardChrome = variant === "card" && !edgeToEdge ? "bg-surface" : ""
+  const cardChrome = variant === "card" && !edgeToEdge ? "bg-surface rounded-xl" : ""
   const targetW = width ? Math.round(width) : undefined
-  const targetH = targetW ? Math.round(targetW * imageRatio) : undefined
+  const targetH = targetW ? Math.round(targetW / imageAspect) : undefined
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
   const tileImages = useMemo(() => {
     const urls = [image, ...(images ?? [])].filter(Boolean) as string[]
@@ -118,7 +155,6 @@ export function ProductTile({
   const enableCarousel = Boolean(targetW && optimizedImages.length > 1)
   const tapGesture = useTapOrSwipe({ onPress, maxDistance: 12 })
   const titleLineHeight = 20
-  const imageHeight = typeof targetH === "number" ? targetH : undefined
   const priceSize: PriceSize = (() => {
     if (typeof targetW !== "number") {
       if (resolvedPadding === "lg") return "md"
@@ -131,77 +167,61 @@ export function ProductTile({
     return "xs"
   })()
   const priceOverride = TILE_PRICE_SIZE_OVERRIDES[priceSize]
-  const [imageLoaded, setImageLoaded] = useState(false)
-
-  useEffect(() => {
-    setImageLoaded(false)
-  }, [src])
+  const imageContainerStyle = useMemo(
+    () => ({
+      width: "100%",
+      height: targetH,
+      aspectRatio: targetH ? undefined : imageAspect,
+      backgroundColor: "#F5F5F7",
+      overflow: "hidden" as const,
+    }),
+    [imageAspect, targetH],
+  )
 
   return (
     <GestureDetector gesture={tapGesture}>
       <View
-      className={cn("overflow-hidden", edgeToEdge ? undefined : "rounded-sm border-gray-200 border", className)}
-      style={width ? { width } : undefined}
+        className={cn("overflow-hidden", edgeToEdge ? undefined : "rounded-xl", className)}
+        style={width ? { width } : undefined}
       >
-      <View className={cn(cardChrome, "overflow-hidden")}>
-        <View
-          style={{
-            width: "100%",
-            height: imageHeight,
-            aspectRatio: imageHeight ? undefined : imageRatio,
-            backgroundColor: "#F5F5F7",
-            overflow: "hidden",
-          }}
-        >
-          {enableCarousel ? (
-            <ProductTileCarousel
-              images={optimizedImages}
-              width={targetW as number}
-              height={targetH as number}
-              priority={priority}
-            />
-          ) : (
-            <Image
-              source={{ uri: src }}
-              style={{ width: "100%", height: "100%" }}
-              contentFit="cover"
-              transition={priority === "high" ? 0 : 150}
-              cachePolicy="disk"
-              priority={priority ?? (width && width > 0 ? "normal" : "low")}
-              placeholder={DEFAULT_PLACEHOLDER}
-              onLoadStart={() => setImageLoaded(false)}
-              onLoadEnd={() => setImageLoaded(true)}
-            />
-          )}
-          {!enableCarousel && !imageLoaded ? (
-            <View className="absolute inset-0">
-              <Skeleton className="w-full h-full" />
-            </View>
-          ) : null}
-        </View>
-
-        <View className={cn(pad, "gap-2")}>
-          <View style={{ minHeight: titleLineHeight * titleLines, justifyContent: "flex-start" }}>
-            <Text
-              className="text-primary text-[14px] font-semibold"
-              style={{ lineHeight: titleLineHeight }}
-              numberOfLines={titleLines}
-            >
-              {title}
-            </Text>
+        <View className={cn(cardChrome, "overflow-hidden")}>
+          <View style={imageContainerStyle}>
+            {enableCarousel ? (
+              <ProductTileCarousel
+                images={optimizedImages}
+                width={targetW as number}
+                height={targetH as number}
+                priority={priority}
+              />
+            ) : (
+              <TileImage src={src} width={targetW} priority={priority} />
+            )}
           </View>
-          <Price
-            amount={price}
-            compareAt={compareAt}
-            currency={currency}
-            size={priceSize}
-            amountClassName={priceOverride.amount}
-            compareAtClassName={priceOverride.compare}
-            discountClassName={priceOverride.discount}
-          />
+
+          <View className={cn(pad, "gap-2")}>
+            <View style={{ minHeight: titleLineHeight * titleLines, justifyContent: "flex-start" }}>
+              <Text
+                className="text-primary text-[14px] font-semibold"
+                style={{ lineHeight: titleLineHeight }}
+                numberOfLines={titleLines}
+              >
+                {title}
+              </Text>
+            </View>
+            <Price
+              amount={price}
+              compareAt={compareAt}
+              currency={currency}
+              size={priceSize}
+              amountClassName={priceOverride.amount}
+              compareAtClassName={priceOverride.compare}
+              discountClassName={priceOverride.discount}
+            />
+          </View>
         </View>
-      </View>
       </View>
     </GestureDetector>
   )
-}
+})
+
+ProductTile.displayName = "ProductTile"

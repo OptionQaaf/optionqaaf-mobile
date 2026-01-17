@@ -484,7 +484,7 @@ Paint background on the **outer** absolute wrapper; place content inside a botto
 
 ### `ProductTile`
 
-- Props: `brand`, `title`, `price`, `compareAt?`, `currency?`, `width?`, `titleLines?`, `imageRatio?` (e.g. `3/4`),
+- Props: `brand`, `title`, `price`, `compareAt?`, `currency?`, `width?`, `titleLines?`, `imageAspect?` (width/height, e.g. `3/4`),
   `rounded?` (`xl|2xl|3xl`), `padding?` (`sm|md|lg`).
 - **Use `aspectRatio`** for consistent images; pass computed `width` from the grid.
 
@@ -496,7 +496,7 @@ Paint background on the **outer** absolute wrapper; place content inside a botto
   price={39}
   compareAt={59}
   width={itemWidth}
-  imageRatio={3 / 4}
+  imageAspect={3 / 4}
   rounded="3xl"
   titleLines={2}
 />
@@ -519,7 +519,7 @@ Measures container width, renders rows without virtualization (no nested list wa
   data={items}
   columns={2}
   gap={12}
-  renderItem={(item, w) => <ProductTile {...item} width={w} imageRatio={3 / 4} />}
+  renderItem={(item, w) => <ProductTile {...item} width={w} imageAspect={3 / 4} />}
 />
 ```
 

@@ -1,3 +1,4 @@
+import { FlashList } from "@shopify/flash-list"
 import { useMobileHome } from "@/features/home/api"
 import { useCollectionMeta, useCollectionProductsWithImages } from "@/features/plp/api"
 import { useSearch } from "@/features/search/api"
@@ -13,7 +14,6 @@ import { router, useLocalSearchParams } from "expo-router"
 import { LayoutGrid, Square } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
-  FlatList,
   ImageBackground,
   LayoutAnimation,
   Linking,
@@ -221,10 +221,16 @@ export default function CollectionScreen() {
   const heroH = Math.max(280, Math.min(440, Math.round(width * 1.0)))
   const titleSize = Math.round(Math.min(72, Math.max(40, width * 0.16)))
   const gridPadding = 16
+  const productImageAspect = 3 / 4 // width / height
   const itemWidth = useMemo(() => {
     const totalGap = GRID_GAP * (view - 1)
     return Math.floor((width - gridPadding * 2 - totalGap) / view)
   }, [width, view])
+  const tileImageHeight = useMemo(() => Math.round(itemWidth / productImageAspect), [itemWidth, productImageAspect])
+  const estimatedItemSize = useMemo(() => {
+    const textBlockHeight = view === 2 ? 104 : 120
+    return tileImageHeight + textBlockHeight + GRID_GAP
+  }, [tileImageHeight, view])
 
   const listData = useMemo(() => {
     if (isLoadingProducts) {
@@ -248,7 +254,7 @@ export default function CollectionScreen() {
           }}
         >
           {item?.__skeleton ? (
-            <ProductTileSkeleton width={itemWidth} imageRatio={3 / 4} padding={view === 2 ? "sm" : "md"} />
+            <ProductTileSkeleton width={itemWidth} imageAspect={productImageAspect} padding={view === 2 ? "sm" : "md"} />
           ) : (
             <ProductTile
               image={item?.featuredImage?.url ?? ""}
@@ -263,7 +269,7 @@ export default function CollectionScreen() {
               })()}
               currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
               width={itemWidth}
-              imageRatio={3 / 4}
+              imageAspect={productImageAspect}
               padding={view === 2 ? "sm" : "md"}
               onPress={() => {
                 const h = item?.handle
@@ -274,7 +280,7 @@ export default function CollectionScreen() {
         </View>
       )
     },
-    [itemWidth, view],
+    [itemWidth, productImageAspect, view],
   )
 
   // If special men-1 / women-1: render aesthetic sections + PLP-like grid
@@ -305,18 +311,19 @@ export default function CollectionScreen() {
       <View className="flex-1 bg-white">
         <MenuBar floating />
 
-        <FlatList
+        <FlashList
           data={listData}
-          key={`collection-grid-${view}`}
           numColumns={view}
           keyExtractor={(item, index) => item?._key ?? item?.id ?? item?.handle ?? `${index}`}
           renderItem={renderGridItem}
+          estimatedItemSize={estimatedItemSize}
           onEndReachedThreshold={0.6}
           onEndReached={() => {
             if (activeHasNextPage && !reachedCap && !activeIsFetchingNextPage) {
               activeFetchNextPage()
             }
           }}
+          extraData={view}
           ListHeaderComponent={
             <View style={{ marginHorizontal: -gridPadding }}>
               {/* Hero */}
@@ -450,11 +457,7 @@ export default function CollectionScreen() {
           }
           contentContainerStyle={{ paddingHorizontal: gridPadding, paddingBottom: 32 }}
           scrollEventThrottle={16}
-          removeClippedSubviews={false}
-          initialNumToRender={18}
-          maxToRenderPerBatch={18}
-          updateCellsBatchingPeriod={50}
-          windowSize={11}
+          removeClippedSubviews
         />
       </View>
     </Screen>

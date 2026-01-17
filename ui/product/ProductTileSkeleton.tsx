@@ -5,7 +5,7 @@ import { View } from "react-native"
 type Props = {
   width?: number
   padding?: "sm" | "md" | "lg"
-  imageRatio?: number
+  imageAspect?: number
   variant?: "card" | "plain"
   className?: string
 }
@@ -13,17 +13,25 @@ type Props = {
 export function ProductTileSkeleton({
   width,
   padding = "md",
-  imageRatio = 1,
+  imageAspect = 1,
   variant = "card",
   className,
 }: Props) {
   const pad = padding === "lg" ? "p-4" : padding === "sm" ? "p-2.5" : "p-3"
-  const cardChrome = variant === "card" ? "bg-surface" : ""
+  const cardChrome = variant === "card" ? "bg-surface rounded-xl" : ""
+  const imageHeight = width ? Math.round(width / imageAspect) : undefined
 
   return (
-    <View className={cn("rounded-sm overflow-hidden border border-gray-200 w-full", className)} style={width ? { width } : undefined}>
+    <View className={cn("rounded-xl overflow-hidden w-full", className)} style={width ? { width } : undefined}>
       <View className={cn(cardChrome, "overflow-hidden")}>
-        <View style={{ aspectRatio: imageRatio, backgroundColor: "#F5F5F7" }}>
+        <View
+          style={{
+            width: "100%",
+            height: imageHeight,
+            aspectRatio: imageHeight ? undefined : imageAspect,
+            backgroundColor: "#F5F5F7",
+          }}
+        >
           <Skeleton className="w-full h-full" style={{ flex: 1 }} />
         </View>
 

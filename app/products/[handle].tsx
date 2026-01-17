@@ -530,7 +530,7 @@ function Recommended({
             compareAt={undefined}
             currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
             width={w}
-            imageRatio={3 / 4}
+            imageAspect={3 / 4}
             padding="sm"
             onPress={() => item?.handle && router.push(`/products/${item.handle}` as any)}
           />

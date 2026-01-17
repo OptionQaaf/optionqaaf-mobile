@@ -1,7 +1,7 @@
 import { DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { Image } from "expo-image"
-import { memo, useEffect, useMemo, useState } from "react"
+import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { LayoutChangeEvent, View } from "react-native"
 import type { PanGesture } from "react-native-gesture-handler"
 import Carousel from "react-native-reanimated-carousel"
@@ -16,7 +16,8 @@ type Props = {
 export const ProductTileCarousel = memo(function ProductTileCarousel({ images, width, height, priority }: Props) {
   const [imageIndex, setImageIndex] = useState(0)
   const [layout, setLayout] = useState({ width, height })
-  const [loadedIndexes, setLoadedIndexes] = useState<number[]>([])
+  const loadedIndexes = useRef<Set<number>>(new Set())
+  const [, forceUpdate] = useState(0)
   const showDots = images.length > 1
   const resolvedPriority = priority ?? (width > 0 ? "normal" : "low")
 
@@ -32,8 +33,9 @@ export const ProductTileCarousel = memo(function ProductTileCarousel({ images, w
   }, [width, height])
 
   useEffect(() => {
-    setLoadedIndexes([])
+    loadedIndexes.current = new Set()
     setImageIndex(0)
+    forceUpdate((value) => value + 1)
   }, [images])
 
   const onLayout = (event: LayoutChangeEvent) => {
@@ -58,7 +60,7 @@ export const ProductTileCarousel = memo(function ProductTileCarousel({ images, w
         onSnapToItem={setImageIndex}
         onConfigurePanGesture={configurePanGesture}
         renderItem={({ item, index }) => {
-          const isLoaded = loadedIndexes.includes(index)
+          const isLoaded = loadedIndexes.current.has(index)
           return (
             <View className="w-full h-full">
               <Image
@@ -69,9 +71,13 @@ export const ProductTileCarousel = memo(function ProductTileCarousel({ images, w
                 cachePolicy="disk"
                 priority={resolvedPriority}
                 placeholder={DEFAULT_PLACEHOLDER}
-                onLoadEnd={() =>
-                  setLoadedIndexes((prev) => (prev.includes(index) ? prev : [...prev, index]))
-                }
+                onLoadEnd={() => {
+                  if (loadedIndexes.current.has(index)) return
+                  loadedIndexes.current.add(index)
+                  if (index === imageIndex) {
+                    forceUpdate((value) => value + 1)
+                  }
+                }}
               />
               {!isLoaded ? (
                 <View className="absolute inset-0">
