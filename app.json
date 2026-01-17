@@ -2,14 +2,13 @@
   "expo": {
     "name": "OptionQaaf",
     "slug": "optionqaaf-app",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/white-icon.png",
     "scheme": ["optionqaafmobile", "shop.85072904499.app"],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "buildNumber": "1",
       "supportsTablet": true,
       "bundleIdentifier": "co.shopney.optionqaaf",
       "infoPlist": {
