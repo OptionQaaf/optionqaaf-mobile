@@ -1,4 +1,4 @@
-import { geocodeAddressString, reverseGeocodeGoogle } from "@/lib/maps/places"
+import { reverseGeocodeGoogle } from "@/lib/maps/places"
 import {
   cityLookupById,
   cityOptionsByCountry,
@@ -369,65 +369,6 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   const areaOptions = useMemo<AreaOption[]>(() => getAreaOptions(values.cityId), [values.cityId])
 
   const cityName = values.cityId ? cityLookupById[values.cityId]?.cityName : undefined
-
-  useEffect(() => {
-    if (!values.countryCode || !values.cityId || !values.addressLine.trim()) return
-    const city = cityLookupById[values.cityId]
-    if (!city) return
-    if (zipEditedManually.current && !values.zip.trim()) {
-      zipEditedManually.current = false
-    }
-    if (zipEditedManually.current) return
-
-    const parts = [
-      values.addressLine,
-      values.address2,
-      values.area,
-      city.cityName,
-      city.provinceName,
-      values.countryCode,
-    ]
-      .map((part) => (part ?? "").trim())
-      .filter(Boolean)
-    if (!parts.length) return
-
-    const query = parts.join(", ")
-    const controller = new AbortController()
-    const timer = setTimeout(() => {
-      geocodeAddressString(query, controller.signal)
-        .then((address) => {
-          if (typeof address.lat === "number" && typeof address.lng === "number") {
-            const coordinate = { latitude: address.lat, longitude: address.lng }
-            updateCoordinateState(coordinate)
-            setRegionForCoordinate(coordinate)
-          }
-
-          if (address.rawZip && !zipEditedManually.current) {
-            setValues((prev) => ({ ...prev, zip: address.rawZip ?? prev.zip }))
-          }
-        })
-        .catch((error) => {
-          if (error?.name === "AbortError") return
-          console.error("geocodeAddressString", error)
-        })
-    }, 500)
-
-    return () => {
-      controller.abort()
-      clearTimeout(timer)
-    }
-  }, [
-    values.address2,
-    values.addressLine,
-    values.area,
-    values.cityId,
-    values.countryCode,
-    values.provinceName,
-    values.zip,
-    selectedCoordinate,
-    setRegionForCoordinate,
-    updateCoordinateState,
-  ])
 
   return (
     <KeyboardAwareScrollView

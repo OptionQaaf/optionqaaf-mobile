@@ -1,4 +1,5 @@
 import { DEFAULT_PLACEHOLDER } from "@/lib/images/optimize"
+import { Skeleton } from "@/ui/feedback/Skeleton"
 import { Image } from "expo-image"
 import { memo, useEffect, useMemo, useState } from "react"
 import { LayoutChangeEvent, View } from "react-native"
@@ -15,6 +16,7 @@ type Props = {
 export const ProductTileCarousel = memo(function ProductTileCarousel({ images, width, height, priority }: Props) {
   const [imageIndex, setImageIndex] = useState(0)
   const [layout, setLayout] = useState({ width, height })
+  const [loadedIndexes, setLoadedIndexes] = useState<number[]>([])
   const showDots = images.length > 1
   const resolvedPriority = priority ?? (width > 0 ? "normal" : "low")
 
@@ -28,6 +30,11 @@ export const ProductTileCarousel = memo(function ProductTileCarousel({ images, w
   useEffect(() => {
     setLayout({ width, height })
   }, [width, height])
+
+  useEffect(() => {
+    setLoadedIndexes([])
+    setImageIndex(0)
+  }, [images])
 
   const onLayout = (event: LayoutChangeEvent) => {
     const nextWidth = Math.round(event.nativeEvent.layout.width)
@@ -50,17 +57,30 @@ export const ProductTileCarousel = memo(function ProductTileCarousel({ images, w
         scrollAnimationDuration={220}
         onSnapToItem={setImageIndex}
         onConfigurePanGesture={configurePanGesture}
-        renderItem={({ item, index }) => (
-          <Image
-            source={{ uri: item }}
-            style={{ width: "100%", height: "100%" }}
-            contentFit="cover"
-            transition={priority === "high" || index === 0 ? 0 : 150}
-            cachePolicy="disk"
-            priority={resolvedPriority}
-            placeholder={DEFAULT_PLACEHOLDER}
-          />
-        )}
+        renderItem={({ item, index }) => {
+          const isLoaded = loadedIndexes.includes(index)
+          return (
+            <View className="w-full h-full">
+              <Image
+                source={{ uri: item }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+                transition={priority === "high" || index === 0 ? 0 : 150}
+                cachePolicy="disk"
+                priority={resolvedPriority}
+                placeholder={DEFAULT_PLACEHOLDER}
+                onLoadEnd={() =>
+                  setLoadedIndexes((prev) => (prev.includes(index) ? prev : [...prev, index]))
+                }
+              />
+              {!isLoaded ? (
+                <View className="absolute inset-0">
+                  <Skeleton className="w-full h-full" />
+                </View>
+              ) : null}
+            </View>
+          )
+        }}
       />
 
       {showDots ? (
