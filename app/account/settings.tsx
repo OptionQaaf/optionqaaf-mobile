@@ -1,0 +1,254 @@
+import { useCustomerProfile } from "@/features/account/api"
+import { isDeletionRequestPending } from "@/features/account/deletion"
+import { AccountSignInFallback } from "@/features/account/SignInFallback"
+import { AuthGate } from "@/features/auth/AuthGate"
+import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
+import { isPushAdmin } from "@/features/notifications/admin"
+import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
+import { clearOnboardingFlag } from "@/lib/storage/flags"
+import { kv } from "@/lib/storage/mmkv"
+import { useToast } from "@/ui/feedback/Toast"
+import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
+import { Screen } from "@/ui/layout/Screen"
+import { MenuBar } from "@/ui/nav/MenuBar"
+import { Button } from "@/ui/primitives/Button"
+import { Card } from "@/ui/surfaces/Card"
+import { useRouter, type RelativePathString } from "expo-router"
+import { Clock, Megaphone, RefreshCcw, Settings2, Trash2 } from "lucide-react-native"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { ScrollView, Text, View } from "react-native"
+
+export default function AccountSettingsScreen() {
+  const router = useRouter()
+
+  return (
+    <AuthGate requireAuth fallback={<AccountSignInFallback onSuccess={() => router.replace("/account" as const)} />}>
+      <Screen bleedBottom>
+        <MenuBar back />
+        <AccountSettingsContent />
+      </Screen>
+    </AuthGate>
+  )
+}
+
+function AccountSettingsContent() {
+  const router = useRouter()
+  const { show } = useToast()
+  const { isAuthenticated } = useShopifyAuth()
+  const { data: profile } = useCustomerProfile({ enabled: isAuthenticated })
+  const [deletionPending, setDeletionPending] = useState(false)
+  const [deletionPendingLoaded, setDeletionPendingLoaded] = useState(false)
+  const deletionCacheRef = useRef(new Map<string, boolean>())
+
+  const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
+
+  const settingsLinks = useMemo(
+    () => [
+      {
+        title: "Notifications",
+        body: "Control messages, offers, and alerts.",
+        Icon: Settings2,
+        path: "/account/notifications" as RelativePathString,
+      },
+    ],
+    [],
+  )
+
+  const adminLinks = useMemo(() => {
+    if (!isAdmin) return []
+    return [
+      {
+        title: "Push broadcast",
+        body: "Send a push notification to all devices.",
+        Icon: Megaphone,
+        path: "/account/broadcast" as RelativePathString,
+      },
+    ]
+  }, [isAdmin])
+
+  useEffect(() => {
+    let isActive = true
+    const email = profile?.email?.trim().toLowerCase()
+    setDeletionPendingLoaded(false)
+    if (!email) {
+      setDeletionPending(false)
+      setDeletionPendingLoaded(true)
+      return () => {
+        isActive = false
+      }
+    }
+
+    const cached = deletionCacheRef.current.get(email)
+    if (cached !== undefined) {
+      setDeletionPending(cached)
+    } else {
+      setDeletionPending(false)
+    }
+
+    const run = async () => {
+      const pending = await isDeletionRequestPending(new Date(), email)
+      deletionCacheRef.current.set(email, pending)
+      if (isActive) {
+        setDeletionPending(pending)
+        setDeletionPendingLoaded(true)
+      }
+    }
+    void run()
+    return () => {
+      isActive = false
+    }
+  }, [profile?.email])
+
+  const handleDebugExpireToken = useCallback(async () => {
+    try {
+      await fastForwardAccessTokenExpiry(3600)
+      show({ title: "Fast-forwarded token expiry by 1 hour", type: "success" })
+    } catch (err: any) {
+      const message = err?.message || "Unable to fast-forward token"
+      show({ title: message, type: "danger" })
+    }
+  }, [show])
+
+  const handleResetOnboarding = useCallback(async () => {
+    try {
+      kv.del("notification-settings")
+      kv.del("prefs")
+      await clearOnboardingFlag()
+      show({ title: "Cache cleared. Restarting onboarding…", type: "success" })
+      router.replace("/(onboarding)/locale" as const)
+    } catch (err: any) {
+      const message = err?.message || "Unable to reset onboarding cache"
+      show({ title: message, type: "danger" })
+    }
+  }, [router, show])
+
+  return (
+    <ScrollView contentContainerStyle={{ paddingBottom: 32 }} className="bg-[#f8fafc]">
+      <View className="px-5 pt-6 pb-4 gap-7">
+        <View className="gap-2">
+          <Text className="text-[#0f172a] font-geist-semibold text-[20px]">Account settings</Text>
+          <Text className="text-[#475569] text-[14px] leading-[20px]">
+            Manage notifications, admin tools, and account controls.
+          </Text>
+        </View>
+
+        {!deletionPendingLoaded ? null : deletionPending ? (
+          <Card padding="lg" className="border border-[#fecaca] bg-[#fef2f2] gap-2">
+            <Text className="text-[#991b1b] font-geist-semibold text-[15px]">
+              This account is going through deletion.
+            </Text>
+            <Text className="text-[#b91c1c] text-[13px] leading-[18px]">
+              Your account and all data will be permanently deleted soon. Any changes or activity will be lost.
+            </Text>
+          </Card>
+        ) : null}
+
+        <Section title="Notifications">
+          <View className="gap-3">
+            {settingsLinks.map((link) => (
+              <AccountLink
+                key={link.title}
+                title={link.title}
+                description={link.body}
+                icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
+                onPress={() => router.push(link.path)}
+              />
+            ))}
+          </View>
+        </Section>
+
+        {adminLinks.length > 0 ? (
+          <Section title="Admin tools">
+            <View className="gap-3">
+              {adminLinks.map((link) => (
+                <AccountLink
+                  key={link.title}
+                  title={link.title}
+                  description={link.body}
+                  icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
+                  onPress={() => router.push(link.path)}
+                />
+              ))}
+            </View>
+          </Section>
+        ) : null}
+
+        {__DEV__ ? (
+          <Section title="Developer">
+            <View className="gap-2">
+              <Button
+                variant="outline"
+                size="lg"
+                fullWidth
+                onPress={handleResetOnboarding}
+                leftIcon={<RefreshCcw color="#111827" size={18} strokeWidth={2} />}
+              >
+                Reset onboarding/cache (dev)
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                fullWidth
+                onPress={handleDebugExpireToken}
+                leftIcon={<Clock color="#111827" size={18} strokeWidth={2} />}
+              >
+                Expire token (debug)
+              </Button>
+            </View>
+          </Section>
+        ) : null}
+
+        <Section title="Account">
+          <View className="gap-2">
+            {!deletionPending ? (
+              <Button
+                variant="danger"
+                size="lg"
+                fullWidth
+                onPress={() => router.push("/account/delete" as const)}
+                leftIcon={<Trash2 color="#DC2626" size={18} strokeWidth={2} />}
+              >
+                Delete Account
+              </Button>
+            ) : (
+              <Text className="text-[#475569] text-[13px]">Deletion is already in progress.</Text>
+            )}
+          </View>
+        </Section>
+      </View>
+    </ScrollView>
+  )
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View className="gap-3">
+      <Text className="text-[#0f172a] font-geist-semibold text-[16px]">{title}</Text>
+      {children}
+    </View>
+  )
+}
+
+function AccountLink({
+  title,
+  description,
+  icon,
+  onPress,
+}: {
+  title: string
+  description: string
+  icon: ReactNode
+  onPress: () => void
+}) {
+  return (
+    <PressableOverlay onPress={onPress} className="rounded-sm">
+      <Card padding="lg" className="flex-row items-center gap-4">
+        <View className="h-12 w-12 rounded-sm bg-[#f1f5f9] items-center justify-center">{icon}</View>
+        <View className="flex-1 gap-1">
+          <Text className="text-[#0f172a] font-geist-semibold text-[15px]">{title}</Text>
+          <Text className="text-[#475569] text-[13px] leading-[18px]">{description}</Text>
+        </View>
+      </Card>
+    </PressableOverlay>
+  )
+}

@@ -3,7 +3,6 @@ import { useCustomerProfile } from "@/features/account/api"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { isPushAdmin } from "@/features/notifications/admin"
-import { kv } from "@/lib/storage/mmkv"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
@@ -14,7 +13,7 @@ import { Image } from "expo-image"
 import * as ImagePicker from "expo-image-picker"
 import { useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from "react-native"
+import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, ScrollView, Switch, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const WORKER_URL = (process.env.EXPO_PUBLIC_PUSH_WORKER_URL || "").replace(/\/+$/, "")
@@ -26,15 +25,24 @@ const DESTINATION_OPTIONS = [
   { key: "custom", label: "App path" },
   { key: "url", label: "External link" },
 ] as const
-type BroadcastHistoryEntry = {
+type NotificationStats = {
   id: string
   title: string | null
   body: string
-  destination: string
+  destination: string | null
   createdAt: string
+  requestedCount: number
+  successCount: number
+  errorCount: number
+  invalidTokenCount: number
+  openCount: number
+  uniqueOpenCount: number
+  openers: Array<{
+    token: string
+    email: string | null
+    openedAt: string
+  }>
 }
-const HISTORY_KEY = "broadcast-history"
-const MAX_HISTORY = 20
 
 export default function BroadcastScreen() {
   const router = useRouter()
@@ -68,12 +76,17 @@ function BroadcastContent() {
   const [destinationValue, setDestinationValue] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [isSending, setIsSending] = useState(false)
-  const [history, setHistory] = useState<BroadcastHistoryEntry[]>([])
+  const [adminOnly, setAdminOnly] = useState(false)
+  const [stats, setStats] = useState<NotificationStats[]>([])
+  const [statsError, setStatsError] = useState<string | null>(null)
+  const [isLoadingStats, setIsLoadingStats] = useState(false)
 
   const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
   const trimmedTitle = title.trim()
   const trimmedMessage = message.trim()
   const missingConfig = !WORKER_URL || !ADMIN_SECRET
+  const adminEmailsConfigured = Boolean((process.env.EXPO_PUBLIC_PUSH_ADMIN_EMAILS || "").trim())
+  const missingAdminEmails = adminOnly && !adminEmailsConfigured
 
   const destinationMeta = useMemo(() => {
     const value = destinationValue.trim()
@@ -107,6 +120,27 @@ function BroadcastContent() {
     }
   }, [destinationMeta.path, destinationMeta.url, router])
 
+  const loadStats = useCallback(async () => {
+    if (missingConfig) return
+    setIsLoadingStats(true)
+    setStatsError(null)
+    try {
+      const res = await fetch(`${WORKER_URL}/api/stats?limit=10`, {
+        headers: { "x-admin-secret": ADMIN_SECRET },
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => "")
+        throw new Error(text || `Stats request failed with status ${res.status}`)
+      }
+      const json = (await res.json()) as NotificationStats[]
+      if (Array.isArray(json)) setStats(json)
+    } catch (err: any) {
+      setStatsError(err?.message ?? "Unable to load stats")
+    } finally {
+      setIsLoadingStats(false)
+    }
+  }, [missingConfig])
+
   const handleSend = useCallback(async () => {
     if (!trimmedMessage) {
       show({ title: "Message is required", type: "info" })
@@ -124,6 +158,7 @@ function BroadcastContent() {
         secret: ADMIN_SECRET,
         title: trimmedTitle || undefined,
         body: trimmedMessage,
+        audience: adminOnly ? "admins" : "all",
       }
 
       if (destinationMeta.path) payload.path = destinationMeta.path
@@ -136,36 +171,33 @@ function BroadcastContent() {
         body: JSON.stringify(payload),
       })
 
+      const rawText = await res.text().catch(() => "")
+      let json: Record<string, any> | null = null
+      try {
+        json = rawText ? (JSON.parse(rawText) as Record<string, any>) : null
+      } catch {
+        json = null
+      }
       if (!res.ok) {
-        const text = await res.text().catch(() => "")
+        const text = json?.error ?? rawText
         throw new Error(text || `Broadcast failed with status ${res.status}`)
       }
 
-      show({ title: "Broadcast sent", type: "success" })
+      show({ title: "Broadcast queued", type: "success" })
       setMessage("")
       setTitle("")
       setDestination("none")
       setDestinationValue("")
-
-      const entry: BroadcastHistoryEntry = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        title: trimmedTitle || null,
-        body: trimmedMessage,
-        destination: destinationSummary,
-        createdAt: new Date().toISOString(),
-      }
-      setHistory((prev) => {
-        const next = [entry, ...prev].slice(0, MAX_HISTORY)
-        kv.set(HISTORY_KEY, JSON.stringify(next))
-        return next
-      })
+      setImageUrl("")
+      loadStats()
     } catch (err: any) {
       const message = err?.message || "Could not send broadcast"
       show({ title: message, type: "danger" })
+      console.error("Broadcast error:", err)
     } finally {
       setIsSending(false)
     }
-  }, [missingConfig, trimmedMessage, trimmedTitle, destinationMeta, show])
+  }, [missingConfig, trimmedMessage, trimmedTitle, destinationMeta, show, loadStats, adminOnly])
 
   const pickImage = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -200,15 +232,10 @@ function BroadcastContent() {
   }, [error, show])
 
   useEffect(() => {
-    try {
-      const raw = kv.get(HISTORY_KEY)
-      if (!raw) return
-      const parsed = JSON.parse(raw) as BroadcastHistoryEntry[]
-      if (Array.isArray(parsed)) setHistory(parsed)
-    } catch {
-      // ignore parse errors
+    if (isAdmin) {
+      loadStats()
     }
-  }, [])
+  }, [isAdmin, loadStats])
 
   if (isLoading && !profile) {
     return (
@@ -344,6 +371,25 @@ function BroadcastContent() {
               </View>
             </View>
 
+            <View className="flex-row items-center justify-between gap-4 rounded-xl border border-[#e2e8f0] bg-white p-3">
+              <View className="flex-1 gap-1">
+                <Text className="text-[#0f172a] font-geist-medium text-[13px]">Send to admins only</Text>
+                <Text className="text-[#475569] text-[12px] leading-[16px]">
+                  Use this to test pushes without notifying every user.
+                </Text>
+              </View>
+              <Switch
+                value={adminOnly}
+                onValueChange={setAdminOnly}
+                trackColor={{ false: "#cbd5f5", true: "#0f172a" }}
+                thumbColor={Platform.OS === "android" ? (adminOnly ? "#ffffff" : "#f8fafc") : undefined}
+                ios_backgroundColor="#cbd5f5"
+              />
+            </View>
+            {missingAdminEmails ? (
+              <Text className="text-danger text-[13px]">Set EXPO_PUBLIC_PUSH_ADMIN_EMAILS to use admin-only tests.</Text>
+            ) : null}
+
             {missingConfig ? (
               <Text className="text-danger text-[13px]">
                 Set EXPO_PUBLIC_PUSH_WORKER_URL and EXPO_PUBLIC_PUSH_ADMIN_SECRET to send broadcasts.
@@ -354,26 +400,62 @@ function BroadcastContent() {
               fullWidth
               onPress={handleSend}
               isLoading={isSending}
-              disabled={isSending || !trimmedMessage || missingConfig}
+              disabled={isSending || !trimmedMessage || missingConfig || missingAdminEmails}
             >
               Send broadcast
             </Button>
           </Card>
           <Card padding="lg" className="gap-3">
-            <Text className="text-[#0f172a] font-geist-semibold text-[16px]">History</Text>
-            {history.length === 0 ? (
-              <Text className="text-[#475569] text-[13px]">No broadcasts yet</Text>
+            <View className="flex-row items-center justify-between">
+              <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Notification stats</Text>
+              <Button variant="ghost" size="sm" onPress={loadStats} disabled={isLoadingStats || missingConfig}>
+                Refresh
+              </Button>
+            </View>
+            {missingConfig ? (
+              <Text className="text-[#475569] text-[13px]">
+                Configure the push worker env vars to load notification stats.
+              </Text>
+            ) : null}
+            {statsError ? <Text className="text-danger text-[13px]">{statsError}</Text> : null}
+            {stats.length === 0 ? (
+              <Text className="text-[#475569] text-[13px]">
+                {isLoadingStats ? "Loading stats..." : "No stats available yet"}
+              </Text>
             ) : (
-              history.map((item) => (
-                <View key={item.id} className="border border-[#e2e8f0] rounded-xl p-3 bg-white gap-1">
-                  <View className="flex-row justify-between items-center">
-                    <Text className="text-[#0f172a] font-geist-medium text-[14px]" numberOfLines={1}>
-                      {item.title || "Untitled"}
-                    </Text>
-                    <Text className="text-[#94a3b8] text-[12px]">{formatHistoryDate(item.createdAt)}</Text>
+              stats.map((entry) => (
+                <View key={entry.id} className="border border-[#e2e8f0] rounded-xl p-3 bg-white gap-2">
+                  <Text className="text-[#0f172a] font-geist-medium text-[14px]" numberOfLines={1}>
+                    {entry.title || "Untitled"}
+                  </Text>
+                  <Text className="text-[#0f172a] text-[13px]">{entry.body}</Text>
+                  <Text className="text-[#94a3b8] text-[12px]">{formatHistoryDate(entry.createdAt)}</Text>
+                  {entry.destination ? (
+                    <Text className="text-[#475569] text-[12px]">Destination: {entry.destination}</Text>
+                  ) : null}
+                  <View className="flex-row flex-wrap gap-3">
+                    <Text className="text-[#475569] text-[12px]">Sent: {entry.requestedCount}</Text>
+                    <Text className="text-[#475569] text-[12px]">Delivered: {entry.successCount}</Text>
+                    <Text className="text-[#475569] text-[12px]">Errors: {entry.errorCount}</Text>
+                    <Text className="text-[#475569] text-[12px]">Invalid: {entry.invalidTokenCount}</Text>
+                    <Text className="text-[#475569] text-[12px]">Opens: {entry.openCount}</Text>
+                    <Text className="text-[#475569] text-[12px]">Unique opens: {entry.uniqueOpenCount}</Text>
                   </View>
-                  <Text className="text-[#0f172a] text-[13px]">{item.body}</Text>
-                  <Text className="text-[#475569] text-[12px]">Destination: {item.destination}</Text>
+                  {entry.openers.length > 0 ? (
+                    <View className="gap-1">
+                      <Text className="text-[#0f172a] text-[12px] font-geist-medium">Recent opens</Text>
+                      {entry.openers
+                        .slice(-5)
+                        .reverse()
+                        .map((opener) => (
+                          <Text key={`${entry.id}-${opener.token}`} className="text-[#94a3b8] text-[11px]">
+                            {formatOpener(opener)}
+                          </Text>
+                        ))}
+                    </View>
+                  ) : (
+                    <Text className="text-[#94a3b8] text-[11px]">No opens tracked yet</Text>
+                  )}
                 </View>
               ))
             )}
@@ -392,4 +474,10 @@ function formatHistoryDate(iso: string) {
   } catch {
     return iso
   }
+}
+
+function formatOpener(opener: NotificationStats["openers"][number]) {
+  if (opener.email) return `${opener.email} • ${formatHistoryDate(opener.openedAt)}`
+  const tokenPreview = opener.token.length > 12 ? `${opener.token.slice(0, 6)}…${opener.token.slice(-4)}` : opener.token
+  return `${tokenPreview} • ${formatHistoryDate(opener.openedAt)}`
 }

@@ -6,8 +6,6 @@ import {
   useEnsureCart,
   useReplaceCartDeliveryAddresses,
   useSyncCartChanges,
-  useUpdateCartAttributes,
-  useUpdateCartNote,
   useUpdateDiscountCodes,
 } from "@/features/cart/api"
 import { convertAmount } from "@/features/currency/rates"
@@ -633,7 +631,7 @@ export default function CartScreen() {
                           <Input
                             value={codeInput}
                             onChangeText={setCodeInput}
-                            placeholder="Add promo code"
+                            placeholder="ادخل كود الخصم او رمز الكوبون"
                             autoCapitalize="characters"
                             autoCorrect={false}
                             size="md"

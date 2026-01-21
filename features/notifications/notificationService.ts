@@ -1,7 +1,12 @@
 import * as Notifications from "expo-notifications"
 import { router } from "expo-router"
-import { useEffect, useRef } from "react"
+import { useCustomerProfile } from "@/features/account/api"
+import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
+import { getNotificationSettings } from "@/store/notifications"
+import { useCallback, useEffect, useRef } from "react"
 import { Linking } from "react-native"
+
+const WORKER_URL = (process.env.EXPO_PUBLIC_PUSH_WORKER_URL || "").replace(/\/+$/, "")
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -56,21 +61,59 @@ function navigateFromNotification(data: NotificationData, opts?: { delayMs?: num
 
 export function useNotificationsService() {
   const handledInitial = useRef(false)
+  const { isAuthenticated } = useShopifyAuth()
+  const { data: profile } = useCustomerProfile({ enabled: isAuthenticated })
+
+  const trackOpen = useCallback(
+    async (data: NotificationData) => {
+      if (!WORKER_URL) return
+      const notificationId = typeof data?.notificationId === "string" ? data.notificationId : null
+      if (!notificationId) return
+      const { expoPushToken } = getNotificationSettings()
+
+      try {
+        await fetch(`${WORKER_URL}/api/track/open`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            notificationId,
+            token: expoPushToken,
+            email: isAuthenticated ? profile?.email ?? null : null,
+          }),
+        })
+      } catch {
+        // ignore tracking errors
+      }
+    },
+    [isAuthenticated, profile?.email],
+  )
 
   useEffect(() => {
     let mounted = true
 
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      navigateFromNotification(response.notification.request.content.data as Record<string, unknown> | undefined)
+      const data = response.notification.request.content.data as Record<string, unknown> | undefined
+      trackOpen(data)
+      navigateFromNotification(data)
     })
 
     const checkInitial = async () => {
-      const getLast = typeof Notifications.getLastNotificationResponse === "function"
-      if (!getLast) return
-      const lastResponse = await Notifications.getLastNotificationResponse()
+      const getLastAsync =
+        typeof (Notifications as typeof Notifications & { getLastNotificationResponseAsync?: () => Promise<any> })
+          .getLastNotificationResponseAsync === "function"
+          ? (Notifications as typeof Notifications & { getLastNotificationResponseAsync: () => Promise<any> })
+              .getLastNotificationResponseAsync
+          : null
+      const getLastSync = typeof Notifications.getLastNotificationResponse === "function"
+        ? Notifications.getLastNotificationResponse
+        : null
+      if (!getLastAsync && !getLastSync) return
+      const lastResponse = getLastAsync ? await getLastAsync() : getLastSync ? getLastSync() : null
       if (!mounted || !lastResponse || handledInitial.current) return
       handledInitial.current = true
-      navigateFromNotification(lastResponse.notification.request.content.data as Record<string, unknown> | undefined, {
+      const data = lastResponse.notification.request.content.data as Record<string, unknown> | undefined
+      trackOpen(data)
+      navigateFromNotification(data, {
         delayMs: 50,
       })
     }
@@ -81,5 +124,5 @@ export function useNotificationsService() {
       mounted = false
       responseSub.remove()
     }
-  }, [])
+  }, [trackOpen])
 }

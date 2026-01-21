@@ -12,11 +12,11 @@ import { Screen } from "@/ui/layout/Screen"
 import { Button } from "@/ui/primitives/Button"
 import { H3, Muted } from "@/ui/primitives/Typography"
 import { cn } from "@/ui/utils/cva"
+import * as Notifications from "expo-notifications"
 import { useRouter } from "expo-router"
 import { Bell } from "lucide-react-native"
 import { useCallback, useState } from "react"
 import { Image, Modal, Pressable, Text as RNText, View } from "react-native"
-import * as Notifications from "expo-notifications"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 export default function LocaleOnboarding() {
@@ -158,10 +158,7 @@ export default function LocaleOnboarding() {
             <View className="gap-6">
               <View className="items-center">
                 <Muted className="text-center text-sm text-primary/80" style={{ writingDirection: "rtl" }}>
-                  🚀 توصيل سريع إلى باب منزلك وأسعار شاملة.
-                </Muted>
-                <Muted className="text-center text-sm text-primary/80">
-                  🚚 Fast delivery to your doorstep. All-inclusive prices.
+                  لا تشيل هم ، شحن سريع لباب البيت بدون اي قيمة اضافية 🚛
                 </Muted>
               </View>
 

@@ -2,7 +2,7 @@ import { useCustomerProfile } from "@/features/account/api"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { requestPushPermissionsAndToken } from "@/features/notifications/permissions"
 import { useNotificationSettings } from "@/store/notifications"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AppState } from "react-native"
 
 const WORKER_URL = (process.env.EXPO_PUBLIC_PUSH_WORKER_URL || "").replace(/\/+$/, "")
@@ -35,6 +35,8 @@ export function usePushToken() {
   const setPreferences = useNotificationSettings((s) => s.setPreferences)
 
   const lastRegisteredKey = useRef<string | null>(null)
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     if (!pushEnabled || !expoPushToken) {
@@ -56,6 +58,14 @@ export function usePushToken() {
 
   useEffect(() => {
     let cancelled = false
+
+    const scheduleRetry = () => {
+      if (retryTimer.current) return
+      retryTimer.current = setTimeout(() => {
+        retryTimer.current = null
+        setRetryKey((prev) => prev + 1)
+      }, 15000)
+    }
 
     const syncPushToken = async () => {
       if (!pushEnabled) return
@@ -84,15 +94,27 @@ export function usePushToken() {
         const payloadKey = `${result.token}:${email ?? ""}`
 
         if (payloadKey !== lastRegisteredKey.current) {
-          await registerWithWorker(result.token, email)
-          lastRegisteredKey.current = payloadKey
+          try {
+            await registerWithWorker(result.token, email)
+            lastRegisteredKey.current = payloadKey
+            if (retryTimer.current) {
+              clearTimeout(retryTimer.current)
+              retryTimer.current = null
+            }
+          } catch (err) {
+            if (typeof __DEV__ !== "undefined" && __DEV__) {
+              // eslint-disable-next-line no-console
+              console.warn("[push] Unable to register push token", err)
+            }
+            scheduleRetry()
+          }
         }
       } catch (err) {
         if (typeof __DEV__ !== "undefined" && __DEV__) {
           // eslint-disable-next-line no-console
           console.warn("[push] Unable to register push token", err)
         }
-        setPreferences({ pushEnabled: false, expoPushToken: null })
+        scheduleRetry()
       }
     }
 
@@ -100,6 +122,10 @@ export function usePushToken() {
 
     return () => {
       cancelled = true
+      if (retryTimer.current) {
+        clearTimeout(retryTimer.current)
+        retryTimer.current = null
+      }
     }
-  }, [expoPushToken, isAuthenticated, profile?.email, pushEnabled, setPreferences])
+  }, [expoPushToken, isAuthenticated, profile?.email, pushEnabled, retryKey, setPreferences])
 }
