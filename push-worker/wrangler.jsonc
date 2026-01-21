@@ -9,8 +9,8 @@
 	"compatibility_date": "2025-12-05",
 	"migrations": [
 		{
-			"new_sqlite_classes": ["PushTokensDO"],
-			"tag": "v1",
+			"new_sqlite_classes": ["PushTokensDO", "NotificationStatsDO"],
+			"tag": "v2",
 		},
 	],
 	"durable_objects": {
@@ -18,6 +18,10 @@
 			{
 				"class_name": "PushTokensDO",
 				"name": "PUSH_TOKENS_DO",
+			},
+			{
+				"class_name": "NotificationStatsDO",
+				"name": "PUSH_STATS_DO",
 			},
 		],
 	},
