@@ -3,7 +3,6 @@ import { useCustomerProfile } from "@/features/account/api"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { isPushAdmin } from "@/features/notifications/admin"
-import { kv } from "@/lib/storage/mmkv"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
@@ -14,7 +13,7 @@ import { Image } from "expo-image"
 import * as ImagePicker from "expo-image-picker"
 import { useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, ScrollView, Text, View } from "react-native"
+import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, ScrollView, Switch, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const WORKER_URL = (process.env.EXPO_PUBLIC_PUSH_WORKER_URL || "").replace(/\/+$/, "")
@@ -26,14 +25,6 @@ const DESTINATION_OPTIONS = [
   { key: "custom", label: "App path" },
   { key: "url", label: "External link" },
 ] as const
-type BroadcastHistoryEntry = {
-  id: string
-  notificationId: string | null
-  title: string | null
-  body: string
-  destination: string
-  createdAt: string
-}
 type NotificationStats = {
   id: string
   title: string | null
@@ -52,8 +43,6 @@ type NotificationStats = {
     openedAt: string
   }>
 }
-const HISTORY_KEY = "broadcast-history"
-const MAX_HISTORY = 20
 
 export default function BroadcastScreen() {
   const router = useRouter()
@@ -87,7 +76,7 @@ function BroadcastContent() {
   const [destinationValue, setDestinationValue] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [isSending, setIsSending] = useState(false)
-  const [history, setHistory] = useState<BroadcastHistoryEntry[]>([])
+  const [adminOnly, setAdminOnly] = useState(false)
   const [stats, setStats] = useState<NotificationStats[]>([])
   const [statsError, setStatsError] = useState<string | null>(null)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
@@ -96,6 +85,8 @@ function BroadcastContent() {
   const trimmedTitle = title.trim()
   const trimmedMessage = message.trim()
   const missingConfig = !WORKER_URL || !ADMIN_SECRET
+  const adminEmailsConfigured = Boolean((process.env.EXPO_PUBLIC_PUSH_ADMIN_EMAILS || "").trim())
+  const missingAdminEmails = adminOnly && !adminEmailsConfigured
 
   const destinationMeta = useMemo(() => {
     const value = destinationValue.trim()
@@ -167,6 +158,7 @@ function BroadcastContent() {
         secret: ADMIN_SECRET,
         title: trimmedTitle || undefined,
         body: trimmedMessage,
+        audience: adminOnly ? "admins" : "all",
       }
 
       if (destinationMeta.path) payload.path = destinationMeta.path
@@ -191,34 +183,21 @@ function BroadcastContent() {
         throw new Error(text || `Broadcast failed with status ${res.status}`)
       }
 
-      show({ title: "Broadcast sent", type: "success" })
+      show({ title: "Broadcast queued", type: "success" })
       setMessage("")
       setTitle("")
       setDestination("none")
       setDestinationValue("")
       setImageUrl("")
-
-      const entry: BroadcastHistoryEntry = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        notificationId: json?.notificationId ?? null,
-        title: trimmedTitle || null,
-        body: trimmedMessage,
-        destination: destinationSummary,
-        createdAt: new Date().toISOString(),
-      }
-      setHistory((prev) => {
-        const next = [entry, ...prev].slice(0, MAX_HISTORY)
-        kv.set(HISTORY_KEY, JSON.stringify(next))
-        return next
-      })
       loadStats()
     } catch (err: any) {
       const message = err?.message || "Could not send broadcast"
       show({ title: message, type: "danger" })
+      console.error("Broadcast error:", err)
     } finally {
       setIsSending(false)
     }
-  }, [missingConfig, trimmedMessage, trimmedTitle, destinationMeta, show, destinationSummary, loadStats])
+  }, [missingConfig, trimmedMessage, trimmedTitle, destinationMeta, show, loadStats, adminOnly])
 
   const pickImage = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
@@ -257,17 +236,6 @@ function BroadcastContent() {
       loadStats()
     }
   }, [isAdmin, loadStats])
-
-  useEffect(() => {
-    try {
-      const raw = kv.get(HISTORY_KEY)
-      if (!raw) return
-      const parsed = JSON.parse(raw) as BroadcastHistoryEntry[]
-      if (Array.isArray(parsed)) setHistory(parsed)
-    } catch {
-      // ignore parse errors
-    }
-  }, [])
 
   if (isLoading && !profile) {
     return (
@@ -403,6 +371,25 @@ function BroadcastContent() {
               </View>
             </View>
 
+            <View className="flex-row items-center justify-between gap-4 rounded-xl border border-[#e2e8f0] bg-white p-3">
+              <View className="flex-1 gap-1">
+                <Text className="text-[#0f172a] font-geist-medium text-[13px]">Send to admins only</Text>
+                <Text className="text-[#475569] text-[12px] leading-[16px]">
+                  Use this to test pushes without notifying every user.
+                </Text>
+              </View>
+              <Switch
+                value={adminOnly}
+                onValueChange={setAdminOnly}
+                trackColor={{ false: "#cbd5f5", true: "#0f172a" }}
+                thumbColor={Platform.OS === "android" ? (adminOnly ? "#ffffff" : "#f8fafc") : undefined}
+                ios_backgroundColor="#cbd5f5"
+              />
+            </View>
+            {missingAdminEmails ? (
+              <Text className="text-danger text-[13px]">Set EXPO_PUBLIC_PUSH_ADMIN_EMAILS to use admin-only tests.</Text>
+            ) : null}
+
             {missingConfig ? (
               <Text className="text-danger text-[13px]">
                 Set EXPO_PUBLIC_PUSH_WORKER_URL and EXPO_PUBLIC_PUSH_ADMIN_SECRET to send broadcasts.
@@ -413,32 +400,10 @@ function BroadcastContent() {
               fullWidth
               onPress={handleSend}
               isLoading={isSending}
-              disabled={isSending || !trimmedMessage || missingConfig}
+              disabled={isSending || !trimmedMessage || missingConfig || missingAdminEmails}
             >
               Send broadcast
             </Button>
-          </Card>
-          <Card padding="lg" className="gap-3">
-            <Text className="text-[#0f172a] font-geist-semibold text-[16px]">History</Text>
-            {history.length === 0 ? (
-              <Text className="text-[#475569] text-[13px]">No broadcasts yet</Text>
-            ) : (
-              history.map((item) => (
-                <View key={item.id} className="border border-[#e2e8f0] rounded-xl p-3 bg-white gap-1">
-                  <View className="flex-row justify-between items-center">
-                    <Text className="text-[#0f172a] font-geist-medium text-[14px]" numberOfLines={1}>
-                      {item.title || "Untitled"}
-                    </Text>
-                    <Text className="text-[#94a3b8] text-[12px]">{formatHistoryDate(item.createdAt)}</Text>
-                  </View>
-                  <Text className="text-[#0f172a] text-[13px]">{item.body}</Text>
-                  <Text className="text-[#475569] text-[12px]">Destination: {item.destination}</Text>
-                  {item.notificationId ? (
-                    <Text className="text-[#94a3b8] text-[11px]">ID: {item.notificationId}</Text>
-                  ) : null}
-                </View>
-              ))
-            )}
           </Card>
           <Card padding="lg" className="gap-3">
             <View className="flex-row items-center justify-between">
@@ -460,13 +425,11 @@ function BroadcastContent() {
             ) : (
               stats.map((entry) => (
                 <View key={entry.id} className="border border-[#e2e8f0] rounded-xl p-3 bg-white gap-2">
-                  <View className="flex-row justify-between items-center">
-                    <Text className="text-[#0f172a] font-geist-medium text-[14px]" numberOfLines={1}>
-                      {entry.title || "Untitled"}
-                    </Text>
-                    <Text className="text-[#94a3b8] text-[12px]">{formatHistoryDate(entry.createdAt)}</Text>
-                  </View>
+                  <Text className="text-[#0f172a] font-geist-medium text-[14px]" numberOfLines={1}>
+                    {entry.title || "Untitled"}
+                  </Text>
                   <Text className="text-[#0f172a] text-[13px]">{entry.body}</Text>
+                  <Text className="text-[#94a3b8] text-[12px]">{formatHistoryDate(entry.createdAt)}</Text>
                   {entry.destination ? (
                     <Text className="text-[#475569] text-[12px]">Destination: {entry.destination}</Text>
                   ) : null}
@@ -481,11 +444,14 @@ function BroadcastContent() {
                   {entry.openers.length > 0 ? (
                     <View className="gap-1">
                       <Text className="text-[#0f172a] text-[12px] font-geist-medium">Recent opens</Text>
-                      {entry.openers.slice(-5).reverse().map((opener) => (
-                        <Text key={`${entry.id}-${opener.token}`} className="text-[#94a3b8] text-[11px]">
-                          {formatOpener(opener)}
-                        </Text>
-                      ))}
+                      {entry.openers
+                        .slice(-5)
+                        .reverse()
+                        .map((opener) => (
+                          <Text key={`${entry.id}-${opener.token}`} className="text-[#94a3b8] text-[11px]">
+                            {formatOpener(opener)}
+                          </Text>
+                        ))}
                     </View>
                   ) : (
                     <Text className="text-[#94a3b8] text-[11px]">No opens tracked yet</Text>

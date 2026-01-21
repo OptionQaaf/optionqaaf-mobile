@@ -4,11 +4,7 @@ import { isDeletionRequestPending } from "@/features/account/deletion"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
-import { isPushAdmin } from "@/features/notifications/admin"
-import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
 import { qk } from "@/lib/shopify/queryKeys"
-import { clearOnboardingFlag } from "@/lib/storage/flags"
-import { kv } from "@/lib/storage/mmkv"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -17,18 +13,7 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { RelativePathString, useRouter } from "expo-router"
-import {
-  Clock,
-  Heart,
-  LogOut,
-  MapPin,
-  Megaphone,
-  Package,
-  Pencil,
-  RefreshCcw,
-  Settings2,
-  Trash2,
-} from "lucide-react-native"
+import { Heart, LogOut, MapPin, Package, Pencil, Settings2 } from "lucide-react-native"
 import { useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { RefreshControl, ScrollView, Text, View } from "react-native"
@@ -66,7 +51,6 @@ function AccountContent() {
 
   const avatar = useMemo(() => avatarFromProfile(profile), [profile])
   const showProfileSkeleton = (isLoading && !profile) || !deletionPendingLoaded
-  const isAdmin = isPushAdmin(profile?.email)
   const deletionCacheRef = useRef(new Map<string, boolean>())
 
   useEffect(() => {
@@ -118,31 +102,6 @@ function AccountContent() {
       },
     ],
     [],
-  )
-
-  const adminLinks = useMemo<LinkConfig[]>(() => {
-    if (!isAdmin) return []
-    return [
-      {
-        title: "Push broadcast",
-        body: "Send a push notification to all devices.",
-        Icon: Megaphone,
-        path: "/account/broadcast" as RelativePathString,
-      },
-    ]
-  }, [isAdmin])
-
-  const supportLinks = useMemo<LinkConfig[]>(
-    () => [
-      {
-        title: "Notifications",
-        body: "Control messages, offers, and alerts.",
-        Icon: Settings2,
-        path: "/account/notifications" as RelativePathString,
-      },
-      ...adminLinks,
-    ],
-    [adminLinks],
   )
 
   useEffect(() => {
@@ -216,38 +175,13 @@ function AccountContent() {
     return source || "Your account"
   }, [profile?.displayName, profile?.email, profile?.firstName, profile?.lastName])
 
-  const handleComingSoon = useCallback((label: string) => show({ title: `${label} coming soon`, type: "info" }), [show])
-
-  const handleDebugExpireToken = useCallback(async () => {
-    try {
-      await fastForwardAccessTokenExpiry(3600)
-      show({ title: "Fast-forwarded token expiry by 1 hour", type: "success" })
-    } catch (err: any) {
-      const message = err?.message || "Unable to fast-forward token"
-      show({ title: message, type: "danger" })
-    }
-  }, [show])
-
-  const handleResetOnboarding = useCallback(async () => {
-    try {
-      kv.del("notification-settings")
-      kv.del("prefs")
-      await clearOnboardingFlag()
-      show({ title: "Cache cleared. Restarting onboarding…", type: "success" })
-      router.replace("/(onboarding)/locale" as const)
-    } catch (err: any) {
-      const message = err?.message || "Unable to reset onboarding cache"
-      show({ title: message, type: "danger" })
-    }
-  }, [router, show])
-
   return (
     <ScrollView
-      contentContainerStyle={{ paddingBottom: 32 }}
+      contentContainerStyle={{ paddingBottom: 32, flexGrow: 1 }}
       className="bg-[#f8fafc]"
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} tintColor="#111827" />}
     >
-      <View className="px-5 pt-6 pb-4 gap-7">
+      <View className="px-5 pt-6 pb-4 gap-7 flex-1">
         {deletionPending ? (
           <Card padding="lg" className="border border-[#fecaca] bg-[#fef2f2] gap-2">
             <Text className="text-[#991b1b] font-geist-semibold text-[15px]">
@@ -280,12 +214,20 @@ function AccountContent() {
                       <Text className="text-[#94a3b8] text-[12px] leading-[18px]">Member since {memberSince}</Text>
                     ) : null}
                   </View>
-                  <PressableOverlay
-                    onPress={() => router.push("/account/edit" as const)}
-                    className="h-10 w-10 rounded-2xl bg-[#e2e8f0] items-center justify-center"
-                  >
-                    <Pencil size={18} color="#0f172a" />
-                  </PressableOverlay>
+                  <View className="flex-row items-center gap-2">
+                    <PressableOverlay
+                      onPress={() => router.push("/account/edit" as const)}
+                      className="h-10 w-10 rounded-2xl bg-[#e2e8f0] items-center justify-center"
+                    >
+                      <Pencil size={18} color="#0f172a" />
+                    </PressableOverlay>
+                    <PressableOverlay
+                      onPress={() => router.push("/account/settings" as const)}
+                      className="h-10 w-10 rounded-2xl bg-[#e2e8f0] items-center justify-center"
+                    >
+                      <Settings2 size={18} color="#0f172a" />
+                    </PressableOverlay>
+                  </View>
                 </View>
               </View>
             </View>
@@ -298,74 +240,19 @@ function AccountContent() {
               ? Array.from({ length: Math.max(quickLinks.length, 3) }).map((_, idx) => (
                   <AccountLinkSkeleton key={`quick-link-skel-${idx}`} />
                 ))
-              : quickLinks.map((link) => {
-                  const onPress = link.path ? () => router.push(link.path) : () => handleComingSoon(link.title)
-                  return (
-                    <AccountLink
-                      key={link.title}
-                      title={link.title}
-                      description={link.body}
-                      icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
-                      onPress={onPress}
-                    />
-                  )
-                })}
-          </View>
-        </Section>
-
-        <Section title="Account settings">
-          <View className="gap-3">
-            {showProfileSkeleton
-              ? Array.from({ length: Math.max(supportLinks.length, 1) }).map((_, idx) => (
-                  <AccountLinkSkeleton key={`support-link-skel-${idx}`} />
-                ))
-              : supportLinks.map((link) => (
+              : quickLinks.map((link) => (
                   <AccountLink
                     key={link.title}
                     title={link.title}
                     description={link.body}
                     icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
-                    onPress={link.path ? () => router.push(link.path) : () => handleComingSoon(link.title)}
+                    onPress={() => router.push(link.path)}
                   />
                 ))}
           </View>
         </Section>
 
-        {__DEV__ ? (
-          <View className="gap-2">
-            <Button
-              variant="outline"
-              size="lg"
-              fullWidth
-              onPress={handleResetOnboarding}
-              leftIcon={<RefreshCcw color="#111827" size={18} strokeWidth={2} />}
-            >
-              Reset onboarding/cache (dev)
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              fullWidth
-              onPress={handleDebugExpireToken}
-              leftIcon={<Clock color="#111827" size={18} strokeWidth={2} />}
-            >
-              Expire token (debug)
-            </Button>
-          </View>
-        ) : null}
-
-        <View className="gap-2">
-          {!deletionPending && (
-            <Button
-              variant="danger"
-              size="lg"
-              fullWidth
-              onPress={() => router.push("/account/delete" as const)}
-              leftIcon={<Trash2 color="#DC2626" size={18} strokeWidth={2} />}
-            >
-              Delete Account
-            </Button>
-          )}
+        <View className="pt-8 gap-2" style={{ marginTop: "auto" }}>
           <Button
             variant="outline"
             size="lg"

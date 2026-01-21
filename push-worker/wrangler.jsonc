@@ -9,8 +9,16 @@
 	"compatibility_date": "2025-12-05",
 	"migrations": [
 		{
-			"new_sqlite_classes": ["PushTokensDO", "NotificationStatsDO"],
+			"new_classes": ["PushTokensDO"],
+			"tag": "v1",
+		},
+		{
+			"new_classes": ["NotificationStatsDO"],
 			"tag": "v2",
+		},
+		{
+			"new_classes": ["BroadcastQueueDO"],
+			"tag": "v3",
 		},
 	],
 	"durable_objects": {
@@ -22,6 +30,10 @@
 			{
 				"class_name": "NotificationStatsDO",
 				"name": "PUSH_STATS_DO",
+			},
+			{
+				"class_name": "BroadcastQueueDO",
+				"name": "BROADCAST_QUEUE_DO",
 			},
 		],
 	},
@@ -36,5 +48,6 @@
 	],
 	"vars": {
 		"BUCKET_NAME": "optionqaaf-push-images",
+  	"ADMIN_EMAILS": "yznpsd@gmail.com,yznkiswani@gmail.com"
 	},
 }

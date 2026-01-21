@@ -70,7 +70,6 @@ export function useNotificationsService() {
       const notificationId = typeof data?.notificationId === "string" ? data.notificationId : null
       if (!notificationId) return
       const { expoPushToken } = getNotificationSettings()
-      if (!expoPushToken) return
 
       try {
         await fetch(`${WORKER_URL}/api/track/open`, {
@@ -99,9 +98,17 @@ export function useNotificationsService() {
     })
 
     const checkInitial = async () => {
-      const getLast = typeof Notifications.getLastNotificationResponse === "function"
-      if (!getLast) return
-      const lastResponse = await Notifications.getLastNotificationResponse()
+      const getLastAsync =
+        typeof (Notifications as typeof Notifications & { getLastNotificationResponseAsync?: () => Promise<any> })
+          .getLastNotificationResponseAsync === "function"
+          ? (Notifications as typeof Notifications & { getLastNotificationResponseAsync: () => Promise<any> })
+              .getLastNotificationResponseAsync
+          : null
+      const getLastSync = typeof Notifications.getLastNotificationResponse === "function"
+        ? Notifications.getLastNotificationResponse
+        : null
+      if (!getLastAsync && !getLastSync) return
+      const lastResponse = getLastAsync ? await getLastAsync() : getLastSync ? getLastSync() : null
       if (!mounted || !lastResponse || handledInitial.current) return
       handledInitial.current = true
       const data = lastResponse.notification.request.content.data as Record<string, unknown> | undefined
