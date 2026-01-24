@@ -288,12 +288,11 @@ export async function searchProducts(
               __variantCode: barcode,
             }
             delete node.variants
-            if (__DEV__) console.log("[Search] variant code hit", { code, query: q, handle: node.handle })
             return node
           }
         }
       } catch (err) {
-        if (__DEV__) console.warn("[Search] variant code search failed", { code, query: q, err })
+        // ignore and continue searching other queries
       }
     }
     return null
@@ -303,7 +302,6 @@ export async function searchProducts(
   if (isNumericId && !args.after) {
     const gid = `gid://shopify/Product/${trimmed}`
     const handle = await getProductHandleById(gid)
-    if (__DEV__) console.log("[Search] numeric ID query", trimmed, { resolvedHandle: handle })
     if (handle) {
       const node = await productFromHandle(handle)
       if (node) {

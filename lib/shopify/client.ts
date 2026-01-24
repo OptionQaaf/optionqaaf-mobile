@@ -29,9 +29,6 @@ export async function callShopify<T>(
     try {
       const res = await fn()
       const dur = Date.now() - start
-      if (typeof __DEV__ !== "undefined" && __DEV__) {
-        console.log(`[Shopify] ${dur}ms`)
-      }
       return res
     } catch (err: any) {
       const dur = Date.now() - start

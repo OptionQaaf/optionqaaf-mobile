@@ -636,18 +636,6 @@ export async function fetchCustomerOrders(args: { first: number; after?: string 
       ?.map((edge) => normalizeSummary(edge?.node))
       .filter((order): order is OrderSummary => !!order) ?? []
 
-  if (typeof __DEV__ !== "undefined" && __DEV__) {
-    // eslint-disable-next-line no-console
-    console.log("[orders] fetched page", {
-      requested: args.first,
-      returned: orders.length,
-      hasNextPage: Boolean(data.customer?.orders?.pageInfo?.hasNextPage),
-      endCursor: data.customer?.orders?.pageInfo?.endCursor ?? null,
-      customerId: data.customer?.id ?? null,
-      orderNames: orders.map((o) => o.name),
-    })
-  }
-
   return {
     orders,
     pageInfo: {

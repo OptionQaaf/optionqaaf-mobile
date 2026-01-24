@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react"
+import { useMemo } from "react"
 import { Gesture } from "react-native-gesture-handler"
 import { scheduleOnRN } from "react-native-worklets"
 
@@ -9,12 +9,6 @@ type Options = {
 }
 
 export function useTapOrSwipe({ onPress, maxDistance = 12, maxDurationMs = 260 }: Options) {
-  const onPressRef = useRef(onPress)
-
-  useEffect(() => {
-    onPressRef.current = onPress
-  }, [onPress])
-
   return useMemo(
     () =>
       Gesture.Tap()
@@ -22,10 +16,9 @@ export function useTapOrSwipe({ onPress, maxDistance = 12, maxDurationMs = 260 }
         .maxDuration(maxDurationMs)
         .onEnd((_, success) => {
           if (!success) return
-          const handler = onPressRef.current
-          if (!handler) return
-          scheduleOnRN(handler)
+          if (!onPress) return
+          scheduleOnRN(onPress)
         }),
-    [maxDistance, maxDurationMs],
+    [maxDistance, maxDurationMs, onPress],
   )
 }

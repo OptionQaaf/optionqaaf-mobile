@@ -311,8 +311,6 @@ export function normalizeHome(data: MobileHomeQuery | null | undefined): AppHome
     return true
   })
 
-  logHomeSections(raw, sections)
-
   return { sections }
 }
 
@@ -540,23 +538,6 @@ function detectedImageFieldCount(node: any) {
 
   const referencedImages = collectImageRefs(node).length
   return Math.max(maxIndex, referencedImages)
-}
-
-function logHomeSections(raw: AppHomeSection[], filtered: AppHomeSection[]) {
-  if (typeof console === "undefined" || (typeof __DEV__ !== "undefined" && !__DEV__)) return
-  const summarize = (items: AppHomeSection[]) =>
-    items.map((item) => ({
-      id: item.id,
-      kind: item.kind,
-      size: item.size ?? "medium",
-      country: (item as any).country ?? "*",
-      language: (item as any).language ?? "*",
-      startAt: (item as any).startAt ?? null,
-      endAt: (item as any).endAt ?? null,
-      detail: sectionDetail(item),
-    }))
-  console.log(`[Home] sections raw (${raw.length})`, summarize(raw))
-  console.log(`[Home] sections after gating (${filtered.length})`, summarize(filtered))
 }
 
 function sectionDetail(section: AppHomeSection) {
