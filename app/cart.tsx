@@ -125,7 +125,12 @@ export default function CartScreen() {
   const discountCodes = useMemo(() => {
     const raw = (cart?.discountCodes ?? []) as { code?: string | null; applicable?: boolean | null }[]
     return raw
-      .filter((d) => typeof d?.code === "string" && Boolean(d.code?.trim().length))
+      .filter(
+        (d) =>
+          typeof d?.code === "string" &&
+          Boolean(d.code?.trim().length) &&
+          d.applicable === true,
+      )
       .map((d) => ({ code: (d.code as string).trim(), applicable: d.applicable ?? null }))
   }, [cart?.discountCodes])
 
@@ -141,7 +146,19 @@ export default function CartScreen() {
       return
     }
     try {
-      await updateDiscountCodesAsync([...existing, normalized])
+      const nextCodes = [...existing, normalized]
+      const updatedCart = await updateDiscountCodesAsync(nextCodes)
+      const updatedDiscounts = (updatedCart?.discountCodes ?? []) as {
+        code?: string | null
+        applicable?: boolean | null
+      }[]
+      const applied = updatedDiscounts.find((d) => d?.code?.toUpperCase() === normalized)
+      if (!applied || applied.applicable === false) {
+        await updateDiscountCodesAsync(existing)
+        show({ title: "Code not valid or not applicable", type: "danger" })
+        setCodeInput("")
+        return
+      }
       setCodeInput("")
       show({ title: "Discount applied", type: "success" })
     } catch (err: any) {
