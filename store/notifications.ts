@@ -1,11 +1,19 @@
 import { kv } from "@/lib/storage/mmkv"
 import { create } from "zustand"
 
+export type NotificationPermissionState = {
+  status: string
+  granted: boolean
+  canAskAgain: boolean
+}
+
 export type NotificationSettings = {
   pushEnabled: boolean
   emailEnabled: boolean
   smsEnabled: boolean
   expoPushToken: string | null
+  permissionsStatus: NotificationPermissionState | null
+  lastRegistrationAttempt: string | null
 }
 
 type NotificationStore = NotificationSettings & {
@@ -20,6 +28,8 @@ const defaultSettings: NotificationSettings = {
   emailEnabled: true,
   smsEnabled: false,
   expoPushToken: null,
+  permissionsStatus: null,
+  lastRegistrationAttempt: null,
 }
 
 const loadSettings = (): NotificationSettings => {
@@ -32,6 +42,8 @@ const loadSettings = (): NotificationSettings => {
       emailEnabled: parsed.emailEnabled ?? defaultSettings.emailEnabled,
       smsEnabled: parsed.smsEnabled ?? defaultSettings.smsEnabled,
       expoPushToken: parsed.expoPushToken ?? defaultSettings.expoPushToken,
+      permissionsStatus: parsed.permissionsStatus ?? defaultSettings.permissionsStatus,
+      lastRegistrationAttempt: parsed.lastRegistrationAttempt ?? defaultSettings.lastRegistrationAttempt,
     }
   } catch {
     return { ...defaultSettings }
@@ -46,6 +58,8 @@ const persist = (settings: NotificationSettings) => {
       emailEnabled: settings.emailEnabled,
       smsEnabled: settings.smsEnabled,
       expoPushToken: settings.expoPushToken,
+      permissionsStatus: settings.permissionsStatus,
+      lastRegistrationAttempt: settings.lastRegistrationAttempt,
     }),
   )
 }
@@ -59,6 +73,8 @@ export const useNotificationSettings = create<NotificationStore>((set, get) => (
       emailEnabled: prefs.emailEnabled ?? current.emailEnabled,
       smsEnabled: prefs.smsEnabled ?? current.smsEnabled,
       expoPushToken: prefs.expoPushToken ?? current.expoPushToken,
+      permissionsStatus: prefs.permissionsStatus ?? current.permissionsStatus,
+      lastRegistrationAttempt: prefs.lastRegistrationAttempt ?? current.lastRegistrationAttempt,
     }
     set({ ...current, ...next })
     persist(next)
@@ -70,6 +86,8 @@ export const useNotificationSettings = create<NotificationStore>((set, get) => (
       emailEnabled: current.emailEnabled,
       smsEnabled: current.smsEnabled,
       expoPushToken: token,
+      permissionsStatus: current.permissionsStatus,
+      lastRegistrationAttempt: current.lastRegistrationAttempt,
     }
     set({ ...current, ...next })
     persist(next)
@@ -77,6 +95,7 @@ export const useNotificationSettings = create<NotificationStore>((set, get) => (
 }))
 
 export function getNotificationSettings(): NotificationSettings {
-  const { pushEnabled, emailEnabled, smsEnabled, expoPushToken } = useNotificationSettings.getState()
-  return { pushEnabled, emailEnabled, smsEnabled, expoPushToken }
+  const { pushEnabled, emailEnabled, smsEnabled, expoPushToken, permissionsStatus, lastRegistrationAttempt } =
+    useNotificationSettings.getState()
+  return { pushEnabled, emailEnabled, smsEnabled, expoPushToken, permissionsStatus, lastRegistrationAttempt }
 }

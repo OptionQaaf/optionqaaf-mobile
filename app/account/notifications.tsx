@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AppState, Linking, Platform, ScrollView, Switch, Text, View } from "react-native"
 
 const WORKER_URL = (process.env.EXPO_PUBLIC_PUSH_WORKER_URL || "").replace(/\/+$/, "")
+const ADMIN_SECRET = process.env.EXPO_PUBLIC_PUSH_ADMIN_SECRET
 
 export default function NotificationsScreen() {
   const router = useRouter()
@@ -76,9 +77,11 @@ function NotificationsContent() {
       ;(async () => {
         try {
           if (expoPushToken && WORKER_URL) {
+            const headers: Record<string, string> = { "Content-Type": "application/json" }
+            if (ADMIN_SECRET) headers["x-admin-secret"] = ADMIN_SECRET
             await fetch(`${WORKER_URL}/api/unregister`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers,
               body: JSON.stringify({ token: expoPushToken }),
             })
           }
@@ -123,9 +126,11 @@ function NotificationsContent() {
         if (expoPushToken) {
           try {
             if (WORKER_URL) {
+              const headers: Record<string, string> = { "Content-Type": "application/json" }
+              if (ADMIN_SECRET) headers["x-admin-secret"] = ADMIN_SECRET
               await fetch(`${WORKER_URL}/api/unregister`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({ token: expoPushToken }),
               })
             }

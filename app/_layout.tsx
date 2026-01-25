@@ -5,6 +5,8 @@ import { useNotificationsService } from "@/features/notifications/notificationSe
 import { usePushToken } from "@/features/notifications/usePushToken"
 import { hydrateCartId } from "@/store/cartId"
 import { requestTrackingAuthorizationIfNeeded } from "@/lib/TrackingAuthorizationManager"
+import { useAppMetadata } from "@/lib/diagnostics/appMetadata"
+import { useNetworkStatus } from "@/lib/network/useNetworkStatus"
 import { FontProvider } from "@/theme/FontProvider"
 import { ToastHost } from "@/ui/feedback/Toast"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
@@ -79,11 +81,32 @@ export default function RootLayout() {
 }
 
 function AppBootstrap() {
+  const metadata = useAppMetadata()
+  const networkStatus = useNetworkStatus()
+
   useNotificationsService()
   usePushToken()
 
   useEffect(() => {
     requestTrackingAuthorizationIfNeeded()
   }, [])
+
+  useEffect(() => {
+    console.debug("[app] metadata", metadata)
+  }, [metadata.appName, metadata.version, metadata.buildNumber, metadata.applicationId, metadata.ownership])
+
+  const { isConnected, isInternetReachable, isExpensive, type } = networkStatus
+  useEffect(() => {
+    console.debug(
+      "[app] network",
+      {
+        isConnected,
+        isInternetReachable,
+        isExpensive,
+        type,
+      },
+    )
+  }, [isConnected, isInternetReachable, isExpensive, type])
+
   return null
 }
