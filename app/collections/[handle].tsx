@@ -10,6 +10,7 @@ import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { ProductTileSkeleton } from "@/ui/product/ProductTileSkeleton"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
+import { padToFullRow } from "@/ui/layout/gridUtils"
 import { router, useLocalSearchParams } from "expo-router"
 import { LayoutGrid, Square } from "lucide-react-native"
 import { useEffect, useMemo, useState } from "react"
@@ -57,7 +58,6 @@ export default function CollectionScreen() {
   }
   const special = SPECIAL[h]
   const { data: specialHome } = useMobileHome(special?.homeHandle ?? "")
-  const { data: specialSearch } = useSearch(special?.searchQuery ?? "", 24)
   const specialSections = useMemo(() => specialHome?.sections ?? [], [specialHome?.sections])
 
   // controls state
@@ -98,7 +98,6 @@ export default function CollectionScreen() {
   }, [isVendorLanding, vendorName, vendorSearch.data])
   const products = (isVendorLanding ? vendorProducts : collectionProducts) as any[]
   const loadedCount = products.length
-  const pageCount = isVendorLanding ? (vendorSearch.data?.pages?.length ?? 0) : (data?.pages?.length ?? 0)
   const activeHasNextPage = isVendorLanding ? vendorSearch.hasNextPage : hasNextPage
   const activeIsFetchingNextPage = isVendorLanding ? vendorSearch.isFetchingNextPage : isFetchingNextPage
   const activeFetchNextPage = isVendorLanding ? vendorSearch.fetchNextPage : fetchNextPage
@@ -180,21 +179,23 @@ export default function CollectionScreen() {
       : "fallback"
 
   const gridItems = useMemo(() => {
-    if (isLoadingProducts || !activeIsFetchingNextPage) {
-      return visibleProducts
-    }
-    const remainder = visibleProducts.length % view
-    const fillCount = remainder === 0 ? 0 : view - remainder
-    const skeletonCount = fillCount + view * NEXT_PAGE_SKELETON_ROWS
-    const placeholders =
-      skeletonCount > 0
-        ? Array.from({ length: skeletonCount }, (_, idx) => ({
+    if (!visibleProducts.length) return []
+    const next = [...visibleProducts]
+    if (activeIsFetchingNextPage) {
+      const remainder = visibleProducts.length % view
+      const fillCount = remainder === 0 ? 0 : view - remainder
+      const skeletonCount = fillCount + view * NEXT_PAGE_SKELETON_ROWS
+      if (skeletonCount > 0) {
+        next.push(
+          ...Array.from({ length: skeletonCount }, (_, idx) => ({
             __skeleton: true,
             _key: `grid-skeleton-${idx}`,
-          }))
-        : []
-    return [...visibleProducts, ...placeholders]
-  }, [visibleProducts, activeIsFetchingNextPage, view, isLoadingProducts])
+          })),
+        )
+      }
+    }
+    return padToFullRow(next, view)
+  }, [visibleProducts, activeIsFetchingNextPage, view])
 
   // Auto-load more pages while searching and no results found yet
   useEffect(() => {

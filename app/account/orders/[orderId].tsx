@@ -60,10 +60,6 @@ function OrderDetailContent() {
 
   const statusPageUrl = data?.statusPageUrl
 
-  const openStatusPage = useCallback(() => {
-    if (statusPageUrl) Linking.openURL(statusPageUrl).catch(() => {})
-  }, [statusPageUrl])
-
   const orderStatusStyle = useMemo(() => {
     const status = data?.latestFulfillmentStatus ?? data?.fulfillments?.[0]?.status ?? null
     return getOrderStatusStyle(status)
@@ -205,62 +201,37 @@ function OrderDetailContent() {
         <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Items</Text>
         {segmentedLineItems.length ? (
           <View className="gap-3">
-            {segmentedLineItems.map(({ item, quantity, status }) => {
-              const segmentSubtotal = (() => {
-                if (!item.subtotal || item.quantity <= 0) return null
-                const unitPrice = item.subtotal.amount / item.quantity
-                if (!Number.isFinite(unitPrice)) return null
-                const amount = unitPrice * quantity
-                if (!Number.isFinite(amount)) return null
-                return formatMoney({
-                  amount: amount.toFixed(2),
-                  currencyCode: item.subtotal.currencyCode,
-                })
-              })()
-              const totalLabel = item.quantity > quantity ? ` of ${item.quantity}` : ""
-              const statusText = (() => {
-                const base =
-                  status === "FULFILLED" ? "Fulfilled" : status === "CANCELLED" ? "Cancelled" : "Not fulfilled"
-                return totalLabel ? `${base} ${quantity}${totalLabel}` : `${base} ${quantity}`
-              })()
-              const badgeStyle = getOrderStatusStyle(data.latestFulfillmentStatus ?? status)
-
-              return (
-                <View key={`${item.id}-${status}`} className="flex-row w-full gap-4">
-                  <PressableOverlay
-                    key={`${item.id}-${status}`}
-                    className="flex-row w-full items-center gap-4 rounded-2xl px-3 py-2 bg-[#f1f5f9]"
-                    pressableClassName="flex-1"
-                    onPress={() => handleLinePress(item)}
-                  >
-                    <View className="h-14 w-14 rounded-xl bg-white overflow-hidden items-center justify-center">
-                      {item.imageUrl ? (
-                        <Image
-                          source={{ uri: item.imageUrl }}
-                          style={{ width: "100%", height: "100%" }}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <Text className="text-[#64748b] text-[12px]">×{quantity}</Text>
-                      )}
-                    </View>
-                    <View className="flex-1 gap-1">
-                      <Text className="text-[#0f172a] text-[15px] font-geist-medium" numberOfLines={1}>
-                        {item.title}
+            {segmentedLineItems.map(({ item, quantity }) => (
+              <View key={`${item.id}-${quantity}`} className="flex-row w-full gap-4">
+                <PressableOverlay
+                  className="flex-row w-full items-center gap-4 rounded-2xl px-3 py-2 bg-[#f1f5f9]"
+                  pressableClassName="flex-1"
+                  onPress={() => handleLinePress(item)}
+                >
+                  <View className="h-14 w-14 rounded-xl bg-white overflow-hidden items-center justify-center">
+                    {item.imageUrl ? (
+                      <Image
+                        source={{ uri: item.imageUrl }}
+                        style={{ width: "100%", height: "100%" }}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <Text className="text-[#64748b] text-[12px]">×{quantity}</Text>
+                    )}
+                  </View>
+                  <View className="flex-1 gap-1">
+                    <Text className="text-[#0f172a] text-[15px] font-geist-medium" numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    {item.variantTitle ? (
+                      <Text className="text-[#64748b] text-[13px]" numberOfLines={1}>
+                        {item.variantTitle}
                       </Text>
-                      {item.variantTitle ? (
-                        <Text className="text-[#64748b] text-[13px]" numberOfLines={1}>
-                          {item.variantTitle}
-                        </Text>
-                      ) : null}
-                      {/* <View className="flex-row items-center gap-2">
-                        <Badge label={badgeStyle.label} bg={badgeStyle.bg} color={badgeStyle.color} />
-                      </View> */}
-                    </View>
-                  </PressableOverlay>
-                </View>
-              )
-            })}
+                    ) : null}
+                  </View>
+                </PressableOverlay>
+              </View>
+            ))}
           </View>
         ) : (
           <Text className="text-[#64748b] text-[13px]">No items</Text>

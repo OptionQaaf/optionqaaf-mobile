@@ -134,7 +134,7 @@ function OrdersContent() {
         </PressableOverlay>
       )
     },
-    [handlePress, orders],
+    [handlePress],
   )
 
   return (

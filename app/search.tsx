@@ -1,11 +1,11 @@
 import { useSearch } from "@/features/search/api"
 import { optimizeImageUrl } from "@/lib/images/optimize"
 import { Skeleton } from "@/ui/feedback/Skeleton"
-import { AppFooter } from "@/ui/layout/AppFooter"
 import { Screen } from "@/ui/layout/Screen"
 import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { ProductTile } from "@/ui/product/ProductTile"
+import { padToFullRow } from "@/ui/layout/gridUtils"
 import { Image as ExpoImage } from "expo-image"
 import { router } from "expo-router"
 import { ChevronLeft, X } from "lucide-react-native"
@@ -40,6 +40,7 @@ export default function SearchScreen() {
     // Hide out-of-stock by default
     return arr.filter((p) => p?.availableForSale !== false)
   }, [data])
+  const gridNodes = useMemo(() => padToFullRow(nodes, 2), [nodes])
 
   const { width } = useWindowDimensions()
   const padH = 16 // px-4
@@ -83,7 +84,6 @@ export default function SearchScreen() {
             </View>
           </View>
         ) : null}
-        {footerVisible ? <AppFooter /> : null}
       </View>
     )
   }, [footerVisible, isFetchingNextPage])
@@ -124,8 +124,8 @@ export default function SearchScreen() {
         {...verticalScrollProps}
         onLayout={onListLayout}
         onContentSizeChange={onListContentSize}
-        data={nodes}
-        keyExtractor={(item: any, i) => item?.id ?? item?.handle ?? String(i)}
+        data={gridNodes}
+        keyExtractor={(item: any, i) => (item ? (item?.id ?? item?.handle ?? String(i)) : `placeholder-${i}`)}
         numColumns={2}
         columnWrapperStyle={{ gap }}
         contentContainerStyle={{ paddingHorizontal: padH, paddingVertical: 24, rowGap: gap }}
@@ -155,43 +155,48 @@ export default function SearchScreen() {
             ) : null}
           </View>
         }
-        renderItem={({ item, index }: any) => (
-          <View style={{ width: itemW }}>
-            <ProductTile
-              image={item?.featuredImage?.url ?? ""}
-              brand={item?.vendor ?? ""}
-              title={item?.title ?? ""}
-              price={Number(item?.priceRange?.minVariantPrice?.amount ?? 0)}
-              compareAt={(() => {
-                const cmp = Number(item?.compareAtPriceRange?.minVariantPrice?.amount ?? 0)
-                const amt = Number(item?.priceRange?.minVariantPrice?.amount ?? 0)
-                return cmp > amt ? cmp : undefined
-              })()}
-              currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
-              width={itemW}
-              imageRatio={3 / 4}
-              padding="sm"
-              priority={index < 6 ? "high" : "normal"}
-              onPress={() =>
-                item?.handle &&
-                router.push({
-                  pathname: "/products/[handle]",
-                  params: {
-                    handle: item.handle,
-                    variant:
-                      (item as any).__variantId != null
-                        ? encodeURIComponent(String((item as any).__variantId))
-                        : undefined,
-                    code:
-                      (item as any).__variantCode != null
-                        ? encodeURIComponent(String((item as any).__variantCode))
-                        : undefined,
-                  },
-                })
-              }
-            />
-          </View>
-        )}
+        renderItem={({ item, index }: any) => {
+          if (!item) {
+            return <View style={{ width: itemW }} />
+          }
+          return (
+            <View style={{ width: itemW }}>
+              <ProductTile
+                image={item?.featuredImage?.url ?? ""}
+                brand={item?.vendor ?? ""}
+                title={item?.title ?? ""}
+                price={Number(item?.priceRange?.minVariantPrice?.amount ?? 0)}
+                compareAt={(() => {
+                  const cmp = Number(item?.compareAtPriceRange?.minVariantPrice?.amount ?? 0)
+                  const amt = Number(item?.priceRange?.minVariantPrice?.amount ?? 0)
+                  return cmp > amt ? cmp : undefined
+                })()}
+                currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
+                width={itemW}
+                imageRatio={3 / 4}
+                padding="sm"
+                priority={index < 6 ? "high" : "normal"}
+                onPress={() =>
+                  item?.handle &&
+                  router.push({
+                    pathname: "/products/[handle]",
+                    params: {
+                      handle: item.handle,
+                      variant:
+                        (item as any).__variantId != null
+                          ? encodeURIComponent(String((item as any).__variantId))
+                          : undefined,
+                      code:
+                        (item as any).__variantCode != null
+                          ? encodeURIComponent(String((item as any).__variantCode))
+                          : undefined,
+                    },
+                  })
+                }
+              />
+            </View>
+          )
+        }}
         onEndReachedThreshold={0.5}
         onEndReached={() => {
           endReachedRef.current = true
@@ -210,6 +215,7 @@ export default function SearchScreen() {
         keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
         scrollIndicatorInsets={{ bottom: 24 }}
         showsVerticalScrollIndicator={false}
+        ListFooterComponent={renderFooter}
       />
     </Screen>
   )

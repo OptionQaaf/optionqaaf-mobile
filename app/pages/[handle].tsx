@@ -6,8 +6,10 @@ import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
+import { padToFullRow } from "@/ui/layout/gridUtils"
 import { router, useLocalSearchParams } from "expo-router"
 import { Linking, Text, View } from "react-native"
+import { useMemo } from "react"
 
 const ABSOLUTE_RE = /^(https?:|mailto:|tel:|sms:)/i
 
@@ -25,7 +27,11 @@ export default function CustomPage() {
   const sections = homeData?.sections ?? []
 
   const { data: searchData } = useSearch(cfg.searchQuery, 24)
-  const products = (searchData?.pages?.flatMap((p) => p.nodes) ?? []).slice(0, 24)
+  const rawProducts = useMemo(
+    () => ((searchData?.pages?.flatMap((p) => p.nodes) ?? []) as any[]).slice(0, 24),
+    [searchData],
+  )
+  const products = useMemo(() => padToFullRow(rawProducts, 2), [rawProducts])
 
   const go = (url?: string) => {
     if (!url) return

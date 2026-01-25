@@ -13,7 +13,7 @@ import { VariantDropdown } from "@/ui/product/VariantDropdown"
 import { SectionHeader } from "@/ui/sections/SectionHeader"
 import { useEffect, useMemo, useState } from "react"
 import { FlatList, Image, useWindowDimensions, View } from "react-native"
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
+import Animated, { useSharedValue, withTiming } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const RECS = [
@@ -58,17 +58,14 @@ export default function PDPFlat() {
     if (!sentinelY) return
     if (mode === "sticky" && viewportBottom >= disengageStickyAt) setMode("inline")
     if (mode === "inline" && viewportBottom <= engageStickyAt) setMode("sticky")
-  }, [viewportBottom, sentinelY, mode])
+  }, [viewportBottom, sentinelY, mode, engageStickyAt, disengageStickyAt])
 
   const stickyOpacity = useSharedValue(1)
   const inlineOpacity = useSharedValue(0)
   useEffect(() => {
     stickyOpacity.value = withTiming(mode === "sticky" ? 1 : 0, { duration: 160 })
     inlineOpacity.value = withTiming(mode === "inline" ? 1 : 0, { duration: 160 })
-  }, [mode])
-  const aSticky = useAnimatedStyle(() => ({ opacity: stickyOpacity.value }))
-  const aInline = useAnimatedStyle(() => ({ opacity: inlineOpacity.value }))
-
+  }, [inlineOpacity, mode, stickyOpacity])
   const stickyStyle = useCrossfade(mode === "sticky")
   const inlineStyle = useCrossfade(mode === "inline")
 

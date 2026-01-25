@@ -5,6 +5,7 @@ import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
+import { padToFullRow } from "@/ui/layout/gridUtils"
 import { Button } from "@/ui/primitives/Button"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
@@ -37,7 +38,7 @@ function WishlistContent() {
   const router = useRouter()
   const { show } = useToast()
 
-  const gridData = useMemo(() => items, [items])
+  const gridData = useMemo(() => padToFullRow(items, 2), [items])
 
   const handleOpen = useCallback(
     (handle?: string | null) => {

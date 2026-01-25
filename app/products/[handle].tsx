@@ -10,6 +10,7 @@ import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { AppFooter } from "@/ui/layout/AppFooter"
 import { Screen } from "@/ui/layout/Screen"
 import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
+import { padToFullRow } from "@/ui/layout/gridUtils"
 import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { ImageCarousel } from "@/ui/media/ImageCarousel"
 import { Animated, MOTION, useCrossfade } from "@/ui/motion/motion"
@@ -69,8 +70,8 @@ export default function ProductScreen() {
   const wishlistItems = useWishlist((s) => s.items)
   const toggleWishlist = useWishlist((s) => s.toggle)
 
-  const options: { name: string; values: string[] }[] = (product as any)?.options ?? []
-  const variants: any[] = (product as any)?.variants?.nodes ?? []
+  const options = useMemo<{ name: string; values: string[] }[]>(() => (product as any)?.options ?? [], [product])
+  const variants = useMemo<any[]>(() => (product as any)?.variants?.nodes ?? [], [product])
   const inStockVariants = useMemo(() => variants.filter((v) => v?.availableForSale !== false), [variants])
   const requestedVariant = useMemo(() => {
     const byId = variants.find((v) => v?.id === requestedVariantId)
@@ -264,10 +265,6 @@ export default function ProductScreen() {
     }
     return list
   }, [vendorProducts, product])
-  const imageForAnim =
-    ((selectedVariant as any)?.image?.url as string | undefined) ||
-    ((product as any)?.featuredImage?.url as string | undefined)
-
   const productId = (product as any)?.id as string | undefined
   const isWishlisted = isAuthenticated && productId ? wishlistItems.some((item) => item.productId === productId) : false
 
@@ -513,12 +510,13 @@ function Recommended({
     }
     return arr
   }, [nodes, productId, currentHandle])
+  const gridRecs = useMemo(() => padToFullRow(shuffled.slice(0, 8), 2), [shuffled])
   if (!shuffled.length) return null
   return (
     <View className="px-4 mt-4">
       <Text className="text-primary font-geist-semibold text-[18px] mb-2">You might also like</Text>
       <StaticProductGrid
-        data={shuffled.slice(0, 8)}
+        data={gridRecs}
         columns={2}
         gap={8}
         renderItem={(item: any, w: number) => (

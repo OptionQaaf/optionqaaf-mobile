@@ -59,7 +59,7 @@ export default function CartScreen() {
   const { data: cart, isLoading, isFetching, isError, refetch } = useCartQuery()
   const sync = useSyncCartChanges()
   const { mutateAsync: updateDiscountCodesAsync, isPending: updatingDiscounts } = useUpdateDiscountCodes()
-  const { mutateAsync: replaceDeliveryAddresses, isPending: syncingAddresses } = useReplaceCartDeliveryAddresses()
+  const { mutateAsync: replaceDeliveryAddresses } = useReplaceCartDeliveryAddresses()
   const [codeInput, setCodeInput] = useState("")
 
   useEffect(() => {
@@ -182,10 +182,13 @@ export default function CartScreen() {
   const pendingRemoves = useRef<Set<string>>(new Set())
   const awaitingRefresh = useRef(false)
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flushRef = useRef<(() => Promise<void>) | null>(null)
 
   const scheduleSync = useCallback((delay = 700) => {
     if (syncTimer.current) clearTimeout(syncTimer.current)
-    syncTimer.current = setTimeout(() => void flush(), delay)
+    syncTimer.current = setTimeout(() => {
+      flushRef.current?.()
+    }, delay)
   }, [])
 
   const flush = useCallback(async () => {
@@ -207,6 +210,10 @@ export default function CartScreen() {
       show({ title: e?.message || "Failed to update cart", type: "danger" })
     }
   }, [scheduleSync, show, sync])
+
+  useEffect(() => {
+    flushRef.current = flush
+  }, [flush])
 
   // Adopt server snapshot or merge with pending edits
   useEffect(() => {
@@ -243,7 +250,7 @@ export default function CartScreen() {
 
   // Derived money (compact & consistent)
   // Derived money (compact & consistent)
-  const { subBefore, subAfter, discount, total, tax, hasItems } = useMemo(() => {
+  const { subBefore, discount, total, tax, hasItems } = useMemo(() => {
     const serverSubtotal = n(cart?.cost?.subtotalAmount?.amount, NaN)
     const taxAmount = n(cart?.cost?.totalTaxAmount?.amount, 0)
     const cartDiscountAllocations = (cart as any)?.discountAllocations ?? []
@@ -282,7 +289,6 @@ export default function CartScreen() {
     const savings = Math.max(0, baseSavings + appliedDiscount)
     return {
       subBefore: subBeforeDiscounts,
-      subAfter: subtotalAfterDiscounts,
       discount: savings,
       total: subtotalAfterDiscounts, // exclude shipping; show pure products total
       tax: taxAmount,
@@ -902,26 +908,6 @@ type LineNode = {
 function n(x: unknown, fallback = 0): number {
   const v = Number(x)
   return Number.isFinite(v) ? v : fallback
-}
-
-function setQueryParam(url: string, key: string, value: string): string {
-  try {
-    const parsed = new URL(url)
-    parsed.searchParams.set(key, value)
-    return parsed.toString()
-  } catch {
-    const [base, fragment] = url.split("#", 2)
-    const hasQuery = base.includes("?")
-    const encoded = encodeURIComponent(value)
-    const pattern = new RegExp(`([?&])${key}=[^&]*`)
-    let nextBase = base
-    if (pattern.test(base)) {
-      nextBase = base.replace(pattern, `$1${key}=${encoded}`)
-    } else {
-      nextBase = `${base}${hasQuery ? "&" : "?"}${key}=${encoded}`
-    }
-    return fragment !== undefined ? `${nextBase}#${fragment}` : nextBase
-  }
 }
 
 function dedupeLines(list: LineNode[]): LineNode[] {

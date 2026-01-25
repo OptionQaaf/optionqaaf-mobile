@@ -83,7 +83,7 @@ function AccountDeletionContent() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [logout, requestDeletion, router, show])
+  }, [logout, profile?.email, requestDeletion, router, show])
 
   const handleSubmit = useCallback(() => {
     Alert.alert(

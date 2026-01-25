@@ -93,7 +93,7 @@ function AppBootstrap() {
 
   useEffect(() => {
     console.debug("[app] metadata", metadata)
-  }, [metadata.appName, metadata.version, metadata.buildNumber, metadata.applicationId, metadata.ownership])
+  }, [metadata, metadata.appName, metadata.version, metadata.buildNumber, metadata.applicationId, metadata.ownership])
 
   const { isConnected, isInternetReachable, isExpensive, type } = networkStatus
   useEffect(() => {

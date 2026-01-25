@@ -4,15 +4,14 @@ import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { useFocusEffect } from "@react-navigation/native"
 import { router, useLocalSearchParams } from "expo-router"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import * as WebBrowser from "expo-web-browser"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { ActivityIndicator, Text, View } from "react-native"
 import { WebView } from "react-native-webview"
-import * as WebBrowser from "expo-web-browser"
 
 export default function AuthScreen() {
   const { url: urlParam } = useLocalSearchParams<{ url?: string }>()
   const { handleAuthRedirect, cancelLogin } = useShopifyAuth()
-  const [error, setError] = useState<string | null>(null)
   const settlingRef = useRef(false)
 
   const authUrl = useMemo(() => {
@@ -27,9 +26,15 @@ export default function AuthScreen() {
   const launchExternalAuthSession = useCallback(
     async (target?: string | null) => {
       settlingRef.current = true
+      if (!target) {
+        console.error("Login failed: no URL provided")
+        settlingRef.current = false
+        return
+      }
+
       try {
         await WebBrowser.warmUpAsync()
-        const result = await WebBrowser.openAuthSessionAsync(target || undefined, REDIRECT_URI, {
+        const result = await WebBrowser.openAuthSessionAsync(target, REDIRECT_URI, {
           preferEphemeralSession: false,
         })
         if (result.type === "success" && result.url) {
@@ -40,7 +45,7 @@ export default function AuthScreen() {
         throw new Error("Login cancelled")
       } catch (err: any) {
         settlingRef.current = false
-        setError(err?.message || "Login failed")
+        console.error(err?.message || "Login failed")
       } finally {
         await WebBrowser.coolDownAsync()
       }
@@ -76,7 +81,7 @@ export default function AuthScreen() {
           .then(() => router.back())
           .catch((err: any) => {
             settlingRef.current = false
-            setError(err?.message || "Login failed")
+            console.error(err?.message || "Login failed")
           })
         return false
       }

@@ -206,7 +206,7 @@ function BroadcastContent() {
     } finally {
       setIsSending(false)
     }
-  }, [missingConfig, trimmedMessage, trimmedTitle, destinationMeta, show, loadStats, adminOnly])
+  }, [adminOnly, destinationMeta, imageUrl, loadStats, missingConfig, show, trimmedMessage, trimmedTitle])
 
   const pickImage = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
