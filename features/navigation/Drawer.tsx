@@ -81,6 +81,7 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
   const DISABLED_EDGE_PAN_PATHS = [
     /^\/products\//,
     /^\/checkout\//,
+    /^\/cart(?:\/|$)/,
     /^\/account\//,
     /^\/collections/,
     /^\/policies\/national-address/,

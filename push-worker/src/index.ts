@@ -1,8 +1,17 @@
+import {
+	StoredPopup,
+	PopupPayload,
+	meetsMinimumVersion,
+	resolveViewerAudience,
+	isAudienceMatch,
+} from "./popup"
+
 export interface Env {
 	IMAGES: R2Bucket;
 	PUSH_TOKENS_DO: DurableObjectNamespace;
 	PUSH_STATS_DO: DurableObjectNamespace;
 	BROADCAST_QUEUE_DO: DurableObjectNamespace;
+	POPUP_DO: DurableObjectNamespace;
 	ADMIN_SECRET: string;
 	ADMIN_EMAILS?: string;
 }
@@ -498,6 +507,92 @@ export class BroadcastQueueDO {
 	}
 }
 
+const POPUP_DO_NAME = "popup-manager"
+const POPUP_CURRENT_KEY = "popup:current"
+const POPUP_SEEN_PREFIX = "popupSeen:"
+
+export class PopupDO {
+	state: DurableObjectState
+	storage: DurableObjectStorage
+
+	constructor(state: DurableObjectState) {
+		this.state = state
+		this.storage = state.storage
+	}
+
+	async fetch(request: Request): Promise<Response> {
+		const url = new URL(request.url)
+		if (url.pathname === "/current" && request.method === "GET") {
+			const current = (await this.storage.get<StoredPopup>(POPUP_CURRENT_KEY)) ?? null
+			return Response.json({ popup: current })
+		}
+
+		if (url.pathname === "/set" && request.method === "POST") {
+			const body = await request.json<any>()
+			const payload = body?.popup
+			if (!payload?.id) {
+				return new Response("Missing popup payload", { status: 400 })
+			}
+			if (payload.schemaVersion !== 1) {
+				return new Response("Unsupported schema version", { status: 400 })
+			}
+			const now = new Date().toISOString()
+			const stored: StoredPopup = {
+				...payload,
+				enabled: payload.enabled !== false,
+				updatedAt: now,
+			}
+			await this.storage.put(POPUP_CURRENT_KEY, stored)
+			return Response.json({ ok: true })
+		}
+
+		if (url.pathname === "/clear" && request.method === "POST") {
+			await this.storage.delete(POPUP_CURRENT_KEY)
+			return Response.json({ ok: true })
+		}
+
+		if (url.pathname === "/has-seen" && request.method === "GET") {
+			const popupId = url.searchParams.get("popupId")
+			const viewerKey = url.searchParams.get("viewerKey")
+			if (!popupId || !viewerKey) {
+				return new Response("Missing popupId or viewerKey", { status: 400 })
+			}
+			const key = this.seenKey(popupId, viewerKey)
+			const seen = Boolean(await this.storage.get<string>(key))
+			return Response.json({ seen })
+		}
+
+		if (url.pathname === "/mark-seen" && request.method === "POST") {
+			const body = await request.json<any>()
+			const popupId = body?.popupId
+			const viewerKey = body?.viewerKey
+			if (!popupId || !viewerKey) {
+				return new Response("Missing popupId or viewerKey", { status: 400 })
+			}
+			const key = this.seenKey(popupId, viewerKey)
+			await this.storage.put(key, new Date().toISOString())
+			return Response.json({ ok: true })
+		}
+
+		if (url.pathname === "/clear-seen" && request.method === "POST") {
+			await this.clearSeenEntries()
+			return Response.json({ ok: true })
+		}
+
+		return new Response("Not found", { status: 404 })
+	}
+
+	private seenKey(popupId: string, viewerKey: string) {
+		return `${POPUP_SEEN_PREFIX}${popupId}:${viewerKey}`
+	}
+
+	private async clearSeenEntries() {
+		const list = await this.storage.list<string>({ prefix: POPUP_SEEN_PREFIX })
+		const keys = Array.from(list.keys())
+		await Promise.all(keys.map((key) => this.storage.delete(key)))
+	}
+}
+
 // The main Worker (the public API)
 function isAdminSecretValid(provided: string | null | undefined, env: Env): boolean {
 	if (!env.ADMIN_SECRET) return true
@@ -528,6 +623,26 @@ export default {
 
 		if (url.pathname === '/api/stats' && request.method === 'GET') {
 			return handleStats(request, env);
+		}
+
+		if (url.pathname === '/api/popup/current' && request.method === 'GET') {
+			return handlePopupCurrent(request, env);
+		}
+
+		if (url.pathname === '/api/popup/seen' && request.method === 'POST') {
+			return handlePopupSeen(request, env);
+		}
+
+		if (url.pathname === '/api/admin/popup/current' && request.method === 'GET') {
+			return handleAdminPopupCurrent(request, env);
+		}
+
+		if (url.pathname === '/api/admin/popup/setCurrent' && request.method === 'POST') {
+			return handleAdminPopupSetCurrent(request, env);
+		}
+
+		if (url.pathname === '/api/admin/popup/clearCurrent' && request.method === 'POST') {
+			return handleAdminPopupClearCurrent(request, env);
 		}
 
 		if (url.pathname === '/api/track/open' && request.method === 'POST') {
@@ -750,4 +865,194 @@ async function handleStats(request: Request, env: Env): Promise<Response> {
 	const statsStub = env.PUSH_STATS_DO.get(statsId);
 	const res = await statsStub.fetch(`https://do/list?limit=${encodeURIComponent(limit)}`);
 	return new Response(res.body, { status: res.status, headers: { 'Content-Type': 'application/json' } });
+}
+
+function getPopupStub(env: Env): DurableObjectStub {
+	const id = env.POPUP_DO.idFromName(POPUP_DO_NAME);
+	return env.POPUP_DO.get(id);
+}
+
+async function handlePopupCurrent(request: Request, env: Env): Promise<Response> {
+	const url = new URL(request.url);
+	const viewerKey = (
+		(url.searchParams.get('viewerKey') ?? request.headers.get('x-viewer-key') ?? '')
+			.trim()
+	);
+	if (!viewerKey) {
+		return new Response('Missing viewerKey', { status: 400 });
+	}
+	const appVersion =
+		(url.searchParams.get('appVersion') ?? request.headers.get('x-app-version') ?? undefined)?.trim() ??
+		undefined;
+
+	const stub = getPopupStub(env);
+	const popupRes = await stub.fetch('https://do/current');
+	if (!popupRes.ok) {
+		const text = await popupRes.text().catch(() => '');
+		return new Response(text || 'Failed to load popup', { status: 500 });
+	}
+	const payload = await popupRes.json<{ popup: StoredPopup | null }>();
+	const popup = payload?.popup ?? null;
+	if (!popup || !popup.enabled) {
+		return Response.json({ popup: null });
+	}
+
+	const now = Date.now();
+	if (popup.startAt) {
+		const start = Date.parse(popup.startAt);
+		if (Number.isNaN(start) || now < start) {
+			return Response.json({ popup: null });
+		}
+	}
+	if (popup.endAt) {
+		const end = Date.parse(popup.endAt);
+		if (Number.isNaN(end) || now > end) {
+			return Response.json({ popup: null });
+		}
+	}
+
+	if (!meetsMinimumVersion(appVersion, popup.minAppVersion)) {
+		return Response.json({ popup: null });
+	}
+
+	const viewerAudience = resolveViewerAudience(viewerKey);
+	if (!isAudienceMatch(popup.audience, viewerAudience)) {
+		return Response.json({ popup: null });
+	}
+
+	const seenRes = await stub.fetch(
+		`https://do/has-seen?popupId=${encodeURIComponent(popup.id)}&viewerKey=${encodeURIComponent(
+			viewerKey,
+		)}`,
+	);
+	if (!seenRes.ok) {
+		const text = await seenRes.text().catch(() => '');
+		return new Response(text || 'Failed to verify seen state', { status: 500 });
+	}
+	const seenData = await seenRes.json<{ seen: boolean }>();
+	if (seenData.seen) {
+		return Response.json({ popup: null });
+	}
+
+	return Response.json({ popup });
+}
+
+async function handlePopupSeen(request: Request, env: Env): Promise<Response> {
+	const body = await request.json<any>();
+	const popupId = body?.popupId;
+	const viewerKey = (body?.viewerKey ?? '').trim();
+	if (!popupId || !viewerKey) {
+		return new Response('Missing popupId or viewerKey', { status: 400 });
+	}
+	const stub = getPopupStub(env);
+	const res = await stub.fetch('https://do/mark-seen', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ popupId, viewerKey }),
+	});
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		return new Response(text || 'Failed to mark popup as seen', { status: 500 });
+	}
+	return Response.json({ ok: true });
+}
+
+async function handleAdminPopupCurrent(request: Request, env: Env): Promise<Response> {
+	const secret = request.headers.get('x-admin-secret');
+	if (!isAdminSecretValid(secret, env)) {
+		return new Response('Unauthorized', { status: 401 });
+	}
+	const stub = getPopupStub(env);
+	const res = await stub.fetch('https://do/current');
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		return new Response(text || 'Failed to load popup', { status: 500 });
+	}
+	const payload = await res.json<{ popup: StoredPopup | null }>();
+	return Response.json(payload);
+}
+
+async function handleAdminPopupSetCurrent(request: Request, env: Env): Promise<Response> {
+	const secret = request.headers.get('x-admin-secret');
+	if (!isAdminSecretValid(secret, env)) {
+		return new Response('Unauthorized', { status: 401 });
+	}
+	const payload = await request.json<any>();
+	const body = payload?.popup ?? payload ?? {};
+	const popupId = typeof body?.id === 'string' && body.id.trim() ? body.id.trim() : null;
+	const title = typeof body?.title === 'string' ? body.title.trim() : '';
+	const bodyText = typeof body?.body === 'string' ? body.body.trim() : '';
+	if (!popupId || !title || !bodyText) {
+		return new Response('Missing popup id, title, or body', { status: 400 });
+	}
+
+	const cta = body?.cta;
+	if (cta && typeof cta.label !== 'string') {
+		return new Response('CTA label must be a string', { status: 400 });
+	}
+	if (cta && typeof cta.value !== 'string') {
+		return new Response('CTA value must be a string', { status: 400 });
+	}
+	if (cta && cta.action !== 'apply_coupon' && cta.action !== 'deeplink') {
+		return new Response('CTA action must be apply_coupon or deeplink', { status: 400 });
+	}
+
+	const icon = body?.icon;
+	if (icon && icon.type !== 'system' && icon.type !== 'image') {
+		return new Response('Invalid icon type', { status: 400 });
+	}
+
+	const popup: PopupPayload = {
+		schemaVersion: 1,
+		id: popupId,
+		enabled: body.enabled !== false,
+		title,
+		body: bodyText,
+		icon: icon ? { type: icon.type, value: String(icon.value ?? '') } : undefined,
+		cta: cta
+			? {
+					label: cta.label,
+					action: cta.action,
+					value: cta.value,
+			  }
+			: undefined,
+		startAt: typeof body?.startAt === 'string' ? body.startAt : undefined,
+		endAt: typeof body?.endAt === 'string' ? body.endAt : undefined,
+		minAppVersion: typeof body?.minAppVersion === 'string' ? body.minAppVersion : undefined,
+		audience: body?.audience,
+	};
+
+	const stub = getPopupStub(env);
+	const setRes = await stub.fetch('https://do/set', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ popup }),
+	});
+	if (!setRes.ok) {
+		const text = await setRes.text().catch(() => '');
+		return new Response(text || 'Failed to set popup', { status: 500 });
+	}
+	const clearRes = await stub.fetch('https://do/clear-seen', {
+		method: 'POST',
+	});
+	if (!clearRes.ok) {
+		console.warn('Failed to clear popup seen cache');
+	}
+	return Response.json({ ok: true });
+}
+
+async function handleAdminPopupClearCurrent(request: Request, env: Env): Promise<Response> {
+	const secret = request.headers.get('x-admin-secret');
+	if (!isAdminSecretValid(secret, env)) {
+		return new Response('Unauthorized', { status: 401 });
+	}
+	const stub = getPopupStub(env);
+	const res = await stub.fetch('https://do/clear', {
+		method: 'POST',
+	});
+	if (!res.ok) {
+		const text = await res.text().catch(() => '');
+		return new Response(text || 'Failed to clear popup', { status: 500 });
+	}
+	return Response.json({ ok: true });
 }

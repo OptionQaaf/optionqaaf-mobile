@@ -24,7 +24,7 @@ import { QuantityStepper } from "@/ui/product/QuantityStepper"
 import { Card } from "@/ui/surfaces/Card"
 import { BlurView } from "expo-blur"
 import { Image } from "expo-image"
-import { router } from "expo-router"
+import { router, useLocalSearchParams } from "expo-router"
 import { Trash2, X } from "lucide-react-native"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Alert, FlatList, KeyboardAvoidingView, PixelRatio, Platform, Text, View } from "react-native"
@@ -43,6 +43,7 @@ export default function CartScreen() {
   const insets = useSafeAreaInsets()
   const { currency: prefCurrencyState } = usePrefs()
   const { show } = useToast()
+  const params = useLocalSearchParams<{ coupon?: string }>()
   const { isAuthenticated, initializing: authInitializing, login, getToken } = useShopifyAuth()
   const [loginPending, setLoginPending] = useState(false)
   const { mutateAsync: attachBuyerToCustomer, isPending: attachingBuyer } = useAttachCartToCustomer()
@@ -122,44 +123,73 @@ export default function CartScreen() {
     return success
   }, [login, loginPending, show])
 
-  const discountCodes = useMemo(() => {
+  const { active: discountCodes, saved: savedDiscountCodes } = useMemo(() => {
     const raw = (cart?.discountCodes ?? []) as { code?: string | null; applicable?: boolean | null }[]
-    return raw
-      .filter((d) => typeof d?.code === "string" && Boolean(d.code?.trim().length) && d.applicable === true)
-      .map((d) => ({ code: (d.code as string).trim(), applicable: d.applicable ?? null }))
+    const active: { code: string; applicable: boolean | null }[] = []
+    const saved: { code: string; applicable: boolean | null }[] = []
+    for (const entry of raw) {
+      if (typeof entry?.code !== "string") continue
+      const code = entry.code.trim()
+      if (!code) continue
+      if (entry.applicable === true) {
+        active.push({ code, applicable: true })
+      } else {
+        saved.push({ code, applicable: entry.applicable ?? null })
+      }
+    }
+    return { active, saved }
   }, [cart?.discountCodes])
 
-  const handleApplyDiscount = useCallback(async () => {
-    const input = codeInput.trim()
-    if (!input) return
-    const normalized = input.toUpperCase()
-    const existing = discountCodes.map((d) => d.code)
-    const alreadyApplied = existing.some((c) => c.toUpperCase() === normalized)
-    if (alreadyApplied) {
-      show({ title: "Code already applied", type: "info" })
-      setCodeInput("")
-      return
-    }
-    try {
-      const nextCodes = [...existing, normalized]
-      const updatedCart = await updateDiscountCodesAsync(nextCodes)
-      const updatedDiscounts = (updatedCart?.discountCodes ?? []) as {
-        code?: string | null
-        applicable?: boolean | null
-      }[]
-      const applied = updatedDiscounts.find((d) => d?.code?.toUpperCase() === normalized)
-      if (!applied || applied.applicable === false) {
-        await updateDiscountCodesAsync(existing)
-        show({ title: "Code not valid or not applicable", type: "danger" })
-        setCodeInput("")
-        return
+  const applyDiscountCode = useCallback(
+    async (rawCode: string) => {
+      const input = rawCode.trim()
+      if (!input) return false
+      try {
+        await ensure.mutateAsync()
+      } catch (err: any) {
+        show({ title: err?.message || "Could not prepare your cart", type: "danger" })
+        return false
       }
-      setCodeInput("")
-      show({ title: "Discount applied", type: "success" })
-    } catch (err: any) {
-      show({ title: err?.message || "Could not apply that code", type: "danger" })
-    }
-  }, [codeInput, discountCodes, show, updateDiscountCodesAsync])
+      const normalized = input.toUpperCase()
+      const existing = discountCodes.map((d) => d.code)
+      const alreadyApplied = existing.some((c) => c.toUpperCase() === normalized)
+      if (alreadyApplied) {
+        show({ title: "Code already applied", type: "info" })
+        return true
+      }
+      try {
+        const nextCodes = [...existing, normalized]
+        const updatedCart = await updateDiscountCodesAsync(nextCodes)
+        const updatedDiscounts = (updatedCart?.discountCodes ?? []) as {
+          code?: string | null
+          applicable?: boolean | null
+        }[]
+        const applied = updatedDiscounts.find((d) => d?.code?.toUpperCase() === normalized)
+        const hasItems = Number(updatedCart?.totalQuantity ?? 0) > 0
+        if (!applied || applied.applicable === false) {
+          if (!hasItems) {
+            show({ title: "Coupon saved; add items to activate it", type: "info" })
+            return true
+          }
+          await updateDiscountCodesAsync(existing)
+          show({ title: "Code not valid or not applicable", type: "danger" })
+          return false
+        }
+        show({ title: "Discount applied", type: "success" })
+        return true
+      } catch (err: any) {
+        show({ title: err?.message || "Could not apply that code", type: "danger" })
+        return false
+      }
+    },
+    [discountCodes, ensure, show, updateDiscountCodesAsync],
+  )
+
+  const handleApplyDiscount = useCallback(async () => {
+    if (!codeInput.trim()) return
+    await applyDiscountCode(codeInput)
+    setCodeInput("")
+  }, [applyDiscountCode, codeInput])
 
   const handleRemoveDiscount = useCallback(
     async (code: string) => {
@@ -175,6 +205,26 @@ export default function CartScreen() {
     [discountCodes, show, updateDiscountCodesAsync],
   )
 
+  useEffect(() => {
+    const raw = typeof params.coupon === "string" ? params.coupon.trim() : ""
+    if (!raw) return
+    if (!cart?.id) return
+    if (couponHandledRef.current === raw) return
+    couponHandledRef.current = raw
+    let cancelled = false
+
+    const run = async () => {
+      await applyDiscountCode(raw)
+      if (cancelled) return
+      void router.replace("/cart")
+    }
+
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [params.coupon, applyDiscountCode, cart?.id])
+
   // Local model for snappy UX
   const [localLines, setLocalLines] = useState<LineNode[]>([])
   const [dirty, setDirty] = useState(false)
@@ -183,6 +233,7 @@ export default function CartScreen() {
   const awaitingRefresh = useRef(false)
   const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flushRef = useRef<(() => Promise<void>) | null>(null)
+  const couponHandledRef = useRef<string | null>(null)
 
   const scheduleSync = useCallback((delay = 700) => {
     if (syncTimer.current) clearTimeout(syncTimer.current)
@@ -642,6 +693,32 @@ export default function CartScreen() {
                                 </PressableOverlay>
                               </View>
                             ))}
+                          </View>
+                        ) : null}
+                        {!hasItems && savedDiscountCodes.length > 0 ? (
+                          <View className="gap-2">
+                            <Text className="text-[#475569] text-[12px] font-geist-semibold">Saved coupons</Text>
+                            <View className="gap-2">
+                              {savedDiscountCodes.map((code) => (
+                                <View
+                                  key={code.code}
+                                  className="flex-row items-center justify-between rounded-xl border border-dashed border-border bg-[#fdf2fa] px-3 py-2"
+                                >
+                                  <View className="flex-1 pr-3">
+                                    <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{code.code}</Text>
+                                    <Text className="text-[#6b7280] text-[11px]">Will activate once you add items</Text>
+                                  </View>
+                                  <PressableOverlay
+                                    onPress={() => handleRemoveDiscount(code.code)}
+                                    disabled={updatingDiscounts}
+                                    className="h-8 w-8 items-center justify-center rounded-full"
+                                    accessibilityLabel={`Remove saved coupon ${code.code}`}
+                                  >
+                                    <X size={16} color="#475569" />
+                                  </PressableOverlay>
+                                </View>
+                              ))}
+                            </View>
                           </View>
                         ) : null}
 

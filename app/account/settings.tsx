@@ -19,7 +19,7 @@ import { Card } from "@/ui/surfaces/Card"
 import * as Notifications from "expo-notifications"
 import { useRouter, type RelativePathString } from "expo-router"
 import * as Updates from "expo-updates"
-import { Clock, Megaphone, RefreshCcw, Settings2, Trash2 } from "lucide-react-native"
+import { Clock, Megaphone, RefreshCcw, Settings2, Sparkles, Trash2 } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Modal, Pressable, ScrollView, Text, View } from "react-native"
 
@@ -89,6 +89,12 @@ function AccountSettingsContent() {
   const adminLinks = useMemo(() => {
     if (!isAdmin) return []
     return [
+      {
+        title: "Popup manager",
+        body: "Publish popup announcements for the app.",
+        Icon: Sparkles,
+        path: "/account/popup" as RelativePathString,
+      },
       {
         title: "Push broadcast",
         body: "Send a push notification to all devices.",

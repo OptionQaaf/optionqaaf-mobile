@@ -20,6 +20,10 @@
 			"new_classes": ["BroadcastQueueDO"],
 			"tag": "v3",
 		},
+		{
+			"new_classes": ["PopupDO"],
+			"tag": "v4",
+		},
 	],
 	"durable_objects": {
 		"bindings": [
@@ -35,6 +39,10 @@
 				"class_name": "BroadcastQueueDO",
 				"name": "BROADCAST_QUEUE_DO",
 			},
+			{
+				"class_name": "PopupDO",
+				"name": "POPUP_DO",
+			},
 		],
 	},
 	"observability": {
@@ -48,6 +56,6 @@
 	],
 	"vars": {
 		"BUCKET_NAME": "optionqaaf-push-images",
-  	"ADMIN_EMAILS": "yznpsd@gmail.com,yazanarafat2001@gmail.com,optionqaaf@gmail.com,walid.aljaouni@gmail.com,yznkiswani@gmail.com"
+		"ADMIN_EMAILS": "yznpsd@gmail.com,yazanarafat2001@gmail.com,optionqaaf@gmail.com,walid.aljaouni@gmail.com,yznkiswani@gmail.com",
 	},
 }
