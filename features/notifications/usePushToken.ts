@@ -1,11 +1,22 @@
 import { useCustomerProfile } from "@/features/account/api"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
+import type { PushPermissionsStatus } from "@/features/notifications/permissions"
 import { requestPushPermissionsAndToken } from "@/features/notifications/permissions"
-import { useNotificationSettings } from "@/store/notifications"
+import { useNotificationSettings, type NotificationPermissionState } from "@/store/notifications"
+import { useNetworkStatus } from "@/lib/network/useNetworkStatus"
 import { useEffect, useRef, useState } from "react"
 import { AppState } from "react-native"
 
 const WORKER_URL = (process.env.EXPO_PUBLIC_PUSH_WORKER_URL || "").replace(/\/+$/, "")
+const ADMIN_SECRET = process.env.EXPO_PUBLIC_PUSH_ADMIN_SECRET
+
+function summarizePermissionState(status: PushPermissionsStatus): NotificationPermissionState {
+  return {
+    status: status.status,
+    granted: status.granted,
+    canAskAgain: status.canAskAgain,
+  }
+}
 
 async function registerWithWorker(token: string, email: string | null) {
   if (!WORKER_URL) {
@@ -15,9 +26,12 @@ async function registerWithWorker(token: string, email: string | null) {
     return
   }
 
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  if (ADMIN_SECRET) headers["x-admin-secret"] = ADMIN_SECRET
+
   const res = await fetch(`${WORKER_URL}/api/register`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ token, email }),
   })
 
@@ -33,10 +47,12 @@ export function usePushToken() {
   const expoPushToken = useNotificationSettings((s) => s.expoPushToken)
   const pushEnabled = useNotificationSettings((s) => s.pushEnabled)
   const setPreferences = useNotificationSettings((s) => s.setPreferences)
+  const { isConnected, isInternetReachable } = useNetworkStatus()
 
   const lastRegisteredKey = useRef<string | null>(null)
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [retryKey, setRetryKey] = useState(0)
+  const [syncKey, setSyncKey] = useState(0)
 
   useEffect(() => {
     if (!pushEnabled || !expoPushToken) {
@@ -49,18 +65,17 @@ export function usePushToken() {
       if (state === "active") {
         // Force a re-register attempt when the app resumes to recover from revoked tokens.
         lastRegisteredKey.current = null
-        // Re-run sync flow by toggling dependency changes via setPreferences when needed.
-        setPreferences((prev) => ({ pushEnabled: prev.pushEnabled, expoPushToken: prev.expoPushToken }))
+        setSyncKey((prev) => prev + 1)
       }
     })
     return () => sub.remove()
-  }, [setPreferences])
+  }, [])
 
   useEffect(() => {
     let cancelled = false
 
     const scheduleRetry = () => {
-      if (retryTimer.current) return
+      if (cancelled || retryTimer.current) return
       retryTimer.current = setTimeout(() => {
         retryTimer.current = null
         setRetryKey((prev) => prev + 1)
@@ -69,6 +84,10 @@ export function usePushToken() {
 
     const syncPushToken = async () => {
       if (!pushEnabled) return
+      if (isConnected === false || isInternetReachable === false) {
+        scheduleRetry()
+        return
+      }
       if (!WORKER_URL) {
         if (typeof __DEV__ !== "undefined" && __DEV__) {
           console.warn("[push] Missing EXPO_PUBLIC_PUSH_WORKER_URL; skipping token registration")
@@ -78,8 +97,19 @@ export function usePushToken() {
 
       try {
         const result = await requestPushPermissionsAndToken()
-        if (!result.granted || !result.token || cancelled) {
-          setPreferences({ pushEnabled: false, expoPushToken: null })
+        const permissionSummary = summarizePermissionState(result.status)
+        setPreferences({ permissionsStatus: permissionSummary })
+        if (!result.granted) {
+          setPreferences({
+            pushEnabled: false,
+            expoPushToken: null,
+            permissionsStatus: permissionSummary,
+          })
+          return
+        }
+        if (cancelled) return
+        if (!result.token) {
+          scheduleRetry()
           return
         }
 
@@ -87,6 +117,7 @@ export function usePushToken() {
           setPreferences({
             expoPushToken: result.token,
             pushEnabled: true,
+            permissionsStatus: permissionSummary,
           })
         }
 
@@ -94,6 +125,8 @@ export function usePushToken() {
         const payloadKey = `${result.token}:${email ?? ""}`
 
         if (payloadKey !== lastRegisteredKey.current) {
+          const attemptTime = new Date().toISOString()
+          setPreferences({ lastRegistrationAttempt: attemptTime })
           try {
             await registerWithWorker(result.token, email)
             lastRegisteredKey.current = payloadKey
@@ -127,5 +160,15 @@ export function usePushToken() {
         retryTimer.current = null
       }
     }
-  }, [expoPushToken, isAuthenticated, profile?.email, pushEnabled, retryKey, setPreferences])
+  }, [
+    expoPushToken,
+    isAuthenticated,
+    profile?.email,
+    pushEnabled,
+    retryKey,
+    setPreferences,
+    syncKey,
+    isConnected,
+    isInternetReachable,
+  ])
 }

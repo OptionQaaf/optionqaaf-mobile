@@ -29,9 +29,13 @@ export async function requestPushPermissionsAndToken(): Promise<PushRegistration
   }
 
   const projectId = Constants?.easConfig?.projectId ?? Constants?.expoConfig?.extra?.eas?.projectId
-  const response = projectId
-    ? await Notifications.getExpoPushTokenAsync({ projectId })
-    : await Notifications.getExpoPushTokenAsync()
-
-  return { status, granted: true, token: response.data }
+  try {
+    const response = projectId
+      ? await Notifications.getExpoPushTokenAsync({ projectId })
+      : await Notifications.getExpoPushTokenAsync()
+    return { status, granted: true, token: response.data }
+  } catch {
+    // Token fetch failed even though permissions are granted; caller should retry without disabling push.
+    return { status, granted: true, token: null }
+  }
 }

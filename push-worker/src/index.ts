@@ -11,6 +11,7 @@ const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const EXPO_CHUNK_SIZE = 100;
 const EXPO_CHUNKS_PER_ALARM = 8;
 const ALARM_DELAY_MS = 1000;
+const MAX_ALARM_BACKOFF_MS = 10000;
 const TOKEN_CHUNK_SIZE = EXPO_CHUNK_SIZE;
 const TOKEN_KEY_PREFIX = 'tokens:';
 
@@ -240,6 +241,7 @@ type BroadcastJob = {
 	destination: string | null;
 	chunkIndex: number;
 	chunkCount: number;
+	backoffMs: number;
 	requestedCount: number;
 	successCount: number;
 	errorCount: number;
@@ -301,6 +303,7 @@ export class BroadcastQueueDO {
 				destination: typeof body.destination === 'string' ? body.destination : null,
 				chunkIndex: 0,
 				chunkCount: tokenChunks.length,
+				backoffMs: ALARM_DELAY_MS,
 				requestedCount: tokens.length,
 				successCount: 0,
 				errorCount: 0,
@@ -342,6 +345,8 @@ export class BroadcastQueueDO {
 			let pendingErrorCount = job.pendingErrorCount;
 			let pendingInvalidTokenCount = job.pendingInvalidTokenCount;
 			const invalidTokens = new Set<string>();
+			// Track repeated Expo push failures so we can back off alarm scheduling.
+			let networkFailure = false;
 
 			let chunksProcessed = 0;
 			while (chunkIndex < job.chunkCount && chunksProcessed < EXPO_CHUNKS_PER_ALARM) {
@@ -355,6 +360,7 @@ export class BroadcastQueueDO {
 				const payloads = chunkTokens.map((token) => ({
 					to: token,
 					sound: 'default',
+					android_channel_id: 'default',
 					title: job.title,
 					body: job.body,
 					data: {
@@ -376,11 +382,13 @@ export class BroadcastQueueDO {
 					});
 				} catch {
 					errorCount += chunkTokens.length;
+					networkFailure = true;
 					continue;
 				}
 
 				if (!res.ok) {
 					errorCount += chunkTokens.length;
+					networkFailure = true;
 					continue;
 				}
 
@@ -389,6 +397,7 @@ export class BroadcastQueueDO {
 					json = await res.json<any>();
 				} catch {
 					errorCount += chunkTokens.length;
+					networkFailure = true;
 					continue;
 				}
 				const data = Array.isArray(json?.data) ? json.data : [];
@@ -455,6 +464,10 @@ export class BroadcastQueueDO {
 				pendingSuccessCount === 0 &&
 				pendingErrorCount === 0 &&
 				pendingInvalidTokenCount === 0;
+			// Back off alarm scheduling if the Expo push API was unreachable.
+			const nextBackoffMs = networkFailure
+				? Math.min((job.backoffMs ?? ALARM_DELAY_MS) * 2, MAX_ALARM_BACKOFF_MS)
+				: ALARM_DELAY_MS;
 			const updatedJob: BroadcastJob = {
 				...job,
 				chunkIndex,
@@ -464,6 +477,7 @@ export class BroadcastQueueDO {
 				pendingSuccessCount,
 				pendingErrorCount,
 				pendingInvalidTokenCount,
+				backoffMs: nextBackoffMs,
 				updatedAt: new Date().toISOString(),
 				completed,
 			};
@@ -474,16 +488,22 @@ export class BroadcastQueueDO {
 				await this.storage.delete(keys);
 			}
 			if (!completed) {
-				await this.storage.setAlarm(Date.now() + ALARM_DELAY_MS);
+				await this.storage.setAlarm(Date.now() + nextBackoffMs);
 			}
 		} catch (err) {
 			console.error('BroadcastQueueDO alarm error', err);
-			await this.storage.setAlarm(Date.now() + ALARM_DELAY_MS);
+			const fallbackDelay = Math.min((job.backoffMs ?? ALARM_DELAY_MS) * 2, MAX_ALARM_BACKOFF_MS);
+			await this.storage.setAlarm(Date.now() + fallbackDelay);
 		}
 	}
 }
 
 // The main Worker (the public API)
+function isAdminSecretValid(provided: string | null | undefined, env: Env): boolean {
+	if (!env.ADMIN_SECRET) return true
+	return Boolean(provided && provided === env.ADMIN_SECRET)
+}
+
 export default {
 	async fetch(request: Request, env: Env): Promise<Response> {
 		const url = new URL(request.url);
@@ -521,7 +541,14 @@ export default {
 // --- Handlers ---
 
 async function handleRegister(request: Request, env: Env): Promise<Response> {
-	const { token, email } = await request.json<any>();
+	const body = await request.json<any>();
+	const providedSecret = body?.secret ?? request.headers.get('x-admin-secret');
+	// Shared secret guards registration endpoints from anonymous callers.
+	if (!isAdminSecretValid(providedSecret, env)) {
+		return new Response('Unauthorized', { status: 401 });
+	}
+
+	const { token, email } = body;
 
 	if (!token) {
 		return new Response('Missing token', { status: 400 });
@@ -540,7 +567,14 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
 }
 
 async function handleUnregister(request: Request, env: Env): Promise<Response> {
-	const { token } = await request.json<any>();
+	const body = await request.json<any>();
+	const providedSecret = body?.secret ?? request.headers.get('x-admin-secret');
+	// Shared secret guards unregistration from anonymous callers.
+	if (!isAdminSecretValid(providedSecret, env)) {
+		return new Response('Unauthorized', { status: 401 });
+	}
+
+	const { token } = body;
 	if (!token) {
 		return new Response('Missing token', { status: 400 });
 	}
@@ -688,15 +722,17 @@ async function handleBroadcast(request: Request, env: Env): Promise<Response> {
 async function handleTrackOpen(request: Request, env: Env): Promise<Response> {
 	const { notificationId, token, email } = await request.json<any>();
 
-	if (!notificationId || !token) {
-		return new Response('Missing notificationId or token', { status: 400 });
+	if (!notificationId) {
+		return new Response('Missing notification id', { status: 400 });
 	}
+	// Allow opens without a push token so broadcast-free notifications still record opens.
+	const normalizedToken = typeof token === 'string' && token.length > 0 ? token : null;
 
 	const statsId = env.PUSH_STATS_DO.idFromName('global');
 	const statsStub = env.PUSH_STATS_DO.get(statsId);
 	await statsStub.fetch('https://do/track-open', {
 		method: 'POST',
-		body: JSON.stringify({ id: notificationId, token, email }),
+		body: JSON.stringify({ id: notificationId, token: normalizedToken, email }),
 	});
 
 	return Response.json({ ok: true });
