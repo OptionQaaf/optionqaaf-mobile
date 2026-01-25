@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo } from "react"
 import { ActivityIndicator, Linking, RefreshControl, ScrollView, Text, View } from "react-native"
 
 type SegmentedLineItem = { item: OrderDetail["lineItems"][number]; quantity: number }
-type SegmentedLineItems = Array<SegmentedLineItem & { status: string }>
+type SegmentedLineItems = (SegmentedLineItem & { status: string })[]
 const IMILE_TRACKING_URL = "https://www.imile.com/SA-en/track"
 
 export default function OrderDetailScreen() {

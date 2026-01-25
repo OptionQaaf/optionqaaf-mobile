@@ -125,12 +125,7 @@ export default function CartScreen() {
   const discountCodes = useMemo(() => {
     const raw = (cart?.discountCodes ?? []) as { code?: string | null; applicable?: boolean | null }[]
     return raw
-      .filter(
-        (d) =>
-          typeof d?.code === "string" &&
-          Boolean(d.code?.trim().length) &&
-          d.applicable === true,
-      )
+      .filter((d) => typeof d?.code === "string" && Boolean(d.code?.trim().length) && d.applicable === true)
       .map((d) => ({ code: (d.code as string).trim(), applicable: d.applicable ?? null }))
   }, [cart?.discountCodes])
 

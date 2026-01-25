@@ -97,15 +97,12 @@ function AppBootstrap() {
 
   const { isConnected, isInternetReachable, isExpensive, type } = networkStatus
   useEffect(() => {
-    console.debug(
-      "[app] network",
-      {
-        isConnected,
-        isInternetReachable,
-        isExpensive,
-        type,
-      },
-    )
+    console.debug("[app] network", {
+      isConnected,
+      isInternetReachable,
+      isExpensive,
+      type,
+    })
   }, [isConnected, isInternetReachable, isExpensive, type])
 
   return null

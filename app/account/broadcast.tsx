@@ -13,7 +13,16 @@ import { Image } from "expo-image"
 import * as ImagePicker from "expo-image-picker"
 import { useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, ScrollView, Switch, Text, View } from "react-native"
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  ScrollView,
+  Switch,
+  Text,
+  View,
+} from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const WORKER_URL = (process.env.EXPO_PUBLIC_PUSH_WORKER_URL || "").replace(/\/+$/, "")
@@ -37,11 +46,11 @@ type NotificationStats = {
   invalidTokenCount: number
   openCount: number
   uniqueOpenCount: number
-  openers: Array<{
+  openers: {
     token: string
     email: string | null
     openedAt: string
-  }>
+  }[]
 }
 
 export default function BroadcastScreen() {
@@ -387,7 +396,9 @@ function BroadcastContent() {
               />
             </View>
             {missingAdminEmails ? (
-              <Text className="text-danger text-[13px]">Set EXPO_PUBLIC_PUSH_ADMIN_EMAILS to use admin-only tests.</Text>
+              <Text className="text-danger text-[13px]">
+                Set EXPO_PUBLIC_PUSH_ADMIN_EMAILS to use admin-only tests.
+              </Text>
             ) : null}
 
             {missingConfig ? (
