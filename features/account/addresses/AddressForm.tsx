@@ -66,6 +66,27 @@ type AddressFormProps = {
 type FormErrors = Partial<Record<keyof AddressFormState, string>>
 
 type Coordinate = { latitude: number; longitude: number }
+type LatLng = Coordinate
+
+const GEO_CACHE = new Map<string, GeocodedAddress>()
+
+function roundCoord(coord: LatLng): LatLng {
+  return {
+    latitude: +coord.latitude.toFixed(4),
+    longitude: +coord.longitude.toFixed(4),
+  }
+}
+
+function coordKey(coord: LatLng) {
+  return `${coord.latitude.toFixed(4)},${coord.longitude.toFixed(4)}`
+}
+
+function hasMovedEnough(prev: LatLng | null, next: LatLng) {
+  if (!prev) return true
+  const dx = Math.abs(prev.latitude - next.latitude)
+  const dy = Math.abs(prev.longitude - next.longitude)
+  return dx > 0.0005 || dy > 0.0005
+}
 
 const DEFAULT_REGION: Region = {
   latitude: 37.7749,
@@ -119,6 +140,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
   const [errors, setErrors] = useState<FormErrors>({})
   const initialValuesApplied = useRef(false)
   const zipEditedManually = useRef(false)
+  const lastGeocodedRef = useRef<LatLng | null>(null)
   const [region, setRegion] = useState<Region>(() =>
     initialCoordinate
       ? {
@@ -208,59 +230,88 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     [applySelection],
   )
 
-  const reverseGeocode = useCallback(
-    async (coordinate: Coordinate) => {
-      try {
-        setIsLocating(true)
-        try {
-          const result = await reverseGeocodeGoogle(coordinate.latitude, coordinate.longitude)
-          applyGeocodedAddress(result.address)
-          return
-        } catch (error) {
-          console.error("reverseGeocodeGoogle", error)
-        }
+  const reverseGeocodeOptimized = useMemo(() => {
+    let timeout: ReturnType<typeof setTimeout> | null = null
 
-        try {
-          const results = await Location.reverseGeocodeAsync(coordinate)
-          const best = results[0]
-          if (best) {
-            const streetParts = [best.streetNumber, best.street || best.name].filter(Boolean)
-            const fallbackAddress: GeocodedAddress = {
-              rawStreet: streetParts.join(" "),
-              rawCity: best.city ?? best.subregion ?? undefined,
-              rawProvince: best.region ?? best.subregion ?? undefined,
-              rawZip: best.postalCode ?? undefined,
-              rawCountryCode: best.isoCountryCode ?? undefined,
-              rawArea: best.district ?? best.subregion ?? undefined,
-            }
-            applyGeocodedAddress(fallbackAddress)
+    return (coordinate: Coordinate) =>
+      new Promise<void>((resolve) => {
+        if (timeout) clearTimeout(timeout)
+
+        timeout = setTimeout(async () => {
+          const rounded = roundCoord(coordinate)
+
+          if (!hasMovedEnough(lastGeocodedRef.current, rounded)) {
+            resolve()
             return
           }
-        } catch (error) {
-          console.error("expo reverseGeocode", error)
-        }
 
-        show({ title: "Could not look up that location", type: "danger" })
-      } catch (error) {
-        console.error("reverseGeocode", error)
-        show({ title: "Could not look up that location", type: "danger" })
-      } finally {
-        setIsLocating(false)
-      }
-    },
-    [applyGeocodedAddress, show],
-  )
+          const key = coordKey(rounded)
+          const cached = GEO_CACHE.get(key)
+
+          if (cached) {
+            applyGeocodedAddress(cached)
+            lastGeocodedRef.current = rounded
+            resolve()
+            return
+          }
+
+          setIsLocating(true)
+          try {
+            try {
+              const result = await reverseGeocodeGoogle(rounded.latitude, rounded.longitude)
+              if (result?.address) {
+                GEO_CACHE.set(key, result.address)
+                applyGeocodedAddress(result.address)
+                lastGeocodedRef.current = rounded
+                return
+              }
+            } catch (error) {
+              console.error("reverseGeocodeGoogle", error)
+            }
+
+            try {
+              const results = await Location.reverseGeocodeAsync(rounded)
+              const best = results[0]
+              if (best) {
+                const streetParts = [best.streetNumber, best.street || best.name].filter(Boolean)
+                const fallbackAddress: GeocodedAddress = {
+                  rawStreet: streetParts.join(" "),
+                  rawCity: best.city ?? best.subregion ?? undefined,
+                  rawProvince: best.region ?? best.subregion ?? undefined,
+                  rawZip: best.postalCode ?? undefined,
+                  rawCountryCode: best.isoCountryCode ?? undefined,
+                  rawArea: best.district ?? best.subregion ?? undefined,
+                }
+                applyGeocodedAddress(fallbackAddress)
+                lastGeocodedRef.current = rounded
+                return
+              }
+            } catch (error) {
+              console.error("expo reverseGeocode", error)
+            }
+
+            show({ title: "Could not look up that location", type: "danger" })
+          } catch (error) {
+            console.error("reverseGeocodeOptimized", error)
+            show({ title: "Could not look up that location", type: "danger" })
+          } finally {
+            setIsLocating(false)
+            resolve()
+          }
+        }, 700)
+      })
+  }, [applyGeocodedAddress, show])
 
   const handleMapPress = useCallback(
     async (event: MapPressEvent) => {
       const coordinate = event.nativeEvent.coordinate
       updateCoordinateState(coordinate)
       setRegionForCoordinate(coordinate)
-      reverseGeocode(coordinate).catch(() => {
+      reverseGeocodeOptimized(coordinate).catch(() => {
         /* handled */
       })
     },
-    [reverseGeocode, setRegionForCoordinate, updateCoordinateState],
+    [reverseGeocodeOptimized, setRegionForCoordinate, updateCoordinateState],
   )
 
   const handleUseCurrentLocation = useCallback(async () => {
@@ -274,13 +325,13 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
       }
       setRegionForCoordinate(coordinate)
       updateCoordinateState(coordinate)
-      await reverseGeocode(coordinate)
+      await reverseGeocodeOptimized(coordinate)
     } catch (error) {
       show({ title: "Could not fetch your current location", type: "danger" })
     } finally {
       setIsLocating(false)
     }
-  }, [ensurePermission, reverseGeocode, setRegionForCoordinate, show, updateCoordinateState])
+  }, [ensurePermission, reverseGeocodeOptimized, setRegionForCoordinate, show, updateCoordinateState])
 
   useEffect(() => {
     if (initialValues) return
@@ -298,7 +349,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
         }
         setRegionForCoordinate(coordinate)
         updateCoordinateState(coordinate)
-        await reverseGeocode(coordinate)
+        await reverseGeocodeOptimized(coordinate)
       } catch (error) {
         // Permission denied or location unavailable; keep manual entry.
       } finally {
@@ -309,7 +360,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
     return () => {
       isMounted = false
     }
-  }, [ensurePermission, reverseGeocode, setRegionForCoordinate, updateCoordinateState])
+  }, [ensurePermission, reverseGeocodeOptimized, setRegionForCoordinate, updateCoordinateState])
 
   const submit = useCallback(() => {
     const nextErrors: FormErrors = {}
@@ -433,7 +484,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
                           const coordinate = event.nativeEvent.coordinate
                           updateCoordinateState(coordinate)
                           setRegionForCoordinate(coordinate)
-                          reverseGeocode(coordinate).catch(() => {
+                          reverseGeocodeOptimized(coordinate).catch(() => {
                             /* handled */
                           })
                         }}
