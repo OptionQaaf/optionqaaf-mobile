@@ -9,12 +9,20 @@ export function ImageCarousel({
   images,
   height = 420,
   className,
+  onIndexChange,
 }: {
   images: string[]
   height?: number
   className?: string
+  onIndexChange?: (index: number) => void
 }) {
   const [index, setIndex] = useState(0)
+  useEffect(() => {
+    setIndex(0)
+  }, [images])
+  useEffect(() => {
+    onIndexChange?.(index)
+  }, [index, onIndexChange])
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const i = Math.round(e.nativeEvent.contentOffset.x / width)
     setIndex(i)

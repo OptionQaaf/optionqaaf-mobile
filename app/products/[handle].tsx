@@ -1,8 +1,10 @@
+import { useCustomerProfile } from "@/features/account/api"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { useAddToCart, useEnsureCart } from "@/features/cart/api"
 import { useProduct } from "@/features/pdp/api"
 import { useRecommendedProducts } from "@/features/recommendations/api"
 import { useSearch } from "@/features/search/api"
+import { isPushAdmin } from "@/features/notifications/admin"
 import type { WishlistItem } from "@/store/wishlist"
 import { useWishlist } from "@/store/wishlist"
 import { useToast } from "@/ui/feedback/Toast"
@@ -25,9 +27,9 @@ import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { VariantDropdown } from "@/ui/product/VariantDropdown"
 import * as Clipboard from "expo-clipboard"
 import { router, useLocalSearchParams } from "expo-router"
-import { Copy, Star } from "lucide-react-native"
+import { Copy, Download, Star } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { StyleSheet, Text, View, useWindowDimensions } from "react-native"
+import { ActivityIndicator, Share, StyleSheet, Text, View, useWindowDimensions } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function ProductScreen() {
@@ -59,7 +61,9 @@ export default function ProductScreen() {
   }, [codeParam])
   const { data: product, isLoading } = useProduct(h)
   const { isAuthenticated, login } = useShopifyAuth()
+  const { data: profile } = useCustomerProfile({ enabled: isAuthenticated })
   const vendor = ((product as any)?.vendor ?? "") as string
+  const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
   const { data: vendorSearchData, isLoading: isVendorLoading } = useSearch(vendor, 12)
   const vendorProducts = useMemo(() => vendorSearchData?.pages?.flatMap((p) => p.nodes) ?? [], [vendorSearchData])
   const insets = useSafeAreaInsets()
@@ -92,6 +96,8 @@ export default function ProductScreen() {
     return base
   }, [variants, inStockVariants, requestedVariant])
   const firstAvailableVariant = useMemo(() => variantsPool[0] ?? null, [variantsPool])
+  const [carouselIndex, setCarouselIndex] = useState(0)
+  const [isSavingImage, setIsSavingImage] = useState(false)
   const [sel, setSel] = useState<Record<string, string>>({})
   useEffect(() => {
     if (!options?.length) return
@@ -159,6 +165,7 @@ export default function ProductScreen() {
   const available = selectedVariant?.availableForSale !== false
   const loading = ensure.isPending || add.isPending
 
+  const productTitle = useMemo(() => (product as any)?.title ?? "Product image", [product])
   const images = useMemo(() => {
     const urls: string[] = []
     const vUrl = (selectedVariant as any)?.image?.url as string | undefined
@@ -179,6 +186,36 @@ export default function ProductScreen() {
       }
     return list.length ? list : ["https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=1200"]
   }, [product, selectedVariant])
+  const currentImage = useMemo(() => images[carouselIndex] ?? images[0], [carouselIndex, images])
+  const handleDownloadImage = useCallback(async () => {
+    if (!currentImage || isSavingImage) return
+    if (typeof FileReader === "undefined") {
+      show({ title: "Unable to prepare image", type: "danger" })
+      return
+    }
+    setIsSavingImage(true)
+    try {
+      const response = await fetch(currentImage)
+      if (!response.ok) throw new Error("Image download failed")
+      const blob = await response.blob()
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const result = reader.result
+          if (typeof result === "string") resolve(result)
+          else reject(new Error("Failed to read image data"))
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+      await Share.share({ title: productTitle, url: dataUrl })
+    } catch (err: any) {
+      const message = err?.message || "Could not download image"
+      show({ title: message, type: "danger" })
+    } finally {
+      setIsSavingImage(false)
+    }
+  }, [currentImage, isSavingImage, productTitle, show])
 
   const BAR_H = 64
   const GAP = 12
@@ -329,11 +366,30 @@ export default function ProductScreen() {
         renderItem={() => null}
         ListHeaderComponent={
           <View className="bg-white">
-            <ImageCarousel
-              key={images[0] ?? "pimg"}
-              images={images}
-              height={Math.max(600, Math.min(720, Math.round(width * 1.1)))}
-            />
+            <View className="relative">
+              <ImageCarousel
+                key={images[0] ?? "pimg"}
+                images={images}
+                height={Math.max(600, Math.min(720, Math.round(width * 1.1)))}
+                onIndexChange={setCarouselIndex}
+              />
+              {isAdmin ? (
+                <View className="absolute right-3 bottom-3 z-10">
+                  <PressableOverlay
+                    accessibilityLabel="Download product image"
+                    onPress={handleDownloadImage}
+                    disabled={isSavingImage}
+                    className="rounded-full bg-black/70 p-2 shadow-lg"
+                  >
+                    {isSavingImage ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Download size={20} color="#fff" strokeWidth={1.5} />
+                    )}
+                  </PressableOverlay>
+                </View>
+              ) : null}
+            </View>
 
             <View className="px-4 py-4 flex-row items-start justify-between gap-4">
               <View className="flex-1">
