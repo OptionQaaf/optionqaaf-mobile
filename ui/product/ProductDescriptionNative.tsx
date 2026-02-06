@@ -1,8 +1,10 @@
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { Image as ExpoImage } from "expo-image"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { PixelRatio, View, useWindowDimensions } from "react-native"
+import { PixelRatio, Pressable, View, useWindowDimensions } from "react-native"
 import RenderHTML from "react-native-render-html"
+
+import { shareRemoteImage } from "@/src/lib/media/shareRemoteImage"
 
 /** ---------- small utilities ---------- */
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(n, hi))
@@ -46,11 +48,15 @@ function ImageWithSkeleton({
   contentW,
   dpr,
   onAnyImageSettled,
+  onLongPress,
+  disabled,
 }: {
   src: string
   contentW: number
   dpr: number
   onAnyImageSettled: () => void
+  onLongPress?: () => void
+  disabled?: boolean
 }) {
   // 1) Build candidates: prefer optimized, then original
   const primary = optimizeImageUrl(src, { width: Math.round(contentW), format: "webp", dpr }) || src
@@ -79,8 +85,9 @@ function ImageWithSkeleton({
     }
   }, [showSkel, onAnyImageSettled])
 
-  return (
-    <View style={{ width: "100%", position: "relative" }}>
+  const interactive = Boolean(onLongPress && !disabled)
+  const imageContent = (
+    <>
       {/* reserved space prevents layout jump; image is always mounted */}
       <ExpoImage
         source={{ uri }}
@@ -117,18 +124,39 @@ function ImageWithSkeleton({
           </View>
         </View>
       ) : null}
+    </>
+  )
+
+  return (
+    <View style={{ width: "100%", position: "relative" }}>
+      {interactive ? (
+        <Pressable onLongPress={onLongPress} style={{ width: "100%", position: "relative" }}>
+          {imageContent}
+        </Pressable>
+      ) : (
+        imageContent
+      )}
     </View>
   )
 }
 
 /** ---------- Main (no global overlay; text first, images hydrate) ---------- */
-type Props = { html?: string; onReady?: () => void }
+type Props = {
+  html?: string
+  onReady?: () => void
+  isAdmin?: boolean
+  productTitle?: string
+}
 
-function ProductDescriptionNativeBase({ html = "", onReady }: Props) {
+function ProductDescriptionNativeBase({
+  html = "",
+  onReady,
+  isAdmin = false,
+  productTitle,
+}: Props) {
   const { width: screenW } = useWindowDimensions()
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
   const contentW = Math.max(320, Math.min(screenW - 32, screenW))
-
   // clean/rewrite once per width change
   const processed = useMemo(() => {
     const clean = sanitizeHTML(html)
@@ -159,6 +187,17 @@ function ProductDescriptionNativeBase({ html = "", onReady }: Props) {
       if (safeTimeoutRef.current) clearTimeout(safeTimeoutRef.current)
     }
   }, [processed, imgCount, fireReadyOnce])
+  const handleImageLongPress = useCallback(
+    async (imageUrl: string) => {
+      if (!isAdmin || !imageUrl) return
+      try {
+        await shareRemoteImage({ imageUrl, title: productTitle })
+      } catch (err: any) {
+        console.error("Product description image share failed", err)
+      }
+    },
+    [isAdmin, productTitle],
+  )
 
   // custom image renderer using per‑image skeletons
   const renderers = useMemo(
@@ -166,10 +205,20 @@ function ProductDescriptionNativeBase({ html = "", onReady }: Props) {
       img: ({ tnode }: any) => {
         const raw = String(tnode?.domNode?.attribs?.src || "")
         const src = normalizeSrc(raw)
-        return <ImageWithSkeleton src={src} contentW={contentW} dpr={dpr} onAnyImageSettled={fireReadyOnce} />
+        const longPressHandler = isAdmin ? () => handleImageLongPress(src) : undefined
+        return (
+          <ImageWithSkeleton
+            src={src}
+            contentW={contentW}
+            dpr={dpr}
+            onAnyImageSettled={fireReadyOnce}
+            onLongPress={longPressHandler}
+            disabled={!isAdmin}
+          />
+        )
       },
     }),
-    [contentW, dpr, fireReadyOnce],
+    [contentW, dpr, fireReadyOnce, handleImageLongPress, isAdmin],
   )
 
   const tagsStyles = useMemo(

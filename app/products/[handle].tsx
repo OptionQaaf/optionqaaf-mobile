@@ -1,18 +1,19 @@
 import { useCustomerProfile } from "@/features/account/api"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { useAddToCart, useEnsureCart } from "@/features/cart/api"
+import { isPushAdmin } from "@/features/notifications/admin"
 import { useProduct } from "@/features/pdp/api"
 import { useRecommendedProducts } from "@/features/recommendations/api"
 import { useSearch } from "@/features/search/api"
-import { isPushAdmin } from "@/features/notifications/admin"
+import { shareRemoteImage } from "@/src/lib/media/shareRemoteImage"
 import type { WishlistItem } from "@/store/wishlist"
 import { useWishlist } from "@/store/wishlist"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { AppFooter } from "@/ui/layout/AppFooter"
+import { padToFullRow } from "@/ui/layout/gridUtils"
 import { Screen } from "@/ui/layout/Screen"
 import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
-import { padToFullRow } from "@/ui/layout/gridUtils"
 import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { ImageCarousel } from "@/ui/media/ImageCarousel"
 import { Animated, MOTION, useCrossfade } from "@/ui/motion/motion"
@@ -29,7 +30,7 @@ import * as Clipboard from "expo-clipboard"
 import { router, useLocalSearchParams } from "expo-router"
 import { Copy, Download, Star } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ActivityIndicator, Share, StyleSheet, Text, View, useWindowDimensions } from "react-native"
+import { ActivityIndicator, StyleSheet, Text, View, useWindowDimensions } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function ProductScreen() {
@@ -195,20 +196,7 @@ export default function ProductScreen() {
     }
     setIsSavingImage(true)
     try {
-      const response = await fetch(currentImage)
-      if (!response.ok) throw new Error("Image download failed")
-      const blob = await response.blob()
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          const result = reader.result
-          if (typeof result === "string") resolve(result)
-          else reject(new Error("Failed to read image data"))
-        }
-        reader.onerror = reject
-        reader.readAsDataURL(blob)
-      })
-      await Share.share({ title: productTitle, url: dataUrl })
+      await shareRemoteImage({ imageUrl: currentImage, title: productTitle })
     } catch (err: any) {
       const message = err?.message || "Could not download image"
       show({ title: message, type: "danger" })
@@ -454,7 +442,11 @@ export default function ProductScreen() {
               <View className="mt-2 px-2">
                 <Accordion defaultValue="desc" /* don’t control it unless needed */>
                   <Accordion.Item value="desc" title="Description" appearance="inline" keepMounted>
-                    <ProductDescriptionNative html={(product as any)?.descriptionHtml} />
+                    <ProductDescriptionNative
+                      html={(product as any)?.descriptionHtml}
+                      isAdmin={isAdmin}
+                      productTitle={productTitle}
+                    />
                   </Accordion.Item>
                 </Accordion>
               </View>
