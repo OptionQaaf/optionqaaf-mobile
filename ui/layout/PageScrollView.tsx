@@ -42,17 +42,10 @@ export const PageScrollView = forwardRef<ScrollView, Props>(function PageScrollV
   const lastOffset = useRef(0)
   const downScale = Math.min(Math.max(floatingDockScaleOnScroll ?? 0.8, 0.3), 1)
   const setDockScale = scaleContext?.setScale
-  const scheduledFrame = useRef<number | null>(null)
 
   const scheduleScaleUpdate = useCallback(
     (value: number) => {
-      if (scheduledFrame.current !== null) {
-        cancelAnimationFrame(scheduledFrame.current)
-      }
-      scheduledFrame.current = requestAnimationFrame(() => {
-        setDockScale?.(value)
-        scheduledFrame.current = null
-      })
+      setDockScale?.(value)
     },
     [setDockScale],
   )
@@ -79,15 +72,6 @@ export const PageScrollView = forwardRef<ScrollView, Props>(function PageScrollV
       scheduleScaleUpdate(downScale)
     }
   }, [downScale, scheduleScaleUpdate])
-
-  useEffect(() => {
-    return () => {
-      if (scheduledFrame.current !== null) {
-        cancelAnimationFrame(scheduledFrame.current)
-        scheduledFrame.current = null
-      }
-    }
-  }, [])
 
   return (
     <ScrollView

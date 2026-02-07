@@ -2,19 +2,13 @@ import { BlurView } from "expo-blur"
 import { RelativePathString, usePathname, useRouter, useSegments } from "expo-router"
 import { type LucideIcon, Home, Menu, Search, ShoppingBag, User2 } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Animated, DeviceEventEmitter, Keyboard, Text, View } from "react-native"
+import { Animated, DeviceEventEmitter, Keyboard, StyleSheet, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { useCartQuery } from "@/features/cart/api"
 import { useDrawer } from "@/features/navigation/drawerContext"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
-import {
-  DOCK_ELEVATION,
-  DOCK_HEIGHT,
-  DOCK_HORIZONTAL_MARGIN,
-  DOCK_MIN_TAB_SIZE,
-  DOCK_SHADOW_COLOR,
-} from "./dockConstants"
+import { DOCK_ELEVATION, DOCK_HEIGHT, DOCK_HORIZONTAL_MARGIN, DOCK_MIN_TAB_SIZE } from "./dockConstants"
 import { shouldShowDock } from "./dockVisibility"
 import { useFloatingDockScaleContext } from "./FloatingDockContext"
 
@@ -134,19 +128,34 @@ export function FloatingDock() {
       style={[containerStyle, { transform: [{ scale: dockScale }] }]}
     >
       <BlurView
-        tint="dark"
+        tint="systemUltraThinMaterialDark"
         className="h-full w-full rounded-full flex-row items-center justify-between px-4 overflow-hidden"
+        intensity={40}
         style={{
-          shadowColor: DOCK_SHADOW_COLOR,
-          shadowOffset: { width: 0, height: 6 },
-          shadowOpacity: 0.12,
-          shadowRadius: 10,
-          elevation: DOCK_ELEVATION,
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.18)",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.18,
+          shadowRadius: 20,
+          elevation: DOCK_ELEVATION + 6,
         }}
       >
+        {/* Glass inner highlight */}
+        <View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFillObject,
+            {
+              borderRadius: 999,
+              backgroundColor: "rgba(255,255,255,0.06)",
+            },
+          ]}
+        />
+
         {tabs.map((tab) => {
           const isActive = Boolean(tab.matches?.(pathname))
-          const iconColor = isActive ? "#0f172a" : "#fff"
+          const iconColor = isActive ? "#0f172a" : "#ffffff"
 
           const handlePress = () => {
             if (tab.action) {
@@ -172,8 +181,18 @@ export function FloatingDock() {
                 ref={isCart ? cartRef : null}
                 onLayout={isCart ? emitCartTarget : undefined}
                 className={`h-[44px] w-[64px] items-center justify-center rounded-[48px] ${
-                  isActive ? "bg-slate-100" : ""
+                  isActive ? "bg-white/70" : ""
                 }`}
+                style={
+                  isActive
+                    ? {
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.08,
+                        shadowRadius: 4,
+                      }
+                    : undefined
+                }
               >
                 <tab.Icon size={24} color={iconColor} />
                 {isCart && qty > 0 ? (
