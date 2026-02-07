@@ -12,9 +12,9 @@ import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
+import { useQueryClient } from "@tanstack/react-query"
 import { RelativePathString, useRouter } from "expo-router"
 import { Heart, LogOut, MapPin, Package, Pencil, Settings2 } from "lucide-react-native"
-import { useQueryClient } from "@tanstack/react-query"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { RefreshControl, ScrollView, Text, View } from "react-native"
 
@@ -252,7 +252,7 @@ function AccountContent() {
           </View>
         </Section>
 
-        <View className="pt-8 gap-2" style={{ marginTop: "auto" }}>
+        <View className="pt-8 pb-16 gap-2" style={{ marginTop: "auto" }}>
           <Button
             variant="outline"
             size="lg"

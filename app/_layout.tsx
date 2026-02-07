@@ -12,6 +12,8 @@ import { usePopupStore } from "@/store/popup"
 import { FontProvider } from "@/theme/FontProvider"
 import type { PopupCTA } from "@/types/popup"
 import { ToastHost } from "@/ui/feedback/Toast"
+import { FloatingDock } from "@/ui/nav/FloatingDock"
+import { FloatingDockScaleProvider } from "@/ui/nav/FloatingDockContext"
 import { InAppPopupModal } from "@/ui/popup/InAppPopupModal"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { router, Stack, useSegments } from "expo-router"
@@ -62,19 +64,22 @@ export default function RootLayout() {
             <SafeAreaProvider>
               <FontProvider onReady={() => setFontsReady(true)}>
                 <DrawerProvider>
-                  <Stack
-                    screenOptions={({ route }) => ({
-                      headerShown: false,
-                      animation: "fade",
-                      animationDuration: 240,
-                      gestureEnabled:
-                        route.name === "cart" ||
-                        route.name === "products/[handle]" ||
-                        route.name.startsWith("account/") ||
-                        route.name.startsWith("collections") ||
-                        route.name.startsWith("policies/national-address"),
-                    })}
-                  />
+                  <FloatingDockScaleProvider>
+                    <Stack
+                      screenOptions={({ route }) => ({
+                        headerShown: false,
+                        animation: "fade",
+                        animationDuration: 240,
+                        gestureEnabled:
+                          route.name === "cart" ||
+                          route.name === "products/[handle]" ||
+                          route.name.startsWith("account/") ||
+                          route.name.startsWith("collections") ||
+                          route.name.startsWith("policies/national-address"),
+                      })}
+                    />
+                    <FloatingDock />
+                  </FloatingDockScaleProvider>
                   <ToastHost />
                 </DrawerProvider>
               </FontProvider>

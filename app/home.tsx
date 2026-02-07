@@ -47,9 +47,7 @@ export default function Home() {
           </PageScrollView>
         ) : (
           <PageScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 0 }}>
-            <View className="pt-0">
-              <MetaobjectSectionList sections={sections} onNavigate={go} />
-            </View>
+            <MetaobjectSectionList sections={sections} onNavigate={go} />
           </PageScrollView>
         )}
       </View>

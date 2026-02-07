@@ -262,7 +262,7 @@ function AccountSettingsContent() {
           </Section>
 
           <Section title="Account">
-            <View className="gap-2">
+            <View className="gap-2 pb-16">
               {!deletionPending ? (
                 <Button
                   variant="danger"
