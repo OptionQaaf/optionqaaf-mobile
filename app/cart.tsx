@@ -25,10 +25,14 @@ import { Card } from "@/ui/surfaces/Card"
 import { BlurView } from "expo-blur"
 import { Image } from "expo-image"
 import { router, useLocalSearchParams } from "expo-router"
-import { Trash2, X } from "lucide-react-native"
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Lock, Trash2, X } from "lucide-react-native"
+import * as React from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Alert, FlatList, KeyboardAvoidingView, PixelRatio, Platform, Text, View } from "react-native"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
+``
+const KSA_ORDER_PAUSE_START = Date.UTC(2026, 1, 7, 23, 59, 59)
+const KSA_ORDER_PAUSE_END = Date.UTC(2026, 1, 21, 23, 59, 59)
 
 /** ──────────────────────────────────────────────────────────────
  * Cart Screen (calm, compact, resilient)
@@ -46,9 +50,15 @@ export default function CartScreen() {
   const params = useLocalSearchParams<{ coupon?: string }>()
   const { isAuthenticated, initializing: authInitializing, login, getToken } = useShopifyAuth()
   const [loginPending, setLoginPending] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
   const { mutateAsync: attachBuyerToCustomer, isPending: attachingBuyer } = useAttachCartToCustomer()
   const [buyerLinked, setBuyerLinked] = useState(false)
   const { data: customerProfile, refetch: refetchProfile } = useCustomerProfile({ enabled: isAuthenticated })
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   // Ensure there is a cart as early as possible (for codes, etc.)
   const ensure = useEnsureCart()
@@ -347,9 +357,16 @@ export default function CartScreen() {
     }
   }, [cart, dirty, localLines])
 
+  const ordersPaused = now >= KSA_ORDER_PAUSE_START && now <= KSA_ORDER_PAUSE_END
+  const pauseCountdownMs = Math.max(KSA_ORDER_PAUSE_END - now, 0)
+  const pauseCountdownLabel = useMemo(
+    () => (ordersPaused ? formatPauseCountdown(pauseCountdownMs) : ""),
+    [ordersPaused, pauseCountdownMs],
+  )
+
   // Handlers
   const onCheckout = useCallback(async () => {
-    if (!hasItems || attachingBuyer) return
+    if (!hasItems || attachingBuyer || ordersPaused) return
 
     if (authInitializing) return
 
@@ -435,6 +452,7 @@ export default function CartScreen() {
     flush,
     getToken,
     hasItems,
+    ordersPaused,
     isAuthenticated,
     replaceDeliveryAddresses,
     refetchProfile,
@@ -797,10 +815,11 @@ export default function CartScreen() {
                         fullWidth
                         onPress={onCheckout}
                         isLoading={attachingBuyer}
-                        disabled={!hasItems || attachingBuyer}
+                        disabled={!hasItems || attachingBuyer || ordersPaused}
                         className="mt-3 bg-neutral-900"
+                        leftIcon={ordersPaused ? <Lock size={16} color="#fff" /> : undefined}
                       >
-                        Checkout
+                        {ordersPaused ? `Orders resume in ${pauseCountdownLabel}` : "Checkout"}
                       </Button>
                     </View>
                   </View>
@@ -995,4 +1014,18 @@ function dedupeLines(list: LineNode[]): LineNode[] {
     seen.set(line.id, existing ? { ...existing, ...line } : line)
   }
   return Array.from(seen.values())
+}
+
+function formatPauseCountdown(ms: number) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
+  const days = Math.floor(totalSeconds / 86400)
+  const hours = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const parts: string[] = []
+  if (days) parts.push(`${days}d`)
+  if (hours || days) parts.push(`${String(hours).padStart(2, "0")}h`)
+  if (minutes || hours || days) parts.push(`${String(minutes).padStart(2, "0")}m`)
+  parts.push(`${String(seconds).padStart(2, "0")}s`)
+  return parts.join(" ")
 }
