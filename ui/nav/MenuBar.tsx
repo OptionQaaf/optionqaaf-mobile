@@ -1,8 +1,8 @@
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { router, usePathname } from "expo-router"
 import { ChevronLeft } from "lucide-react-native"
-import { DeviceEventEmitter, Image, View } from "react-native"
 import type { ReactNode } from "react"
+import { DeviceEventEmitter, Image, View, type StyleProp, type ViewStyle } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 type Props = {
@@ -10,9 +10,10 @@ type Props = {
   floating?: boolean
   scrim?: number
   back?: boolean
+  backIconBackground?: string
 }
 
-export function MenuBar({ variant = "light", floating = false, scrim = 0, back = false }: Props) {
+export function MenuBar({ variant = "light", floating = false, scrim = 0, back = false, backIconBackground }: Props) {
   const color = variant === "dark" ? "#f8f8f8" : "#1e1e1e"
   const pathname = usePathname()
 
@@ -55,7 +56,16 @@ export function MenuBar({ variant = "light", floating = false, scrim = 0, back =
       <View className="flex-row items-center justify-between px-5 py-4">
         <View className="h-10 w-10">
           {back ? (
-            <Icon onPress={() => router.back()}>
+            <Icon
+              onPress={() => router.back()}
+              style={
+                backIconBackground
+                  ? {
+                      backgroundColor: backIconBackground,
+                    }
+                  : undefined
+              }
+            >
               <ChevronLeft size={24} color={color} />
             </Icon>
           ) : null}
@@ -79,16 +89,19 @@ export function Icon({
   children,
   onPress,
   accessibilityLabel,
+  style,
 }: {
   children: ReactNode
   onPress?: () => void
   accessibilityLabel?: string
+  style?: StyleProp<ViewStyle>
 }) {
   return (
     <PressableOverlay
       onPress={onPress}
       accessibilityLabel={accessibilityLabel}
       className="h-10 w-10 items-center justify-center rounded-2xl"
+      style={style}
     >
       {children}
     </PressableOverlay>

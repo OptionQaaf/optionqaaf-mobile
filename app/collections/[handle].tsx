@@ -4,13 +4,13 @@ import { useSearch } from "@/features/search/api"
 import { type ProductCollectionSortKeys, type ProductSortKeys } from "@/lib/shopify/gql/graphql"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
+import { padToFullRow } from "@/ui/layout/gridUtils"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { ProductTileSkeleton } from "@/ui/product/ProductTileSkeleton"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
-import { padToFullRow } from "@/ui/layout/gridUtils"
 import { router, useLocalSearchParams } from "expo-router"
 import { LayoutGrid, Square } from "lucide-react-native"
 import { useEffect, useMemo, useState } from "react"
@@ -234,7 +234,7 @@ export default function CollectionScreen() {
     return (
       <Screen bleedBottom bleedTop>
         <View className="flex-1 bg-white">
-          <MenuBar floating />
+          <MenuBar floating back backIconBackground="rgba(0,0,0,0.1)" />
           <PageScrollView contentContainerClassName="bg-white">
             <View className="pt-0">
               <MetaobjectSectionList sections={sections} onNavigate={go} />
@@ -248,7 +248,7 @@ export default function CollectionScreen() {
   return (
     <Screen bleedTop bleedBottom>
       <View className="flex-1 bg-white">
-        <MenuBar floating />
+        <MenuBar floating back backIconBackground="rgba(0,0,0,0.05)" />
 
         <PageScrollView
           scrollEventThrottle={16}

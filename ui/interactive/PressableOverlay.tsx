@@ -48,7 +48,7 @@ export function PressableOverlay({
       className={pressableClassName}
       accessibilityLabel={accessibilityLabel}
     >
-      <Animated.View style={aStyle} className={cn(disabled && "opacity-50", className)}>
+      <Animated.View style={[aStyle, style]} className={cn(disabled && "opacity-50", className)}>
         {children}
       </Animated.View>
     </Pressable>
