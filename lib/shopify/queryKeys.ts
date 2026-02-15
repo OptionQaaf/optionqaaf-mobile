@@ -21,5 +21,13 @@ export const qk = {
       cursor?: string | null,
       refreshKey?: number,
     ) => ["for-you", "products", locale, gender, profileHash, pageSize, cursor ?? null, refreshKey ?? 0] as const,
+    reel: (
+      seedHandle: string,
+      locale: { country?: string; language?: string },
+      gender: string,
+      profileHash: string,
+      pageSize: number,
+      refreshKey?: number,
+    ) => ["for-you", "reel", seedHandle, locale, gender, profileHash, pageSize, refreshKey ?? 0] as const,
   },
 }

@@ -1,6 +1,7 @@
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useCustomerProfile } from "@/features/account/api"
 import { ShopifyAuthProvider, useShopifyAuth } from "@/features/auth/useShopifyAuth"
+import { FYP_DEBUG, fypLog } from "@/features/debug/fypDebug"
 import { GenderPromptGate } from "@/features/for-you/GenderPromptGate"
 import { getForYouStorageDebugSnapshot } from "@/features/for-you/service"
 import { DrawerProvider } from "@/features/navigation/Drawer"
@@ -22,7 +23,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { router, Stack, useSegments } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
 import { useCallback, useEffect, useState } from "react"
-import { Linking } from "react-native"
+import { Linking, LogBox } from "react-native"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 
@@ -37,6 +38,23 @@ const client = new QueryClient({
     },
   },
 })
+
+if (FYP_DEBUG) {
+  LogBox.ignoreLogs([
+    "VirtualizedLists should never be nested",
+    "Non-serializable values were found in the navigation state",
+    "[Reanimated]",
+    "Require cycle:",
+    "Setting a timer",
+    "expo-router",
+  ])
+  const originalWarn = console.warn
+  console.warn = (...args) => {
+    const message = String(args[0] ?? "")
+    const allowed = message.includes("FYP_DEBUG")
+    if (allowed) originalWarn(...args)
+  }
+}
 
 export default function RootLayout() {
   const [fontsReady, setFontsReady] = useState(false)
@@ -157,11 +175,13 @@ function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
   }, [])
 
   useEffect(() => {
+    if (FYP_DEBUG) return
     console.debug("[app] metadata", metadata)
   }, [metadata, metadata.appName, metadata.version, metadata.buildNumber, metadata.applicationId, metadata.ownership])
 
   const { isConnected, isInternetReachable, type } = networkStatus
   useEffect(() => {
+    if (FYP_DEBUG) return
     console.debug("[app] network", {
       isConnected,
       isInternetReachable,
@@ -172,17 +192,17 @@ function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
   useEffect(() => {
     ;(async () => {
       const snapshot = await getForYouStorageDebugSnapshot().catch(() => null)
-      console.debug("[for-you] startup auth/customer", {
+      fypLog("STARTUP_AUTH_CUSTOMER", {
         isAuthenticated,
         customerId: customer?.id ?? null,
         customerEmail: customer?.email ?? null,
         customerName: customer?.displayName ?? null,
       })
       if (!snapshot) {
-        console.debug("[for-you] startup storage", null)
+        fypLog("STARTUP_STORAGE", null)
         return
       }
-      console.debug("[for-you] startup storage summary", {
+      fypLog("STARTUP_STORAGE_SUMMARY", {
         identity: snapshot.identity,
         customerMetafieldHasProfile: snapshot.customerMetafieldHasProfile,
         customerMetafieldStatus: snapshot.customerMetafieldStatus,
@@ -191,7 +211,7 @@ function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
         localCustomerHasProfile: snapshot.localCustomerHasProfile,
         resolvedProfileGender: snapshot.resolvedProfileGender,
       })
-      console.debug("[for-you] startup storage payloads json", JSON.stringify(snapshot, null, 2))
+      fypLog("STARTUP_STORAGE_PAYLOAD", snapshot)
     })()
   }, [isAuthenticated, customer?.id, customer?.email, customer?.displayName])
 

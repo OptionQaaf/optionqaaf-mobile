@@ -1,3 +1,5 @@
+import { fypTableOnce, setFypDebugPanelEntry } from "@/features/debug/fypDebug"
+
 export type ForYouGender = "male" | "female" | "unknown"
 
 export type ScoreEntry = {
@@ -16,6 +18,9 @@ export type ForYouProfile = {
     byVendor: ScoreBucket
     byProductType: ScoreBucket
     byTag: ScoreBucket
+    byCategory: ScoreBucket
+    byMaterial: ScoreBucket
+    byFit: ScoreBucket
     recentHandles: string[]
   }
   cooldowns?: {
@@ -83,7 +88,7 @@ export type RankedForYouItem = ForYouCandidate & {
   __score: number
 }
 
-export const FOR_YOU_SCHEMA_VERSION = 1
+export const FOR_YOU_SCHEMA_VERSION = 2
 export const FOR_YOU_RECENT_HANDLES_LIMIT = 50
 export const FOR_YOU_RECENTLY_SERVED_LIMIT = 80
 export const FOR_YOU_PROFILE_MAX_JSON_BYTES = 48 * 1024
@@ -155,6 +160,39 @@ const TAG_WEIGHT = {
   "time_on_product_>8s": 0.4,
 } as const
 
+const CATEGORY_WEIGHT = {
+  product_open: 1.25,
+  add_to_cart: 2.5,
+  add_to_wishlist: 2.1,
+  search_click: 1.1,
+  variant_select: 0.8,
+  pdp_scroll_75_percent: 1.05,
+  pdp_scroll_100_percent: 1.25,
+  "time_on_product_>8s": 1.3,
+} as const
+
+const MATERIAL_WEIGHT = {
+  product_open: 0.8,
+  add_to_cart: 1.8,
+  add_to_wishlist: 1.4,
+  search_click: 0.7,
+  variant_select: 0.55,
+  pdp_scroll_75_percent: 0.65,
+  pdp_scroll_100_percent: 0.75,
+  "time_on_product_>8s": 0.85,
+} as const
+
+const FIT_WEIGHT = {
+  product_open: 0.65,
+  add_to_cart: 1.45,
+  add_to_wishlist: 1.2,
+  search_click: 0.55,
+  variant_select: 0.5,
+  pdp_scroll_75_percent: 0.5,
+  pdp_scroll_100_percent: 0.62,
+  "time_on_product_>8s": 0.72,
+} as const
+
 export function createEmptyForYouProfile(nowIso?: string): ForYouProfile {
   const now = nowIso ?? new Date().toISOString()
   return {
@@ -166,6 +204,9 @@ export function createEmptyForYouProfile(nowIso?: string): ForYouProfile {
       byVendor: {},
       byProductType: {},
       byTag: {},
+      byCategory: {},
+      byMaterial: {},
+      byFit: {},
       recentHandles: [],
     },
     cooldowns: {
@@ -190,6 +231,9 @@ export function normalizeForYouProfile(input: unknown, nowIso?: string): ForYouP
       byVendor: normalizeScoreBucket(raw.signals?.byVendor),
       byProductType: normalizeScoreBucket(raw.signals?.byProductType),
       byTag: normalizeScoreBucket(raw.signals?.byTag),
+      byCategory: normalizeScoreBucket(raw.signals?.byCategory),
+      byMaterial: normalizeScoreBucket(raw.signals?.byMaterial),
+      byFit: normalizeScoreBucket(raw.signals?.byFit),
       recentHandles: normalizeRecentList(raw.signals?.recentHandles, FOR_YOU_RECENT_HANDLES_LIMIT),
     },
     cooldowns: {
@@ -236,6 +280,9 @@ export function applyForYouEvent(profile: ForYouProfile, event: TrackForYouEvent
       byVendor: { ...profile.signals.byVendor },
       byProductType: { ...profile.signals.byProductType },
       byTag: { ...profile.signals.byTag },
+      byCategory: { ...profile.signals.byCategory },
+      byMaterial: { ...profile.signals.byMaterial },
+      byFit: { ...profile.signals.byFit },
       recentHandles: [...profile.signals.recentHandles],
     },
     cooldowns: {
@@ -252,6 +299,7 @@ export function applyForYouEvent(profile: ForYouProfile, event: TrackForYouEvent
     vendor,
     productType,
   })
+  const semantics = deriveEventSemantics({ tags, productType, handle, vendor })
 
   if (handle) {
     bumpScore(next.signals.byProductHandle, handle, HANDLE_WEIGHT[event.type], now)
@@ -270,6 +318,16 @@ export function applyForYouEvent(profile: ForYouProfile, event: TrackForYouEvent
     for (const tag of tags) {
       bumpScore(next.signals.byTag, tag, TAG_WEIGHT[event.type], now)
     }
+  }
+
+  if (semantics.category && semantics.category !== "unknown") {
+    bumpScore(next.signals.byCategory, semantics.category, CATEGORY_WEIGHT[event.type], now)
+  }
+  for (const material of semantics.materials) {
+    bumpScore(next.signals.byMaterial, material, MATERIAL_WEIGHT[event.type], now)
+  }
+  for (const fit of semantics.fits) {
+    bumpScore(next.signals.byFit, fit, FIT_WEIGHT[event.type], now)
   }
 
   return next
@@ -308,6 +366,15 @@ export function rankForYouCandidates(
       const vendorScore = getEffectiveScore(profile.signals.byVendor[vendor], now)
       const productTypeScore = getEffectiveScore(profile.signals.byProductType[productType], now)
       const tagScore = tags.reduce((sum, tag) => sum + getEffectiveScore(profile.signals.byTag[tag], now), 0)
+      const semantics = deriveEventSemantics({ tags, productType, handle, vendor })
+      const categoryScore =
+        semantics.category && semantics.category !== "unknown"
+          ? getEffectiveScore(profile.signals.byCategory[semantics.category], now)
+          : 0
+      const materialScore = semantics.materials.reduce(
+        (sum, material) => sum + getEffectiveScore(profile.signals.byMaterial[material], now),
+        0,
+      )
 
       const recentBoost = profile.signals.recentHandles.includes(handle) ? 1.25 : 0
       const personalizedScore =
@@ -330,9 +397,29 @@ export function rankForYouCandidates(
         ...candidate,
         __isRecentlyServed: recentServed.has(handle),
         __score: blendedScore - recentlyServedPenalty + jitter,
+        __debug: {
+          personalizedScore,
+          explorationScore,
+          blendedScore,
+          categoryScore,
+          materialScore,
+        },
       }
     })
     .sort((a, b) => b.__score - a.__score)
+
+  if (__DEV__) {
+    const rows = scored.slice(0, 15).map((item) => ({
+      handle: item.handle,
+      personalizedScore: Number((item.__debug?.personalizedScore ?? 0).toFixed(4)),
+      explorationScore: Number((item.__debug?.explorationScore ?? 0).toFixed(4)),
+      blendedScore: Number((item.__debug?.blendedScore ?? item.__score).toFixed(4)),
+      categoryScore: Number((item.__debug?.categoryScore ?? 0).toFixed(4)),
+      materialScore: Number((item.__debug?.materialScore ?? 0).toFixed(4)),
+    }))
+    fypTableOnce(`GRID_RANK_TOP15:${dayKey}:${profile.updatedAt}`, "GRID_RANK_TOP15", rows)
+    setFypDebugPanelEntry("gridRankTop15", rows)
+  }
 
   const unseen = scored.filter((item) => !item.__isRecentlyServed)
   const seen = scored.filter((item) => item.__isRecentlyServed)
@@ -399,6 +486,9 @@ export function pruneForYouProfile(profile: ForYouProfile, now = Date.now()): Fo
       byVendor: pruneBucket(profile.signals.byVendor),
       byProductType: pruneBucket(profile.signals.byProductType),
       byTag: pruneBucket(profile.signals.byTag),
+      byCategory: pruneBucket(profile.signals.byCategory),
+      byMaterial: pruneBucket(profile.signals.byMaterial),
+      byFit: pruneBucket(profile.signals.byFit),
       recentHandles: profile.signals.recentHandles.slice(0, FOR_YOU_RECENT_HANDLES_LIMIT),
     },
     cooldowns: {
@@ -434,6 +524,9 @@ export function getProfileHash(profile: ForYouProfile): string {
     v: topKeys(profile.signals.byVendor),
     p: topKeys(profile.signals.byProductType),
     t: topKeys(profile.signals.byTag),
+    c: topKeys(profile.signals.byCategory),
+    m: topKeys(profile.signals.byMaterial),
+    f: topKeys(profile.signals.byFit),
   }
   return simpleHash(JSON.stringify(payload))
 }
@@ -478,7 +571,7 @@ function tokenizeSignalText(value: string): string[] {
     .filter((entry) => entry.length >= 3 && !SIGNAL_TAG_STOPWORDS.has(entry) && !/^\d+$/.test(entry))
 }
 
-function deriveSignalTags(input: {
+export function deriveSignalTags(input: {
   baseTags?: string[] | null
   handle?: string | null
   vendor?: string | null
@@ -562,6 +655,9 @@ function compactForYouProfileToSize(profile: ForYouProfile, maxBytes: number, no
         byVendor: compactBucket(next.signals.byVendor, cap, now),
         byProductType: compactBucket(next.signals.byProductType, cap, now),
         byTag: compactBucket(next.signals.byTag, Math.max(1, Math.floor(cap * 0.6)), now),
+        byCategory: compactBucket(next.signals.byCategory, Math.max(1, Math.floor(cap * 0.4)), now),
+        byMaterial: compactBucket(next.signals.byMaterial, Math.max(1, Math.floor(cap * 0.4)), now),
+        byFit: compactBucket(next.signals.byFit, Math.max(1, Math.floor(cap * 0.35)), now),
         recentHandles: next.signals.recentHandles.slice(0, Math.min(FOR_YOU_RECENT_HANDLES_LIMIT, cap)),
       },
       cooldowns: {
@@ -582,6 +678,9 @@ function compactForYouProfileToSize(profile: ForYouProfile, maxBytes: number, no
       byVendor: compactBucket(next.signals.byVendor, 1, now),
       byProductType: compactBucket(next.signals.byProductType, 1, now),
       byTag: {},
+      byCategory: compactBucket(next.signals.byCategory, 1, now),
+      byMaterial: compactBucket(next.signals.byMaterial, 1, now),
+      byFit: compactBucket(next.signals.byFit, 1, now),
       recentHandles: next.signals.recentHandles.slice(0, 8),
     },
     cooldowns: {
@@ -610,4 +709,40 @@ function measureProfileBytes(profile: ForYouProfile): number {
   } catch {
     return json.length
   }
+}
+
+function deriveEventSemantics(input: { tags: string[]; productType: string; handle: string; vendor: string }): {
+  category: string
+  materials: string[]
+  fits: string[]
+} {
+  const tokens = new Set<string>()
+  for (const entry of [...input.tags, input.productType, input.handle, input.vendor]) {
+    for (const token of tokenizeSignalText(normalizeKey(entry))) {
+      tokens.add(token)
+    }
+  }
+  const hasAny = (...keys: string[]) => keys.some((key) => tokens.has(key))
+  const category = hasAny("jeans", "denim")
+    ? "bottoms_denim"
+    : hasAny("boxer", "brief", "underwear")
+      ? "underwear"
+      : hasAny("hoodie", "sweatshirt", "pullover")
+        ? "tops_hoodies"
+        : hasAny("shirt", "tee", "blouse")
+          ? "tops_shirts"
+          : hasAny("jacket", "coat", "parka", "blazer")
+            ? "outerwear"
+            : hasAny("pants", "trouser", "cargo", "shorts", "skirt")
+              ? "bottoms_pants"
+              : hasAny("shoe", "sneaker", "boot", "loafer")
+                ? "shoes"
+                : hasAny("hat", "cap", "belt", "bag", "beret", "socks")
+                  ? "accessories"
+                  : "unknown"
+
+  const materials = ["cotton", "denim", "polyester", "fleece", "wool"].filter((term) => tokens.has(term))
+  const fits = ["slim", "regular", "oversized", "relaxed", "straight", "skinny"].filter((term) => tokens.has(term))
+
+  return { category, materials, fits }
 }

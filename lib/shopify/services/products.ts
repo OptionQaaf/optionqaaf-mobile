@@ -1,4 +1,5 @@
 import { callShopify, shopifyClient } from "@/lib/shopify/client"
+import { addFypDebugProductPayload, fypLogOnce, summarizeProductPayload } from "@/features/debug/fypDebug"
 import { gql } from "graphql-tag"
 import {
   CollectionByHandleDocument,
@@ -31,6 +32,9 @@ const SEARCH_PRODUCTS_WITH_SORT_DOCUMENT = gql`
         handle
         title
         vendor
+        productType
+        tags
+        createdAt
         availableForSale
         featuredImage {
           id
@@ -194,7 +198,13 @@ export async function getCollectionProductsWithImages(
 }
 
 export async function searchProducts(
-  args: { query: string; pageSize?: number; after?: string | null; sortKey?: ProductSortKeys | null; reverse?: boolean },
+  args: {
+    query: string
+    pageSize?: number
+    after?: string | null
+    sortKey?: ProductSortKeys | null
+    reverse?: boolean
+  },
   locale?: { country?: string; language?: string },
 ) {
   const trimmed = args.query.trim()
@@ -291,7 +301,7 @@ export async function searchProducts(
             return node
           }
         }
-      } catch (err) {
+      } catch {
         // ignore and continue searching other queries
       }
     }
@@ -334,7 +344,7 @@ export async function searchProducts(
     }
   }
 
-  return callShopify<SearchProductsQuery>(() =>
+  const response = await callShopify<SearchProductsQuery>(() =>
     shopifyClient.request(SEARCH_PRODUCTS_WITH_SORT_DOCUMENT, {
       query: args.query,
       pageSize: args.pageSize ?? 24,
@@ -345,6 +355,136 @@ export async function searchProducts(
       language: locale?.language as any,
     }),
   )
+  fypLogOnce(
+    `SHOPIFY_PRODUCTS_SUMMARY:searchProducts:${args.query}:${args.after ?? "first"}`,
+    "SHOPIFY_PRODUCTS_SUMMARY",
+    {
+      source: "searchProducts",
+      query: args.query,
+      ...summarizeProductPayload((response.products?.nodes ?? []).filter(Boolean) as any[]),
+    },
+  )
+  const firstSearchNode = (response.products?.nodes ?? []).find(Boolean) as any
+  if (firstSearchNode?.handle) {
+    addFypDebugProductPayload("searchProducts", String(firstSearchNode.handle), firstSearchNode)
+  }
+  return response
+}
+
+export type ProductSearchCandidate = {
+  id: string
+  handle: string
+  title?: string | null
+  vendor?: string | null
+  productType?: string | null
+  tags?: string[] | null
+  createdAt?: string | null
+  availableForSale?: boolean | null
+  featuredImage?: {
+    id?: string | null
+    url?: string | null
+    altText?: string | null
+    width?: number | null
+    height?: number | null
+  } | null
+  priceRange?: {
+    minVariantPrice?: { amount?: string | null; currencyCode?: string | null } | null
+    maxVariantPrice?: { amount?: string | null; currencyCode?: string | null } | null
+  } | null
+  compareAtPriceRange?: {
+    minVariantPrice?: { amount?: string | null; currencyCode?: string | null } | null
+    maxVariantPrice?: { amount?: string | null; currencyCode?: string | null } | null
+  } | null
+}
+
+function normalizeSearchTerm(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, " ")
+    .replace(/\s+/g, " ")
+}
+
+function sanitizeFieldValue(value: string): string {
+  return value.replace(/"/g, '\\"').trim()
+}
+
+export async function searchProductsByTerms(
+  args: {
+    terms: string[]
+    gender?: "male" | "female" | "unknown"
+    productType?: string | null
+    vendor?: string | null
+    first?: number
+    after?: string | null
+  },
+  locale?: { country?: string; language?: string },
+): Promise<{ items: ProductSearchCandidate[]; cursor: string | null; hasNext: boolean; query: string }> {
+  const first = Math.max(8, Math.min(40, args.first ?? 24))
+  const terms = Array.from(new Set(args.terms.map(normalizeSearchTerm).filter((entry) => entry.length >= 3))).slice(
+    0,
+    8,
+  )
+
+  const clauses: string[] = []
+  if (args.productType && normalizeSearchTerm(args.productType)) {
+    clauses.push(`product_type:${JSON.stringify(sanitizeFieldValue(args.productType))}`)
+  }
+  if (args.vendor && normalizeSearchTerm(args.vendor)) {
+    clauses.push(`vendor:${JSON.stringify(sanitizeFieldValue(args.vendor))}`)
+  }
+
+  for (const term of terms) {
+    clauses.push(JSON.stringify(sanitizeFieldValue(term)))
+  }
+  if (args.gender === "male") clauses.push("tag:men")
+  if (args.gender === "female") clauses.push("tag:women")
+
+  const query = clauses.join(" ")
+  if (!query) return { items: [], cursor: null, hasNext: false, query: "" }
+
+  const res = await searchProducts(
+    {
+      query,
+      pageSize: first,
+      after: args.after ?? null,
+      sortKey: "RELEVANCE",
+      reverse: false,
+    },
+    locale,
+  )
+
+  const nodes = (res.products?.nodes ?? []).filter(Boolean)
+  const items: ProductSearchCandidate[] = nodes.map((node: any) => ({
+    id: String(node?.id ?? ""),
+    handle: String(node?.handle ?? ""),
+    title: typeof node?.title === "string" ? node.title : null,
+    vendor: typeof node?.vendor === "string" ? node.vendor : null,
+    productType: typeof node?.productType === "string" ? node.productType : null,
+    tags: Array.isArray(node?.tags) ? node.tags : null,
+    createdAt: typeof node?.createdAt === "string" ? node.createdAt : null,
+    availableForSale: typeof node?.availableForSale === "boolean" ? node.availableForSale : null,
+    featuredImage: node?.featuredImage ?? null,
+    priceRange: node?.priceRange ?? null,
+    compareAtPriceRange: node?.compareAtPriceRange ?? null,
+  }))
+  const pageInfo = res.products?.pageInfo
+  fypLogOnce(
+    `SHOPIFY_PRODUCTS_SUMMARY:searchProductsByTerms:${query}:${args.after ?? "first"}`,
+    "SHOPIFY_PRODUCTS_SUMMARY",
+    {
+      source: "searchProductsByTerms",
+      query,
+      ...summarizeProductPayload(items as any[]),
+    },
+  )
+  if (items[0]?.handle) addFypDebugProductPayload("searchProductsByTerms", items[0].handle, items[0])
+  return {
+    items: items.filter((entry) => Boolean(entry.id && entry.handle)),
+    cursor: pageInfo?.endCursor ?? null,
+    hasNext: Boolean(pageInfo?.hasNextPage),
+    query,
+  }
 }
 
 const PRODUCT_HANDLE_BY_ID_DOCUMENT = gql`

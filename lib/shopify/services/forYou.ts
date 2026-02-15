@@ -1,4 +1,5 @@
 import { callShopify, shopifyClient } from "@/lib/shopify/client"
+import { addFypDebugProductPayload, fypLogOnce, summarizeProductPayload } from "@/features/debug/fypDebug"
 import { gql } from "graphql-tag"
 
 type LocaleInput = { country?: string; language?: string }
@@ -27,13 +28,15 @@ export type ForYouCandidateProduct = {
     height?: number | null
   } | null
   images?: {
-    nodes?: Array<{
-      id?: string | null
-      url?: string | null
-      altText?: string | null
-      width?: number | null
-      height?: number | null
-    } | null> | null
+    nodes?:
+      | ({
+          id?: string | null
+          url?: string | null
+          altText?: string | null
+          width?: number | null
+          height?: number | null
+        } | null)[]
+      | null
   } | null
   priceRange?: {
     minVariantPrice?: { amount?: string | null; currencyCode?: string | null } | null
@@ -119,7 +122,7 @@ type ForYouCollectionProductsResult = {
   collection?: {
     products?: {
       pageInfo?: { hasNextPage?: boolean | null; endCursor?: string | null } | null
-      nodes?: Array<ForYouCandidateProduct | null> | null
+      nodes?: (ForYouCandidateProduct | null)[] | null
     } | null
   } | null
 }
@@ -195,15 +198,13 @@ export function encodeForYouCursor(state: ForYouCursorState | null): string | un
   return JSON.stringify(state)
 }
 
-export async function getForYouCandidates(
-  input: {
-    handles: string[]
-    locale?: LocaleInput
-    poolSize?: number
-    perPage?: number
-    cursor?: string | null
-  },
-): Promise<{ items: ForYouCandidateProduct[]; nextCursor?: string }> {
+export async function getForYouCandidates(input: {
+  handles: string[]
+  locale?: LocaleInput
+  poolSize?: number
+  perPage?: number
+  cursor?: string | null
+}): Promise<{ items: ForYouCandidateProduct[]; nextCursor?: string }> {
   const handles = Array.from(new Set(input.handles.map((h) => h.trim()).filter(Boolean)))
   if (!handles.length) return { items: [] }
 
@@ -251,9 +252,19 @@ export async function getForYouCandidates(
   state.page = (Number.isFinite(state.page) ? state.page : 0) + 1
 
   if (exhausted.size >= handles.length) {
+    if (items[0]?.handle) addFypDebugProductPayload("forYouCollectionPool", items[0].handle, items[0])
+    fypLogOnce(`SHOPIFY_PRODUCTS_SUMMARY:forYou:${state.page}:${handles.join("|")}`, "SHOPIFY_PRODUCTS_SUMMARY", {
+      source: "forYouCollectionPool",
+      ...summarizeProductPayload(items as any[]),
+    })
     return { items }
   }
 
+  if (items[0]?.handle) addFypDebugProductPayload("forYouCollectionPool", items[0].handle, items[0])
+  fypLogOnce(`SHOPIFY_PRODUCTS_SUMMARY:forYou:${state.page}:${handles.join("|")}`, "SHOPIFY_PRODUCTS_SUMMARY", {
+    source: "forYouCollectionPool",
+    ...summarizeProductPayload(items as any[]),
+  })
   return {
     items,
     nextCursor: encodeForYouCursor(state),

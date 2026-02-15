@@ -5,6 +5,7 @@ import {
   pruneForYouProfile,
   type TrackForYouEvent,
 } from "@/features/for-you/profile"
+import { fypLog, setFypDebugPanelEntry } from "@/features/debug/fypDebug"
 import { forYouProfileStorageResolver } from "@/features/for-you/storage"
 
 const FLUSH_DELAY_MS = 900
@@ -29,11 +30,21 @@ export async function flushForYouTracking(): Promise<void> {
     const storage = forYouProfileStorageResolver()
     const { profile } = await storage.getProfile()
     let next = normalizeForYouProfile(profile ?? createEmptyForYouProfile())
+    fypLog("PROFILE_BEFORE_FLUSH", next)
 
     for (const event of events) {
       next = applyForYouEvent(next, event)
     }
 
+    fypLog("PROFILE_AFTER_FLUSH", next)
+    const topSignals = {
+      topHandles: topKeys(next.signals.byProductHandle),
+      topVendors: topKeys(next.signals.byVendor),
+      topCategories: topKeys(next.signals.byCategory),
+      topMaterials: topKeys(next.signals.byMaterial),
+    }
+    fypLog("PROFILE_TOP_SIGNALS", topSignals)
+    setFypDebugPanelEntry("profileTopSignals", topSignals)
     await storage.setProfile(pruneForYouProfile(next))
   })().finally(() => {
     flushInFlight = null
@@ -59,3 +70,10 @@ function scheduleFlush() {
 }
 
 export type { TrackForYouEvent }
+
+function topKeys(bucket: Record<string, { score: number }>, limit = 8): string[] {
+  return Object.entries(bucket)
+    .sort((a, b) => b[1].score - a[1].score)
+    .slice(0, limit)
+    .map(([key]) => key)
+}

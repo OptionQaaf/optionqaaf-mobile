@@ -1,9 +1,11 @@
 import { useAddToCart, useEnsureCart } from "@/features/cart/api"
+import { FypDebugPanel } from "@/features/debug/FypDebugPanel"
+import { addFypDebugProductPayload, FYP_DEBUG, fypLogOnce } from "@/features/debug/fypDebug"
 import { extractForYouContentSignals } from "@/features/for-you/contentSignals"
 import type { ForYouCandidate } from "@/features/for-you/profile"
+import { useForYouReelInfinite } from "@/features/for-you/reelApi"
 import { trackForYouEvent } from "@/features/for-you/tracking"
 import { useProduct } from "@/features/pdp/api"
-import { useRecommendedProducts } from "@/features/recommendations/api"
 import { qk } from "@/lib/shopify/queryKeys"
 import { getProductByHandle } from "@/lib/shopify/services/products"
 import { useForYouFeedStore } from "@/store/forYouFeed"
@@ -31,7 +33,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const REEL_HEIGHT_RATIO = 0.79
 const FLOATING_MENU_BAR_CONTENT_HEIGHT = 54
-const MAX_RECOMMENDED_SEEDS = 18
+const REEL_PAGE_SIZE = 14
+const DWELL_MS = 8000
 
 export default function ForYouFeedScreen() {
   const { width, height } = useWindowDimensions()
@@ -63,84 +66,79 @@ export default function ForYouFeedScreen() {
 
   const seedIndex = Math.min(initialIndex, Math.max(0, baseItems.length - 1))
   const seedItem = baseItems[seedIndex] ?? null
-  const seedProductId =
-    typeof seedItem?.id === "string" && seedItem.id.startsWith("gid://shopify/Product/") ? seedItem.id : ""
-  const recommendationsQuery = useRecommendedProducts({
-    productId: seedProductId || null,
-    productHandle: seedItem?.handle ?? null,
-    intent: "RELATED",
-  })
+  const reelQuery = useForYouReelInfinite({ seedHandle: seedItem?.handle ?? null, pageSize: REEL_PAGE_SIZE })
 
   const feedItems = useMemo(() => {
-    if (!seedItem) return [] as ForYouCandidate[]
-
-    const recommended = ((recommendationsQuery.data ?? []) as any[])
-      .map<ForYouCandidate>((item) => ({
-        id: String(item?.id ?? item?.handle ?? ""),
-        handle: String(item?.handle ?? ""),
-        title: typeof item?.title === "string" ? item.title : null,
-        vendor: typeof item?.vendor === "string" ? item.vendor : null,
-        productType: typeof item?.productType === "string" ? item.productType : null,
-        tags: Array.isArray(item?.tags) ? (item.tags as string[]) : null,
-        createdAt: typeof item?.createdAt === "string" ? item.createdAt : null,
-        availableForSale: typeof item?.availableForSale === "boolean" ? item.availableForSale : null,
-        featuredImage: item?.featuredImage
-          ? {
-              id: item.featuredImage.id ?? null,
-              url: item.featuredImage.url ?? null,
-              altText: item.featuredImage.altText ?? null,
-              width: item.featuredImage.width ?? null,
-              height: item.featuredImage.height ?? null,
-            }
-          : null,
-        priceRange: item?.priceRange ?? null,
-        compareAtPriceRange: item?.compareAtPriceRange ?? null,
-      }))
-      .filter((entry) => Boolean(entry.handle))
-      .slice(0, MAX_RECOMMENDED_SEEDS)
-
-    const personalizedTail = baseItems
-      .filter((item) => item.handle && item.handle !== seedItem.handle)
-      .map((item, index) => ({ item, score: scoreSimilarity(seedItem, item, index) }))
-      .sort((a, b) => b.score - a.score)
-      .map((entry) => entry.item)
-
-    const merged = [seedItem, ...recommended, ...personalizedTail]
+    const flattened = (reelQuery.data?.pages ?? []).flatMap((page) => page.items ?? [])
+    const merged = seedItem ? [seedItem, ...flattened] : flattened
     const seen = new Set<string>()
     const out: ForYouCandidate[] = []
     for (const item of merged) {
-      const handle = normalize(item.handle)
+      const handle = normalize(item?.handle)
       if (!handle || seen.has(handle)) continue
       seen.add(handle)
       out.push(item)
     }
     return out
-  }, [baseItems, recommendationsQuery.data, seedItem])
+  }, [reelQuery.data?.pages, seedItem])
+
+  const debugByHandle = useMemo(() => {
+    if (!__DEV__) return {} as Record<string, string>
+    const map: Record<string, string> = {}
+    for (const page of reelQuery.data?.pages ?? []) {
+      for (const entry of page.debug?.sample ?? []) {
+        map[entry.handle] =
+          `seed=${entry.debug?.seedSimilarity?.toFixed?.(2) ?? "0"} affinity=${entry.debug?.userAffinity?.toFixed?.(2) ?? "0"} exp=${entry.debug?.exploration?.toFixed?.(2) ?? "0"} penalty=${entry.debug?.categoryPenalty?.toFixed?.(2) ?? "0"} cat=${entry.category}`
+      }
+    }
+    return map
+  }, [reelQuery.data?.pages])
 
   const [activeIndex, setActiveIndex] = useState(0)
   const seenHandlesRef = useRef<Set<string>>(new Set())
-  const previousSeedHandleRef = useRef<string>("")
+  const dwellFiredRef = useRef<Set<string>>(new Set())
+  const dwellTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    const seedHandle = seedItem?.handle ?? ""
-    if (seedHandle === previousSeedHandleRef.current) return
-    previousSeedHandleRef.current = seedHandle
     setActiveIndex(0)
     seenHandlesRef.current = new Set()
+    dwellFiredRef.current = new Set()
   }, [seedItem?.handle])
 
   useEffect(() => {
     const active = feedItems[activeIndex]
     if (!active?.handle) return
-    if (seenHandlesRef.current.has(active.handle)) return
-    seenHandlesRef.current.add(active.handle)
-    trackForYouEvent({
-      type: "product_open",
-      handle: active.handle,
-      vendor: active.vendor ?? null,
-      productType: active.productType ?? null,
-      tags: active.tags ?? null,
-    })
+    if (!seenHandlesRef.current.has(active.handle)) {
+      seenHandlesRef.current.add(active.handle)
+      trackForYouEvent({
+        type: "product_open",
+        handle: active.handle,
+        vendor: active.vendor ?? null,
+        productType: active.productType ?? null,
+        tags: active.tags ?? null,
+      })
+    }
+
+    if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current)
+    if (!dwellFiredRef.current.has(active.handle)) {
+      dwellTimerRef.current = setTimeout(() => {
+        dwellFiredRef.current.add(active.handle)
+        trackForYouEvent({
+          type: "time_on_product_>8s",
+          handle: active.handle,
+          vendor: active.vendor ?? null,
+          productType: active.productType ?? null,
+          tags: active.tags ?? null,
+        })
+      }, DWELL_MS)
+    }
+
+    return () => {
+      if (dwellTimerRef.current) {
+        clearTimeout(dwellTimerRef.current)
+        dwellTimerRef.current = null
+      }
+    }
   }, [activeIndex, feedItems])
 
   useEffect(() => {
@@ -154,16 +152,34 @@ export default function ForYouFeedScreen() {
     }
   }, [activeIndex, feedItems, qc, locale])
 
+  useEffect(() => {
+    if (!FYP_DEBUG) return
+    const firstDebug = reelQuery.data?.pages?.[0]?.debug
+    if (firstDebug) {
+      fypLogOnce(
+        `[for-you][reel] debug:${seedItem?.handle ?? "unknown"}:${firstDebug.poolSize}:${firstDebug.rankMs}`,
+        "REEL_DEBUG",
+        firstDebug,
+      )
+    }
+  }, [reelQuery.data?.pages, seedItem?.handle])
+
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems.find((token) => token.isViewable)
-    if (typeof first?.index === "number") {
-      setActiveIndex(first.index)
-    }
+    if (typeof first?.index === "number") setActiveIndex(first.index)
   }).current
 
   const reelHeight = Math.max(460, Math.floor(height * REEL_HEIGHT_RATIO))
   const reelPeek = Math.max(40, height - reelHeight)
   const topOffset = insets.top + FLOATING_MENU_BAR_CONTENT_HEIGHT
+
+  if (!feedItems.length && reelQuery.isLoading) {
+    return (
+      <View className="flex-1 bg-white items-center justify-center px-6">
+        <Text className="text-primary font-geist-semibold text-[16px]">Loading For You feed...</Text>
+      </View>
+    )
+  }
 
   if (!feedItems.length) {
     return (
@@ -180,7 +196,13 @@ export default function ForYouFeedScreen() {
         data={feedItems}
         keyExtractor={(item) => `${item.id ?? item.handle}-${item.handle}`}
         renderItem={({ item }) => (
-          <FeedProductPage seed={item} itemHeight={reelHeight} cardWidth={width - 20} onError={show} />
+          <FeedProductPage
+            seed={item}
+            itemHeight={reelHeight}
+            cardWidth={width - 20}
+            onError={show}
+            debugReason={debugByHandle[item.handle]}
+          />
         )}
         snapToInterval={reelHeight}
         decelerationRate="fast"
@@ -194,8 +216,14 @@ export default function ForYouFeedScreen() {
         maxToRenderPerBatch={4}
         initialNumToRender={2}
         scrollEventThrottle={16}
+        onEndReachedThreshold={0.6}
+        onEndReached={() => {
+          if (!reelQuery.hasNextPage || reelQuery.isFetchingNextPage) return
+          reelQuery.fetchNextPage()
+        }}
         contentContainerStyle={{ paddingTop: topOffset, paddingBottom: reelPeek + 8 }}
       />
+      <FypDebugPanel side="left" />
     </View>
   )
 }
@@ -205,11 +233,13 @@ function FeedProductPage({
   itemHeight,
   cardWidth,
   onError,
+  debugReason,
 }: {
   seed: ForYouCandidate
   itemHeight: number
   cardWidth: number
   onError: (input: { title: string; type?: "danger" | "success" | "info" }) => void
+  debugReason?: string
 }) {
   const handle = seed.handle
   const { data: product, isLoading } = useProduct(handle)
@@ -226,6 +256,17 @@ function FeedProductPage({
     [variants],
   )
   const [sel, setSel] = useState<Record<string, string>>({})
+  const depthFired75Ref = useRef(false)
+  const depthFired100Ref = useRef(false)
+  const [showDebug, setShowDebug] = useState(false)
+
+  useEffect(() => {
+    if (!FYP_DEBUG) return
+    const payload = (product as any) ?? null
+    const resolvedHandle = String(payload?.handle ?? handle ?? "")
+    if (!resolvedHandle || !payload) return
+    addFypDebugProductPayload("pdp/useProduct", resolvedHandle, payload)
+  }, [product, handle])
 
   useEffect(() => {
     const source = firstVariant
@@ -238,7 +279,9 @@ function FeedProductPage({
       if (!next[option.name]) next[option.name] = option.values[0]
     }
     setSel(next)
-  }, [firstVariant, options])
+    depthFired75Ref.current = false
+    depthFired100Ref.current = false
+  }, [firstVariant, options, handle])
 
   const selectedVariant = useMemo(() => {
     if (!variants.length) return null
@@ -312,12 +355,28 @@ function FeedProductPage({
             <ImageCarousel images={images.length ? images : [""]} height={imageHeight} className="bg-[#f8fafc]" />
 
             <View className="flex-1 px-4 pb-4 pt-2">
-              <Text className="text-[15px] font-geist-semibold text-primary" numberOfLines={2}>
-                {(product as any)?.title}
-              </Text>
+              <View className="flex-row items-center justify-between">
+                <Text className="text-[15px] font-geist-semibold text-primary" numberOfLines={2}>
+                  {(product as any)?.title}
+                </Text>
+                {__DEV__ && debugReason ? (
+                  <PressableOverlay
+                    onPress={() => setShowDebug((prev) => !prev)}
+                    className="rounded-md bg-slate-100 px-2 py-1"
+                  >
+                    <Text className="text-[10px] font-semibold text-slate-600">Why</Text>
+                  </PressableOverlay>
+                ) : null}
+              </View>
               <Text className="mt-1 text-[12px] text-secondary" numberOfLines={1}>
                 {(product as any)?.vendor}
               </Text>
+
+              {__DEV__ && showDebug && debugReason ? (
+                <View className="mt-2 rounded-lg bg-slate-100 px-2 py-2">
+                  <Text className="text-[11px] text-slate-700">{debugReason}</Text>
+                </View>
+              ) : null}
 
               {options.length ? (
                 <View className="mt-2.5" style={{ maxHeight: variantsPanelMaxHeight }}>
@@ -326,6 +385,32 @@ function FeedProductPage({
                     showsVerticalScrollIndicator
                     bounces={false}
                     contentContainerStyle={{ paddingBottom: 2 }}
+                    onScroll={(event) => {
+                      const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent
+                      const denominator = Math.max(1, contentSize.height)
+                      const ratio = (contentOffset.y + layoutMeasurement.height) / denominator
+                      if (ratio >= 0.75 && !depthFired75Ref.current) {
+                        depthFired75Ref.current = true
+                        trackForYouEvent({
+                          type: "pdp_scroll_75_percent",
+                          handle: (product as any)?.handle ?? handle,
+                          vendor: (product as any)?.vendor ?? null,
+                          productType: (product as any)?.productType ?? null,
+                          tags: trackingTags.length ? trackingTags : null,
+                        })
+                      }
+                      if (ratio >= 0.99 && !depthFired100Ref.current) {
+                        depthFired100Ref.current = true
+                        trackForYouEvent({
+                          type: "pdp_scroll_100_percent",
+                          handle: (product as any)?.handle ?? handle,
+                          vendor: (product as any)?.vendor ?? null,
+                          productType: (product as any)?.productType ?? null,
+                          tags: trackingTags.length ? trackingTags : null,
+                        })
+                      }
+                    }}
+                    scrollEventThrottle={80}
                   >
                     <View className="flex-row flex-wrap justify-between">
                       {options.map((option) => {
@@ -470,7 +555,7 @@ function NativeVariantSelect({
           <Pressable className="absolute inset-0" onPress={closePicker}>
             <Animated.View
               pointerEvents="none"
-              className="absolute inset-0 bg-black"
+              className="absolute inset-0 bg-transparent"
               style={{ opacity: backdropOpacity }}
             />
           </Pressable>
@@ -513,42 +598,4 @@ function NativeVariantSelect({
 function normalize(value?: string | null): string {
   if (typeof value !== "string") return ""
   return value.trim().toLowerCase()
-}
-
-function tokenize(value?: string | null): string[] {
-  return normalize(value)
-    .split(/[^a-z0-9]+/g)
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length >= 3)
-}
-
-function scoreSimilarity(seed: ForYouCandidate, candidate: ForYouCandidate, originalIndex: number): number {
-  let score = 0
-
-  const seedVendor = normalize(seed.vendor)
-  const candidateVendor = normalize(candidate.vendor)
-  if (seedVendor && seedVendor === candidateVendor) score += 7
-
-  const seedType = normalize(seed.productType)
-  const candidateType = normalize(candidate.productType)
-  if (seedType && seedType === candidateType) score += 4.5
-
-  const seedTags = new Set((seed.tags ?? []).map((entry) => normalize(entry)).filter(Boolean))
-  const candidateTags = (candidate.tags ?? []).map((entry) => normalize(entry)).filter(Boolean)
-  let tagOverlap = 0
-  for (const tag of candidateTags) {
-    if (seedTags.has(tag)) tagOverlap += 1
-  }
-  score += Math.min(4, tagOverlap * 1.4)
-
-  const seedTokens = new Set([...tokenize(seed.title), ...tokenize(seed.handle), ...tokenize(seed.vendor)])
-  const candidateTokens = [...tokenize(candidate.title), ...tokenize(candidate.handle), ...tokenize(candidate.vendor)]
-  let tokenOverlap = 0
-  for (const token of candidateTokens) {
-    if (seedTokens.has(token)) tokenOverlap += 1
-  }
-  score += Math.min(5, tokenOverlap * 0.85)
-
-  score += Math.max(0, 1.2 - originalIndex * 0.03)
-  return score
 }

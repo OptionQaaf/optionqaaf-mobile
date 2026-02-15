@@ -1,6 +1,7 @@
 import {
   applyServedCooldown,
   createEmptyForYouProfile,
+  getEffectiveScore,
   getProfileHash,
   isColdStart,
   normalizeForYouProfile,
@@ -12,9 +13,12 @@ import {
   type ForYouProfile,
   type RankedForYouItem,
 } from "@/features/for-you/profile"
+import { getCachedProductIntelligence } from "@/features/catalog/intelligence"
+import { logCatalogQualityMetrics } from "@/features/catalog/diagnostics"
 import { forYouProfileStorageResolver, resolveForYouIdentity } from "@/features/for-you/storage"
 import { LocalForYouProfileStorage } from "@/features/for-you/storage/localStorage"
 import { ShopifyMetafieldForYouProfileStorage } from "@/features/for-you/storage/shopifyMetafieldStorage"
+import { incrementForYouTelemetryCounter, recordForYouTelemetryTiming } from "@/features/for-you/telemetry"
 import { getProductByHandle } from "@/lib/shopify/services/products"
 import { isOnboardingDone } from "@/lib/storage/flags"
 import { decodeForYouCursor, getForYouCandidates } from "@/lib/shopify/services/forYou"
@@ -78,7 +82,8 @@ export async function ensureForYouProfileOnLogin(): Promise<ForYouProfile> {
   const next = normalizeForYouProfile({
     ...(guest ?? current),
     ...current,
-    gender: normalizeGender(current.gender) === "unknown" ? normalizeGender(guest?.gender) : normalizeGender(current.gender),
+    gender:
+      normalizeGender(current.gender) === "unknown" ? normalizeGender(guest?.gender) : normalizeGender(current.gender),
     updatedAt: new Date().toISOString(),
   })
 
@@ -117,7 +122,9 @@ export async function needsGenderPrompt(profile?: ForYouProfile | null): Promise
 
 export async function resolveForYouCollectionHandles(gender: ForYouGender, language?: string): Promise<string[]> {
   const known = new Set<string>(
-    gender === "male" || gender === "female" ? GENDER_COLLECTION_CANDIDATES[gender] : GENDER_COLLECTION_CANDIDATES.unknown,
+    gender === "male" || gender === "female"
+      ? GENDER_COLLECTION_CANDIDATES[gender]
+      : GENDER_COLLECTION_CANDIDATES.unknown,
   )
 
   try {
@@ -207,8 +214,11 @@ export async function getForYouProducts(input: {
   debug?: {
     candidateCount: number
     handleCount: number
+    selectedBandCounts?: { A: number; B: number; C: number }
+    sample?: { handle: string; score: number; category: string }[]
   }
 }> {
+  const startedAt = Date.now()
   const profile = await getForYouProfile()
   const gender = normalizeGender(profile.gender)
   const handles = await resolveForYouCollectionHandles(gender, input.locale.language)
@@ -232,6 +242,9 @@ export async function getForYouProducts(input: {
     gender === "unknown" || strictCandidates.length > 0
       ? strictCandidates
       : candidatesRaw.filter((candidate) => matchesGenderPoolLoose(candidate, gender))
+  if (__DEV__ && input.includeDebug) {
+    logCatalogQualityMetrics(candidates)
+  }
   const pageDepth = input.cursor ? decodeForYouCursor(input.cursor, handles).page : 0
   const explorationRatio = getExplorationRatio(pageDepth)
   const dayRefreshKey = `${new Date().toISOString().slice(0, 10)}|${input.refreshKey ?? 0}`
@@ -252,20 +265,37 @@ export async function getForYouProducts(input: {
         explorationRatio,
         dateKey: dayRefreshKey,
       })
+  const adjustedRanked = applyIntelligencePreferenceBoost(profile, ranked)
 
-  const items = ranked.map(stripRank)
+  const pageSelection = selectForYouPageFromRankedList(
+    adjustedRanked,
+    Math.max(10, Math.min(60, input.pageSize ?? 40)),
+    {
+      pageDepth,
+      explorationRatio,
+      seed: `${getProfileHash(profile)}|${dayRefreshKey}|${input.locale.country ?? ""}|${input.locale.language ?? ""}`,
+    },
+  )
+  const items = pageSelection.items.map(stripRank)
   const cooledProfile = applyServedCooldown(
     profile,
-    ranked.map((item) => item.handle),
+    pageSelection.items.map((item) => item.handle),
   )
   await saveForYouProfile(cooledProfile)
+  recordForYouTelemetryTiming("grid.rank", Date.now() - startedAt)
+  incrementForYouTelemetryCounter("grid.pool.candidates", candidates.length)
 
   const response: {
     items: ForYouCandidate[]
     nextCursor?: string
     profileHash: string
     gender: ForYouGender
-    debug?: { candidateCount: number; handleCount: number }
+    debug?: {
+      candidateCount: number
+      handleCount: number
+      selectedBandCounts?: { A: number; B: number; C: number }
+      sample?: { handle: string; score: number; category: string }[]
+    }
   } = {
     items,
     nextCursor: candidatesResponse.nextCursor,
@@ -277,10 +307,160 @@ export async function getForYouProducts(input: {
     response.debug = {
       candidateCount: candidates.length,
       handleCount: handles.length,
+      selectedBandCounts: pageSelection.bandCounts,
+      sample: pageSelection.items.slice(0, 12).map((item) => ({
+        handle: item.handle,
+        score: Number(item.__score.toFixed(4)),
+        category: getCachedProductIntelligence(item).primaryCategory,
+      })),
     }
   }
 
   return response
+}
+
+function hashString(input: string): number {
+  let h = 2166136261
+  for (let i = 0; i < input.length; i += 1) {
+    h ^= input.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
+function createSeededRandom(seed: string): () => number {
+  let state = hashString(seed) || 1
+  return () => {
+    state = (state + 0x6d2b79f5) | 0
+    let t = Math.imul(state ^ (state >>> 15), 1 | state)
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+function pullRandom<T>(list: T[], random: () => number): T | null {
+  if (!list.length) return null
+  const idx = Math.floor(random() * list.length)
+  const [item] = list.splice(idx, 1)
+  return item ?? null
+}
+
+export function selectForYouPageFromRankedList(
+  ranked: RankedForYouItem[],
+  pageSize: number,
+  options: { pageDepth: number; explorationRatio: number; seed: string },
+): { items: RankedForYouItem[]; bandCounts: { A: number; B: number; C: number } } {
+  const size = Math.max(1, Math.min(pageSize, ranked.length))
+  const random = createSeededRandom(options.seed)
+  const bandA = [...ranked.slice(0, Math.min(30, ranked.length))]
+  const bandB = [...ranked.slice(30, Math.min(100, ranked.length))]
+  const bandC = [...ranked.slice(100)]
+
+  const extraExplore = Math.min(0.2, options.explorationRatio * 0.35 + options.pageDepth * 0.02)
+  const ratioA = Math.max(0.35, 0.6 - extraExplore)
+  const ratioB = Math.max(0.2, 0.25 - extraExplore / 2)
+  const plan = {
+    A: Math.max(1, Math.round(size * ratioA)),
+    B: Math.max(0, Math.round(size * ratioB)),
+    C: Math.max(0, size),
+  }
+  plan.C = Math.max(0, size - plan.A - plan.B)
+
+  const picked: RankedForYouItem[] = []
+  const seenHandles = new Set<string>()
+  const categoryCounts = new Map<string, number>()
+  const vendorTopCounts = new Map<string, number>()
+  const bandCounts = { A: 0, B: 0, C: 0 }
+
+  const tryPick = (source: RankedForYouItem[], band: keyof typeof bandCounts): boolean => {
+    let tries = source.length
+    while (tries > 0) {
+      tries -= 1
+      const candidate = pullRandom(source, random)
+      if (!candidate) return false
+      const handle = normalizeHandle(candidate.handle)
+      if (!handle || seenHandles.has(handle)) continue
+      const vendor = normalizeHandle(candidate.vendor)
+      if (picked.length < 12 && vendor) {
+        const vCount = vendorTopCounts.get(vendor) ?? 0
+        if (vCount >= 3) continue
+        vendorTopCounts.set(vendor, vCount + 1)
+      }
+      const category = getCachedProductIntelligence(candidate).primaryCategory
+      const cCount = categoryCounts.get(category) ?? 0
+      if (category !== "unknown" && cCount >= Math.max(4, Math.floor(size * 0.45))) continue
+      categoryCounts.set(category, cCount + 1)
+      seenHandles.add(handle)
+      picked.push(candidate)
+      bandCounts[band] += 1
+      return true
+    }
+    return false
+  }
+
+  while (picked.length < size && (plan.A > 0 || plan.B > 0 || plan.C > 0)) {
+    if (plan.A > 0 && tryPick(bandA, "A")) {
+      plan.A -= 1
+      continue
+    }
+    if (plan.B > 0 && tryPick(bandB, "B")) {
+      plan.B -= 1
+      continue
+    }
+    if (plan.C > 0 && tryPick(bandC, "C")) {
+      plan.C -= 1
+      continue
+    }
+    break
+  }
+
+  for (const fallback of ranked) {
+    if (picked.length >= size) break
+    const handle = normalizeHandle(fallback.handle)
+    if (!handle || seenHandles.has(handle)) continue
+    picked.push(fallback)
+    seenHandles.add(handle)
+  }
+
+  return {
+    items: picked.slice(0, size),
+    bandCounts,
+  }
+}
+
+function applyIntelligencePreferenceBoost(profile: ForYouProfile, ranked: RankedForYouItem[]): RankedForYouItem[] {
+  if (!ranked.length) return ranked
+  const now = Date.now()
+  const topCategoryPrefs = Object.entries(profile.signals.byCategory)
+    .map(([key, value]) => ({ key, score: getEffectiveScore(value, now) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+  const categoryWeights = new Map(topCategoryPrefs.map((entry) => [entry.key, entry.score]))
+  const materialWeights = new Map(
+    Object.entries(profile.signals.byMaterial)
+      .map(([key, value]) => [key, getEffectiveScore(value, now)] as const)
+      .filter(([, score]) => score > 0),
+  )
+  const fitWeights = new Map(
+    Object.entries(profile.signals.byFit)
+      .map(([key, value]) => [key, getEffectiveScore(value, now)] as const)
+      .filter(([, score]) => score > 0),
+  )
+
+  return ranked
+    .map((item) => {
+      const intelligence = getCachedProductIntelligence(item)
+      const categoryBoost = (categoryWeights.get(intelligence.primaryCategory) ?? 0) * 0.9
+      const materialBoost =
+        intelligence.materialTokens.reduce((sum, token) => sum + (materialWeights.get(token) ?? 0), 0) * 0.4
+      const fitBoost = intelligence.fitTokens.reduce((sum, token) => sum + (fitWeights.get(token) ?? 0), 0) * 0.35
+      return {
+        ...item,
+        __score: item.__score + categoryBoost + materialBoost + fitBoost,
+      }
+    })
+    .sort((a, b) => b.__score - a.__score)
 }
 
 function matchesGenderPool(candidate: ForYouCandidate, gender: ForYouGender): boolean {

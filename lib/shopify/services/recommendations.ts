@@ -1,4 +1,5 @@
 import { callShopify, shopifyClient } from "@/lib/shopify/client"
+import { addFypDebugProductPayload, fypLogOnce, summarizeProductPayload } from "@/features/debug/fypDebug"
 import type { ProductRecommendationIntent } from "@/lib/shopify/gql/graphql"
 import { gql } from "graphql-tag"
 
@@ -111,7 +112,7 @@ export async function getRecommendedProducts(
     return { productRecommendations: [] }
   }
   if (normalizedProductId) {
-    return callShopify<ProductRecommendationsQueryResult>(() =>
+    const response = await callShopify<ProductRecommendationsQueryResult>(() =>
       shopifyClient.request(PRODUCT_RECOMMENDATIONS_BY_ID_DOCUMENT, {
         productId: normalizedProductId,
         intent: input.intent ?? "RELATED",
@@ -119,9 +120,16 @@ export async function getRecommendedProducts(
         language: locale?.language as any,
       }),
     )
+    fypLogOnce(`SHOPIFY_PRODUCTS_SUMMARY:recommendations:id:${normalizedProductId}`, "SHOPIFY_PRODUCTS_SUMMARY", {
+      source: "productRecommendationsById",
+      ...summarizeProductPayload((response.productRecommendations ?? []) as any[]),
+    })
+    const first = (response.productRecommendations ?? [])[0] as any
+    if (first?.handle) addFypDebugProductPayload("recommendationsById", String(first.handle), first)
+    return response
   }
 
-  return callShopify<ProductRecommendationsQueryResult>(() =>
+  const response = await callShopify<ProductRecommendationsQueryResult>(() =>
     shopifyClient.request(PRODUCT_RECOMMENDATIONS_BY_HANDLE_DOCUMENT, {
       productHandle: normalizedProductHandle!,
       intent: input.intent ?? "RELATED",
@@ -129,4 +137,11 @@ export async function getRecommendedProducts(
       language: locale?.language as any,
     }),
   )
+  fypLogOnce(`SHOPIFY_PRODUCTS_SUMMARY:recommendations:handle:${normalizedProductHandle}`, "SHOPIFY_PRODUCTS_SUMMARY", {
+    source: "productRecommendationsByHandle",
+    ...summarizeProductPayload((response.productRecommendations ?? []) as any[]),
+  })
+  const first = (response.productRecommendations ?? [])[0] as any
+  if (first?.handle) addFypDebugProductPayload("recommendationsByHandle", String(first.handle), first)
+  return response
 }

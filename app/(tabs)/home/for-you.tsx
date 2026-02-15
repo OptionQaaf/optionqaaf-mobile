@@ -1,6 +1,9 @@
 import { useForYouProducts } from "@/features/for-you/api"
+import { FypDebugPanel } from "@/features/debug/FypDebugPanel"
+import { FYP_DEBUG, fypLogOnce } from "@/features/debug/fypDebug"
 import type { ForYouCandidate } from "@/features/for-you/profile"
 import { useForYouFeedStore } from "@/store/forYouFeed"
+import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { Screen } from "@/ui/layout/Screen"
 import { ProductTile } from "@/ui/product/ProductTile"
@@ -18,6 +21,7 @@ export default function ForYouScreen() {
   const query = useForYouProducts({ pageSize: 40, refreshKey })
   const navigation = useNavigation<any>()
   const debugSnapshotRef = useRef<string>("")
+  const [showDebugOverlay, setShowDebugOverlay] = useState(false)
 
   const items = useMemo<ForYouCandidate[]>(() => {
     const merged = (query.data?.pages ?? []).flatMap((page: { items: ForYouCandidate[] }) => page.items ?? [])
@@ -45,7 +49,7 @@ export default function ForYouScreen() {
   }, [])
 
   const rows = useMemo(() => {
-    const output: Array<[ForYouCandidate | null, ForYouCandidate | null]> = []
+    const output: [ForYouCandidate | null, ForYouCandidate | null][] = []
     for (let i = 0; i < items.length; i += 2) {
       output.push([items[i] ?? null, items[i + 1] ?? null])
     }
@@ -67,7 +71,7 @@ export default function ForYouScreen() {
   }, [navigation])
 
   useEffect(() => {
-    if (!__DEV__) return
+    if (!FYP_DEBUG) return
     if (!items.length) return
 
     const sample = items.slice(0, 20).map((item, index) => ({
@@ -87,16 +91,26 @@ export default function ForYouScreen() {
     if (signature && signature === debugSnapshotRef.current) return
     debugSnapshotRef.current = signature
 
-    console.debug("[for-you] ranked top 20 sample", JSON.stringify(sample, null, 2))
+    fypLogOnce(`[for-you] ranked top 20 sample:${signature}`, "GRID_TOP20_SAMPLE", sample)
     const pageDebug = query.data?.pages?.[0]?.debug
     if (pageDebug) {
-      console.debug("[for-you] pool debug", pageDebug)
+      fypLogOnce(`[for-you] pool debug:${signature}`, "GRID_POOL_DEBUG", pageDebug)
     }
   }, [items, query.data])
 
   return (
     <Screen bleedTop bleedBottom>
       <View className="flex-1 bg-white">
+        {__DEV__ ? (
+          <View className="absolute right-4 top-2 z-20">
+            <PressableOverlay
+              onPress={() => setShowDebugOverlay((prev) => !prev)}
+              className="rounded-md bg-slate-100 px-2 py-1"
+            >
+              <Text className="text-[10px] font-semibold text-slate-700">FYP Debug</Text>
+            </PressableOverlay>
+          </View>
+        ) : null}
         {isInitialLoading ? (
           <View style={{ flex: 1, paddingHorizontal: padH, paddingTop: 12, paddingBottom: 120 }}>
             <LoadingMasonry />
@@ -148,6 +162,19 @@ export default function ForYouScreen() {
                 </View>
               ))
             )}
+            {__DEV__ && showDebugOverlay && query.data?.pages?.[0]?.debug ? (
+              <View className="mt-4 rounded-lg bg-slate-100 px-3 py-2">
+                <Text className="text-[11px] font-semibold text-slate-700">
+                  bands: {JSON.stringify(query.data.pages[0].debug.selectedBandCounts ?? {})}
+                </Text>
+                <Text className="mt-1 text-[11px] text-slate-600" numberOfLines={4}>
+                  sample:{" "}
+                  {(query.data.pages[0].debug.sample ?? [])
+                    .map((entry: { handle: string; category: string }) => `${entry.handle} (${entry.category})`)
+                    .join(", ")}
+                </Text>
+              </View>
+            ) : null}
             {query.isFetchingNextPage ? (
               <View style={{ paddingVertical: 16 }}>
                 <LoadingMasonry compact />
@@ -155,6 +182,7 @@ export default function ForYouScreen() {
             ) : null}
           </ScrollView>
         )}
+        <FypDebugPanel side="right" />
       </View>
     </Screen>
   )
