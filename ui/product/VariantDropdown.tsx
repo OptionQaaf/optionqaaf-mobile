@@ -7,6 +7,8 @@ type Props = {
   value?: string
   onChange?: (id: string) => void
   className?: string
+  dropDownDirection?: "AUTO" | "TOP" | "BOTTOM"
+  maxHeight?: number
 }
 
 export function VariantDropdown(props: Props) {

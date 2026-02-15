@@ -1,8 +1,8 @@
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
-import { router, usePathname } from "expo-router"
+import { router, usePathname, useRouter } from "expo-router"
 import { ChevronLeft } from "lucide-react-native"
 import type { ReactNode } from "react"
-import { DeviceEventEmitter, Image, View, type StyleProp, type ViewStyle } from "react-native"
+import { DeviceEventEmitter, Image, View, type ViewStyle } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 type Props = {
@@ -14,20 +14,19 @@ type Props = {
 }
 
 export function MenuBar({ variant = "light", floating = false, scrim = 0, back = false, backIconBackground }: Props) {
-  const color = variant === "dark" ? "#f8f8f8" : "#1e1e1e"
+  const color = "#1e1e1e"
   const pathname = usePathname()
-
-  const LOGO_W = 32
-  const LOGO_H = 32
+  const navigation = useRouter()
 
   const Container = floating ? SafeAreaView : View
   const containerProps = floating
     ? ({
         edges: ["top"],
         pointerEvents: "box-none",
-        style: { position: "absolute", left: 0, right: 0, top: 0, zIndex: 50, elevation: 50 },
+        className: "absolute left-0 right-0 top-0 z-50 bg-white",
+        style: { elevation: 50 },
       } as any)
-    : ({} as any)
+    : ({ className: "bg-white" } as any)
 
   function onLogoPress() {
     if (pathname === "/home") {
@@ -42,45 +41,28 @@ export function MenuBar({ variant = "light", floating = false, scrim = 0, back =
       {floating && scrim > 0 && (
         <View
           pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: 0,
-            height: 64,
-            backgroundColor: variant === "light" ? `rgba(0,0,0,${scrim})` : `rgba(255,255,255,${scrim})`,
-          }}
+          className="absolute left-0 right-0 top-0 h-16"
+          style={{ backgroundColor: variant === "light" ? `rgba(0,0,0,${scrim})` : `rgba(255,255,255,${scrim})` }}
         />
       )}
 
-      <View className="flex-row items-center justify-between px-5 py-4">
+      <View className="flex-row items-center justify-between px-4 py-1">
         <View className="h-10 w-10">
-          {back ? (
-            <Icon
-              onPress={() => router.back()}
-              style={
-                backIconBackground
-                  ? {
-                      backgroundColor: backIconBackground,
-                    }
-                  : undefined
-              }
-            >
+          {back && navigation.canGoBack() ? (
+            <Icon onPress={() => router.back()}>
               <ChevronLeft size={24} color={color} />
             </Icon>
           ) : null}
         </View>
 
         <PressableOverlay onPress={onLogoPress}>
-          <Image
-            source={require("@/assets/images/optionqaaf-logo.png")}
-            style={{ width: LOGO_W, height: LOGO_H }}
-            resizeMode="contain"
-          />
+          <Image source={require("@/assets/images/optionqaaf-logo.png")} className="h-8 w-8" resizeMode="contain" />
         </PressableOverlay>
 
         <View className="h-10 w-10" />
       </View>
+
+      <View className="h-px bg-[#e5e7eb]" />
     </Container>
   )
 }
@@ -94,7 +76,7 @@ export function Icon({
   children: ReactNode
   onPress?: () => void
   accessibilityLabel?: string
-  style?: StyleProp<ViewStyle>
+  style?: ViewStyle | ViewStyle[]
 }) {
   return (
     <PressableOverlay

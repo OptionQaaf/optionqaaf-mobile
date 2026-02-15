@@ -1,4 +1,5 @@
 import type { CurrencyCode } from "@/features/currency/config"
+import { setGender } from "@/features/for-you/service"
 import type { CountryCode } from "@/features/locale/countries"
 import { COUNTRIES } from "@/features/locale/countries"
 import { requestPushPermissionsAndToken } from "@/features/notifications/permissions"
@@ -10,7 +11,7 @@ import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { Button } from "@/ui/primitives/Button"
-import { H3, Muted } from "@/ui/primitives/Typography"
+import { H2, Muted } from "@/ui/primitives/Typography"
 import { cn } from "@/ui/utils/cva"
 import * as Notifications from "expo-notifications"
 import { useRouter } from "expo-router"
@@ -28,6 +29,7 @@ export default function LocaleOnboarding() {
   const [language] = useState<LanguageCode>("EN")
   const [country, setCountry] = useState<CountryCode>("SA")
   const [currency, setCurrency] = useState<CurrencyCode>("SAR")
+  const [gender, setGenderSelection] = useState<"male" | "female">("male")
   const [showPushModal, setShowPushModal] = useState(false)
 
   const applyCountry = (c: CountryCode) => {
@@ -77,6 +79,7 @@ export default function LocaleOnboarding() {
 
   const handleContinue = useCallback(async () => {
     setPrefs({ language, country, currency })
+    void setGender(gender).catch(() => {})
     if (pushEnabled) {
       finishOnboarding().catch(() => {})
       return
@@ -93,7 +96,7 @@ export default function LocaleOnboarding() {
       // fall through to showing modal
     }
     setShowPushModal(true)
-  }, [country, currency, finishOnboarding, handlePushSetup, language, pushEnabled, setPrefs])
+  }, [country, currency, finishOnboarding, gender, handlePushSetup, language, pushEnabled, setPrefs])
 
   return (
     <Screen bleedTop bleedBottom>
@@ -109,15 +112,60 @@ export default function LocaleOnboarding() {
       </View>
 
       {/* SHEET that fills remaining height */}
-      <View className="flex-1 -mt-6 overflow-hidden rounded-t-[32px] bg-white">
+      <View className="flex-1 -mt-14 overflow-hidden rounded-t-[32px] bg-white">
         <PageScrollView isFooterHidden>
           <SafeAreaView className="flex-1 justify-between px-4 pt-8" edges={["bottom"]}>
             {/* FORM GROUP */}
-            <View className="flex-col gap-4">
+            <View className="flex-col gap-6">
+              <View className="flex-col gap-4">
+                <View>
+                  <H2>For You Profile</H2>
+                  <Muted className="text-md">Choose the feed you want to start with</Muted>
+                </View>
+
+                <View className="flex-row gap-2">
+                  <PressableOverlay
+                    haptic="light"
+                    onPress={() => setGenderSelection("male")}
+                    pressableClassName="flex-1"
+                    className={cn(
+                      "items-center rounded-2xl border px-3 py-3",
+                      gender === "male" ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
+                    )}
+                  >
+                    <RNText
+                      className={cn(
+                        "text-[16px] font-semibold",
+                        gender === "male" ? "text-[#0f172a]" : "text-[#0f172a]",
+                      )}
+                    >
+                      Male
+                    </RNText>
+                  </PressableOverlay>
+                  <PressableOverlay
+                    haptic="light"
+                    onPress={() => setGenderSelection("female")}
+                    pressableClassName="flex-1"
+                    className={cn(
+                      "items-center rounded-2xl border px-3 py-3",
+                      gender === "female" ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
+                    )}
+                  >
+                    <RNText
+                      className={cn(
+                        "text-[16px] font-semibold",
+                        gender === "female" ? "text-[#0f172a]" : "text-[#0f172a]",
+                      )}
+                    >
+                      Female
+                    </RNText>
+                  </PressableOverlay>
+                </View>
+              </View>
               {/* Country (pills grid; no FlatList) */}
               <View className="flex-col gap-4">
                 <View>
-                  <H3>Country / الدولة</H3>
+                  <H2>Country / الدولة</H2>
                   <Muted className="text-md">Choose your country / اختر دولتك</Muted>
                 </View>
 

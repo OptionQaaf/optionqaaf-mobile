@@ -27,6 +27,8 @@ export function Dropdown({
   searchable = false,
   searchPlaceholder = "Search…",
   hasError = false,
+  dropDownDirection = "AUTO",
+  maxHeight,
 }: {
   label?: string
   placeholder?: string
@@ -39,6 +41,8 @@ export function Dropdown({
   searchable?: boolean
   searchPlaceholder?: string
   hasError?: boolean
+  dropDownDirection?: "AUTO" | "TOP" | "BOTTOM"
+  maxHeight?: number
 }) {
   const [open, setOpen] = useState(false)
   const instanceId = useRef(`dropdown-${Math.random().toString(36).slice(2, 10)}`)
@@ -81,9 +85,12 @@ export function Dropdown({
 
   const containerZIndex = useMemo(() => (open ? 2000 : 1), [open])
   const isAndroid = Platform.OS === "android"
-  const listMode = isAndroid ? "SCROLLVIEW" : "SCROLLVIEW"
+  const listMode = "SCROLLVIEW"
   const selectedLabel = useMemo(() => items.find((i) => i.value === (value ?? null))?.label ?? "", [items, value])
-  const maxPickerHeight = useMemo(() => Math.max(220, Math.floor(Dimensions.get("window").height * 0.4)), [])
+  const maxPickerHeight = useMemo(
+    () => maxHeight ?? Math.max(220, Math.floor(Dimensions.get("window").height * 0.4)),
+    [maxHeight],
+  )
 
   useEffect(() => {
     if (open) {
@@ -212,7 +219,7 @@ export function Dropdown({
         searchable={searchable}
         searchPlaceholder={searchPlaceholder}
         listMode={listMode}
-        dropDownDirection="DEFAULT"
+        dropDownDirection={dropDownDirection}
         maxHeight={maxPickerHeight}
         modalContentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12 }}
         autoScroll

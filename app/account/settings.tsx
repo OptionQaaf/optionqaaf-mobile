@@ -82,6 +82,12 @@ function AccountSettingsContent() {
         Icon: Settings2,
         path: "/account/notifications" as RelativePathString,
       },
+      {
+        title: "For You profile",
+        body: "Choose your For You feed preference.",
+        Icon: Sparkles,
+        path: "/account/for-you" as RelativePathString,
+      },
     ],
     [],
   )
@@ -182,7 +188,7 @@ function AccountSettingsContent() {
             </Card>
           ) : null}
 
-          <Section title="Notifications">
+          <Section title="Personalization">
             <View className="gap-3">
               {settingsLinks.map((link) => (
                 <AccountLink

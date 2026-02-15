@@ -1,10 +1,12 @@
 import { useCustomerProfile } from "@/features/account/api"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { useAddToCart, useEnsureCart } from "@/features/cart/api"
+import { extractForYouContentSignals } from "@/features/for-you/contentSignals"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { useProduct } from "@/features/pdp/api"
 import { useRecommendedProducts } from "@/features/recommendations/api"
 import { useSearch } from "@/features/search/api"
+import { trackForYouEvent } from "@/features/for-you/tracking"
 import { shareRemoteImage } from "@/src/lib/media/shareRemoteImage"
 import type { WishlistItem } from "@/store/wishlist"
 import { useWishlist } from "@/store/wishlist"
@@ -167,6 +169,28 @@ export default function ProductScreen() {
   const loading = ensure.isPending || add.isPending
 
   const productTitle = useMemo(() => (product as any)?.title ?? "Product image", [product])
+  const trackingTags = useMemo(() => {
+    const baseTags = (((product as any)?.tags as string[] | undefined) ?? [])
+      .map((entry) =>
+        String(entry ?? "")
+          .trim()
+          .toLowerCase(),
+      )
+      .filter(Boolean)
+    const mediaAltTexts = ((product as any)?.media?.nodes ?? [])
+      .map((node: any) => node?.image?.altText)
+      .filter(Boolean)
+    const extracted = extractForYouContentSignals({
+      descriptionHtml: (product as any)?.descriptionHtml ?? null,
+      description: (product as any)?.description ?? null,
+      imageAltTexts: mediaAltTexts,
+      handle: (product as any)?.handle ?? h,
+      title: (product as any)?.title ?? null,
+      vendor: (product as any)?.vendor ?? null,
+      productType: (product as any)?.productType ?? null,
+    })
+    return Array.from(new Set([...baseTags, ...extracted])).slice(0, 36)
+  }, [product, h])
   const images = useMemo(() => {
     const urls: string[] = []
     const vUrl = (selectedVariant as any)?.image?.url as string | undefined
@@ -317,11 +341,58 @@ export default function ProductScreen() {
       return
     }
     toggleWishlist(wishlistData)
+    if (!isWishlisted) {
+      trackForYouEvent({
+        type: "add_to_wishlist",
+        handle: h,
+        vendor: (product as any)?.vendor ?? null,
+        productType: (product as any)?.productType ?? null,
+        tags: trackingTags.length ? trackingTags : null,
+      })
+    }
     show({
       title: isWishlisted ? "Removed from wishlist" : "Added to wishlist",
       type: isWishlisted ? "info" : "success",
     })
-  }, [wishlistData, toggleWishlist, isWishlisted, show, isAuthenticated, login])
+  }, [wishlistData, toggleWishlist, isWishlisted, show, isAuthenticated, login, h, product, trackingTags])
+
+  const trackedOpenHandleRef = useRef<string | null>(null)
+  const trackedTimeHandleRef = useRef<string | null>(null)
+  const trackedScroll75HandleRef = useRef<string | null>(null)
+  const trackedScroll100HandleRef = useRef<string | null>(null)
+  useEffect(() => {
+    const handle = (product as any)?.handle as string | undefined
+    if (!handle) return
+    if (trackedOpenHandleRef.current === handle) return
+    trackedOpenHandleRef.current = handle
+    trackForYouEvent({
+      type: "product_open",
+      handle,
+      vendor: (product as any)?.vendor ?? null,
+      productType: (product as any)?.productType ?? null,
+      tags: trackingTags.length ? trackingTags : null,
+    })
+  }, [product, trackingTags])
+
+  useEffect(() => {
+    const handle = (product as any)?.handle as string | undefined
+    if (!handle) return
+    trackedScroll75HandleRef.current = null
+    trackedScroll100HandleRef.current = null
+    if (trackedTimeHandleRef.current === handle) return
+    const timer = setTimeout(() => {
+      if (trackedTimeHandleRef.current === handle) return
+      trackedTimeHandleRef.current = handle
+      trackForYouEvent({
+        type: "time_on_product_>8s",
+        handle,
+        vendor: (product as any)?.vendor ?? null,
+        productType: (product as any)?.productType ?? null,
+        tags: trackingTags.length ? trackingTags : null,
+      })
+    }, 8000)
+    return () => clearTimeout(timer)
+  }, [product, trackingTags])
 
   const copyVariantCode = useCallback(() => {
     if (!variantCode) return
@@ -418,7 +489,16 @@ export default function ProductScreen() {
                   label={opt.name}
                   options={(availableOptionValues[opt.name] ?? opt.values).map((v) => ({ id: v, label: v }))}
                   value={sel[opt.name]}
-                  onChange={(id) => setSel((s) => ({ ...s, [opt.name]: id }))}
+                  onChange={(id) => {
+                    setSel((s) => ({ ...s, [opt.name]: id }))
+                    trackForYouEvent({
+                      type: "variant_select",
+                      handle: (product as any)?.handle ?? h,
+                      vendor: (product as any)?.vendor ?? null,
+                      productType: (product as any)?.productType ?? null,
+                      tags: trackingTags.length ? trackingTags : null,
+                    })
+                  }}
                   className="mb-3"
                 />
               ))}
@@ -464,7 +544,16 @@ export default function ProductScreen() {
                     try {
                       if (!selectedVariant?.id) throw new Error("Please select a variant")
                       if (!ensure.isSuccess && !ensure.isPending) await ensure.mutateAsync()
-                      await add.mutateAsync({ merchandiseId: String(selectedVariant.id), quantity: 1 })
+                      await add.mutateAsync({
+                        merchandiseId: String(selectedVariant.id),
+                        quantity: 1,
+                        tracking: {
+                          handle: (product as any)?.handle ?? null,
+                          vendor: (product as any)?.vendor ?? null,
+                          productType: (product as any)?.productType ?? null,
+                          tags: trackingTags.length ? trackingTags : null,
+                        },
+                      })
                       show({ title: "Added to cart", type: "success" })
                     } catch (e: any) {
                       show({ title: e?.message || "Failed to add to cart", type: "danger" })
@@ -489,7 +578,38 @@ export default function ProductScreen() {
         keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
         showsVerticalScrollIndicator={false}
         scrollIndicatorInsets={{ bottom: BAR_H + insets.bottom + 12 }}
-        onScroll={(e: any) => setScrollY(e.nativeEvent.contentOffset?.y ?? 0)}
+        onScroll={(e: any) => {
+          const offsetY = e.nativeEvent.contentOffset?.y ?? 0
+          const viewport = e.nativeEvent.layoutMeasurement?.height ?? 0
+          const contentHeight = e.nativeEvent.contentSize?.height ?? 0
+          setScrollY(offsetY)
+
+          const handle = (product as any)?.handle as string | undefined
+          if (!handle || contentHeight <= 0 || viewport <= 0) return
+          const progress = Math.max(0, Math.min(1, (offsetY + viewport) / contentHeight))
+
+          if (progress >= 0.75 && trackedScroll75HandleRef.current !== handle) {
+            trackedScroll75HandleRef.current = handle
+            trackForYouEvent({
+              type: "pdp_scroll_75_percent",
+              handle,
+              vendor: (product as any)?.vendor ?? null,
+              productType: (product as any)?.productType ?? null,
+              tags: trackingTags.length ? trackingTags : null,
+            })
+          }
+
+          if (progress >= 0.99 && trackedScroll100HandleRef.current !== handle) {
+            trackedScroll100HandleRef.current = handle
+            trackForYouEvent({
+              type: "pdp_scroll_100_percent",
+              handle,
+              vendor: (product as any)?.vendor ?? null,
+              productType: (product as any)?.productType ?? null,
+              tags: trackingTags.length ? trackingTags : null,
+            })
+          }
+        }}
         scrollEventThrottle={16}
         onEndReached={revealFooter}
         onEndReachedThreshold={0.1}
@@ -509,7 +629,16 @@ export default function ProductScreen() {
               try {
                 if (!selectedVariant?.id) throw new Error("Please select a variant")
                 if (!ensure.isSuccess && !ensure.isPending) await ensure.mutateAsync()
-                await add.mutateAsync({ merchandiseId: String(selectedVariant.id), quantity: 1 })
+                await add.mutateAsync({
+                  merchandiseId: String(selectedVariant.id),
+                  quantity: 1,
+                  tracking: {
+                    handle: (product as any)?.handle ?? null,
+                    vendor: (product as any)?.vendor ?? null,
+                    productType: (product as any)?.productType ?? null,
+                    tags: trackingTags.length ? trackingTags : null,
+                  },
+                })
                 show({ title: "Added to cart", type: "success" })
               } catch (e: any) {
                 show({ title: e?.message || "Failed to add to cart", type: "danger" })
@@ -533,7 +662,7 @@ function Recommended({
   currentHandle?: string
   vendorFallback?: any[]
 }) {
-  const { data: recos } = useRecommendedProducts(productId || "")
+  const { data: recos } = useRecommendedProducts({ productId: productId || null })
   // Fallback to vendor-based search if Shopify returns nothing
   const fallback = vendorFallback ?? []
   const baseNodes = recos && recos.length ? recos : fallback

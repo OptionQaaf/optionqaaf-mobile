@@ -129,7 +129,7 @@ export function FloatingDock() {
     >
       <BlurView
         tint="systemUltraThinMaterialDark"
-        className="h-full w-full rounded-full flex-row items-center justify-between px-4 overflow-hidden"
+        className="h-full w-full rounded-full flex-row items-center justify-between overflow-hidden"
         intensity={40}
         style={{
           borderWidth: 1,
@@ -180,7 +180,7 @@ export function FloatingDock() {
               <View
                 ref={isCart ? cartRef : null}
                 onLayout={isCart ? emitCartTarget : undefined}
-                className={`h-[44px] w-[64px] items-center justify-center rounded-[48px] ${
+                className={`h-[44px] w-[56px] items-center justify-center rounded-[48px] ${
                   isActive ? "bg-white/70" : ""
                 }`}
                 style={

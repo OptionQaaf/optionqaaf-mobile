@@ -3,7 +3,7 @@
     "name": "OptionQaaf",
     "slug": "optionqaaf-app",
     "owner": "option-qaaf",
-    "version": "2.0.2",
+    "version": "2.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/white-icon.png",
     "scheme": ["optionqaafmobile", "shop.85072904499.app"],
@@ -20,7 +20,6 @@
         "NSUserTrackingUsageDescription": "We do not track users across apps or websites. This permission is requested to comply with App Store requirements."
       }
     },
-    "owner": "option-qaaf",
     "android": {
       "versionCode": 2,
       "intentFilters": [

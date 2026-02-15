@@ -1,5 +1,8 @@
 import { AuthGate } from "@/features/auth/AuthGate"
-import { ShopifyAuthProvider } from "@/features/auth/useShopifyAuth"
+import { useCustomerProfile } from "@/features/account/api"
+import { ShopifyAuthProvider, useShopifyAuth } from "@/features/auth/useShopifyAuth"
+import { GenderPromptGate } from "@/features/for-you/GenderPromptGate"
+import { getForYouStorageDebugSnapshot } from "@/features/for-you/service"
 import { DrawerProvider } from "@/features/navigation/Drawer"
 import { useNotificationsService } from "@/features/notifications/notificationService"
 import { usePushToken } from "@/features/notifications/usePushToken"
@@ -73,6 +76,7 @@ export default function RootLayout() {
                         gestureEnabled:
                           route.name === "cart" ||
                           route.name === "products/[handle]" ||
+                          route.name === "products/for-you-feed" ||
                           route.name.startsWith("account/") ||
                           route.name.startsWith("collections") ||
                           route.name.startsWith("policies/national-address"),
@@ -80,6 +84,7 @@ export default function RootLayout() {
                     />
                     <FloatingDock />
                   </FloatingDockScaleProvider>
+                  <GenderPromptGate />
                   <ToastHost />
                 </DrawerProvider>
               </FontProvider>
@@ -136,10 +141,12 @@ function InAppPopupHost() {
 }
 
 function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
+  const { isAuthenticated } = useShopifyAuth()
   const metadata = useAppMetadata()
   const segments = useSegments()
   const navigationReady = segments.length > 0
   const networkStatus = useNetworkStatus()
+  const { data: customer } = useCustomerProfile({ enabled: isAuthenticated })
 
   useNotificationsService()
   usePushToken()
@@ -161,6 +168,32 @@ function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
       type,
     })
   }, [isConnected, isInternetReachable, type])
+
+  useEffect(() => {
+    ;(async () => {
+      const snapshot = await getForYouStorageDebugSnapshot().catch(() => null)
+      console.debug("[for-you] startup auth/customer", {
+        isAuthenticated,
+        customerId: customer?.id ?? null,
+        customerEmail: customer?.email ?? null,
+        customerName: customer?.displayName ?? null,
+      })
+      if (!snapshot) {
+        console.debug("[for-you] startup storage", null)
+        return
+      }
+      console.debug("[for-you] startup storage summary", {
+        identity: snapshot.identity,
+        customerMetafieldHasProfile: snapshot.customerMetafieldHasProfile,
+        customerMetafieldStatus: snapshot.customerMetafieldStatus,
+        customerMetafieldError: snapshot.customerMetafieldError,
+        localGuestHasProfile: snapshot.localGuestHasProfile,
+        localCustomerHasProfile: snapshot.localCustomerHasProfile,
+        resolvedProfileGender: snapshot.resolvedProfileGender,
+      })
+      console.debug("[for-you] startup storage payloads json", JSON.stringify(snapshot, null, 2))
+    })()
+  }, [isAuthenticated, customer?.id, customer?.email, customer?.displayName])
 
   return null
 }

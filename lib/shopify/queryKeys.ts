@@ -10,4 +10,16 @@ export const qk = {
   customerProfile: () => ["customer", "profile"] as const,
   customerOrders: (pageSize: number) => ["customer", "orders", pageSize] as const,
   customerOrder: (orderId: string) => ["customer", "order", orderId] as const,
+  forYou: {
+    profile: (locale: { country?: string; language?: string }, customerId?: string | null) =>
+      ["for-you", "profile", locale, customerId ?? "guest"] as const,
+    products: (
+      locale: { country?: string; language?: string },
+      gender: string,
+      profileHash: string,
+      pageSize: number,
+      cursor?: string | null,
+      refreshKey?: number,
+    ) => ["for-you", "products", locale, gender, profileHash, pageSize, cursor ?? null, refreshKey ?? 0] as const,
+  },
 }

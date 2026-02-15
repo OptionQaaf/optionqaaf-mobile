@@ -12,7 +12,7 @@ import { DeviceEventEmitter, Linking, View } from "react-native"
 
 const ABSOLUTE_RE = /^(https?:|mailto:|tel:|sms:)/i
 
-export default function Home() {
+export default function HomeScreen() {
   const { data, isLoading } = useMobileHome("app-home")
   const sections = data?.sections ?? []
   const scrollRef = useRef<ScrollView>(null)
@@ -34,7 +34,7 @@ export default function Home() {
     <Screen bleedTop bleedBottom>
       <StatusBar style="dark" />
       <View className="flex-1">
-        <MenuBar floating />
+        {/* <MenuBar floating /> */}
 
         {isLoading ? (
           <PageScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 0 }}>
