@@ -1,4 +1,5 @@
 import { useMobileHome } from "@/features/home/api"
+import { useFypTrackingStore } from "@/features/fyp"
 import { useCollectionMeta, useCollectionProductsWithImages } from "@/features/plp/api"
 import { useSearch } from "@/features/search/api"
 import { type ProductCollectionSortKeys, type ProductSortKeys } from "@/lib/shopify/gql/graphql"
@@ -62,6 +63,7 @@ export default function CollectionScreen() {
   // controls state
   const [searchTerm, setSearchTerm] = useState("")
   const [view, setView] = useState<1 | 2>(2)
+  const recordView = useFypTrackingStore((state) => state.recordView)
 
   // sorting/filters
   type SortOption = "newest" | "featured" | "priceAsc" | "priceDesc"
@@ -412,7 +414,10 @@ export default function CollectionScreen() {
                         padding={view === 2 ? "sm" : "md"}
                         onPress={() => {
                           const h = item?.handle
-                          if (h) router.push(`/products/${h}` as any)
+                          if (h) {
+                            recordView(h)
+                            router.push(`/products/${h}` as any)
+                          }
                         }}
                       />
                     )

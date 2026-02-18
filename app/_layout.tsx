@@ -4,6 +4,7 @@ import { DrawerProvider } from "@/features/navigation/Drawer"
 import { useNotificationsService } from "@/features/notifications/notificationService"
 import { usePushToken } from "@/features/notifications/usePushToken"
 import { usePopupService } from "@/features/popup/usePopupService"
+import { FypGenderPopup, useFypGenderStore, useFypTrackingStore } from "@/features/fyp"
 import { requestTrackingAuthorizationIfNeeded } from "@/lib/TrackingAuthorizationManager"
 import { useAppMetadata } from "@/lib/diagnostics/appMetadata"
 import { useNetworkStatus } from "@/lib/network/useNetworkStatus"
@@ -104,6 +105,7 @@ export default function RootLayout() {
               </FontProvider>
             </AuthGate>
             <InAppPopupHost />
+            <FypGenderPopup />
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ShopifyAuthProvider>
@@ -160,10 +162,17 @@ function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
   const navigationReady = segments.length > 0
   const networkStatus = useNetworkStatus()
   const isExpoGo = metadata.applicationId === "host.exp.Exponent"
+  const loadFypGender = useFypGenderStore((state) => state.loadFromStorage)
+  const loadFypTracking = useFypTrackingStore((state) => state.loadFromStorage)
 
   useNotificationsService({ enabled: !isExpoGo })
   usePushToken({ enabled: !isExpoGo })
   usePopupService({ fontsReady, navigationReady })
+
+  useEffect(() => {
+    loadFypGender()
+    loadFypTracking()
+  }, [loadFypGender, loadFypTracking])
 
   useEffect(() => {
     requestTrackingAuthorizationIfNeeded()

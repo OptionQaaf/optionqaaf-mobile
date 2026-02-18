@@ -1,5 +1,5 @@
-import { useDrawer } from "@/features/navigation/drawerContext"
 import { useCartQuery } from "@/features/cart/api"
+import { useDrawer } from "@/features/navigation/drawerContext"
 import { CartPreviewDrawer } from "@/ui/nav/CartPreviewDrawer"
 import { Icon, MenuBar } from "@/ui/nav/MenuBar"
 import { usePathname, useSegments } from "expo-router"
@@ -10,7 +10,14 @@ import { Text, View } from "react-native"
 const HIDDEN_PATHNAME_PATTERNS = [/^\/search(?:\/|$)/]
 
 function shouldShowBack(pathname: string) {
-  if (pathname === "/" || pathname === "/home" || pathname === "/account" || pathname === "/cart") {
+  if (
+    pathname === "/" ||
+    pathname === "/home" ||
+    pathname === "/account" ||
+    pathname === "/cart" ||
+    pathname === "/home/for-you" ||
+    pathname === "locale"
+  ) {
     return false
   }
   return true
@@ -24,6 +31,7 @@ export function RootMenuBar() {
   const [isCartPreviewOpen, setIsCartPreviewOpen] = useState(false)
 
   const isProductDetailPage = segments.length === 2 && segments[0] === "products"
+  const isOnboardingLocale = pathname === "/locale"
   const qty = (cart?.totalQuantity ?? 0) > 99 ? 99 : (cart?.totalQuantity ?? 0)
 
   useEffect(() => {
@@ -34,6 +42,7 @@ export function RootMenuBar() {
 
   if (!pathname) return null
   if (isNavDrawerOpen) return null
+  if (isOnboardingLocale) return null
   if (HIDDEN_PATHNAME_PATTERNS.some((pattern) => pattern.test(pathname))) {
     return null
   }

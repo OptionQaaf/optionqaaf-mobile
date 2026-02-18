@@ -1,6 +1,7 @@
 import { useCustomerProfile } from "@/features/account/api"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { useAddToCart, useEnsureCart } from "@/features/cart/api"
+import { useFypTrackingStore } from "@/features/fyp"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { useProduct } from "@/features/pdp/api"
 import { useRecommendedProducts } from "@/features/recommendations/api"
@@ -70,6 +71,7 @@ export default function ProductScreen() {
   const { width } = useWindowDimensions()
   const ensure = useEnsureCart()
   const add = useAddToCart()
+  const recordView = useFypTrackingStore((state) => state.recordView)
   const { show } = useToast()
   const wishlistItems = useWishlist((s) => s.items)
   const toggleWishlist = useWishlist((s) => s.toggle)
@@ -208,6 +210,11 @@ export default function ProductScreen() {
   const BAR_H = 64
   const GAP = 12
 
+  useEffect(() => {
+    if (!h) return
+    recordView(h)
+  }, [h, recordView])
+
   // Inline vs sticky states with hysteresis and fade crossfade
   const [mode, setMode] = useState<"inline" | "sticky">("inline")
   const [sentinelY, setSentinelY] = useState<number>(Number.POSITIVE_INFINITY)
@@ -322,13 +329,28 @@ export default function ProductScreen() {
       title: isWishlisted ? "Removed from wishlist" : "Added to wishlist",
       type: isWishlisted ? "info" : "success",
     })
-  }, [wishlistData, toggleWishlist, isWishlisted, show, isAuthenticated, login, h, product])
+  }, [wishlistData, toggleWishlist, isWishlisted, show, isAuthenticated, login])
 
   const copyVariantCode = useCallback(() => {
     if (!variantCode) return
     Clipboard.setStringAsync(variantCode).catch(() => {})
     show({ title: "Barcode copied", type: "success" })
   }, [variantCode, show])
+
+  const handleAddToCart = useCallback(async () => {
+    try {
+      if (!selectedVariant?.id) throw new Error("Please select a variant")
+      if (!ensure.isSuccess && !ensure.isPending) await ensure.mutateAsync()
+      await add.mutateAsync({
+        merchandiseId: String(selectedVariant.id),
+        quantity: 1,
+        tracking: { handle: h },
+      })
+      show({ title: "Added to cart", type: "success" })
+    } catch (e: any) {
+      show({ title: e?.message || "Failed to add to cart", type: "danger" })
+    }
+  }, [add, ensure, h, selectedVariant?.id, show])
 
   if (isLoading) {
     return (
@@ -461,19 +483,7 @@ export default function ProductScreen() {
                   currency={currencyCode}
                   available={available}
                   loading={loading}
-                  onAdd={async () => {
-                    try {
-                      if (!selectedVariant?.id) throw new Error("Please select a variant")
-                      if (!ensure.isSuccess && !ensure.isPending) await ensure.mutateAsync()
-                      await add.mutateAsync({
-                        merchandiseId: String(selectedVariant.id),
-                        quantity: 1,
-                      })
-                      show({ title: "Added to cart", type: "success" })
-                    } catch (e: any) {
-                      show({ title: e?.message || "Failed to add to cart", type: "danger" })
-                    }
-                  }}
+                  onAdd={handleAddToCart}
                   className="mx-0"
                 />
               </Animated.View>
@@ -512,19 +522,7 @@ export default function ProductScreen() {
             currency={currencyCode}
             available={available}
             loading={loading}
-            onAdd={async () => {
-              try {
-                if (!selectedVariant?.id) throw new Error("Please select a variant")
-                if (!ensure.isSuccess && !ensure.isPending) await ensure.mutateAsync()
-                await add.mutateAsync({
-                  merchandiseId: String(selectedVariant.id),
-                  quantity: 1,
-                })
-                show({ title: "Added to cart", type: "success" })
-              } catch (e: any) {
-                show({ title: e?.message || "Failed to add to cart", type: "danger" })
-              }
-            }}
+            onAdd={handleAddToCart}
           />
         </Animated.View>
       ) : null}

@@ -1,3 +1,4 @@
+import { useFypTrackingStore } from "@/features/fyp"
 import { qk } from "@/lib/shopify/queryKeys"
 import {
   addLines,
@@ -100,7 +101,11 @@ export function useAddToCart() {
         return await addTo(newId)
       }
     },
-    onSuccess: () => {},
+    onSuccess: (_cart, payload) => {
+      const handle = payload.tracking?.handle?.trim()
+      if (!handle) return
+      useFypTrackingStore.getState().recordAddToCart(handle)
+    },
   })
 }
 
@@ -266,7 +271,6 @@ export function useRemoveLine() {
       if (idx === -1) return { prev }
       const line = nodes[idx]
       const qty = Number(line?.quantity ?? 1)
-      const unit = Number(line?.merchandise?.price?.amount ?? 0)
       nodes.splice(idx, 1)
       // recompute subtotal
       const subtotal = nodes.reduce(

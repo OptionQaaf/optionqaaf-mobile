@@ -3,6 +3,7 @@ import { isDeletionRequestPending } from "@/features/account/deletion"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
+import { useFypGenderStore } from "@/features/fyp"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { getPushPermissionsStatus } from "@/features/notifications/permissions"
 import { useAppMetadata, type AppMetadata } from "@/lib/diagnostics/appMetadata"
@@ -158,6 +159,21 @@ function AccountSettingsContent() {
     }
   }, [router, show])
 
+  const handleResetFypGender = useCallback(() => {
+    try {
+      useFypGenderStore.getState().reset()
+      show({ title: "FYP gender reset to unknown", type: "success" })
+    } catch (err: any) {
+      const message = err?.message || "Unable to reset FYP gender"
+      show({ title: message, type: "danger" })
+    }
+  }, [show])
+
+  const handleShowGenderPopup = useCallback(() => {
+    useFypGenderStore.getState().triggerPopup()
+    show({ title: "Gender popup triggered", type: "info" })
+  }, [show])
+
   return (
     <>
       <ScrollView contentContainerStyle={{ paddingTop: 42, paddingBottom: 32 }} className="bg-[#f8fafc]">
@@ -230,6 +246,24 @@ function AccountSettingsContent() {
                   leftIcon={<Clock color="#111827" size={18} strokeWidth={2} />}
                 >
                   Expire token (debug)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  fullWidth
+                  onPress={handleResetFypGender}
+                  leftIcon={<RefreshCcw color="#111827" size={18} strokeWidth={2} />}
+                >
+                  Reset FYP Gender
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  fullWidth
+                  onPress={handleShowGenderPopup}
+                  leftIcon={<Sparkles color="#111827" size={18} strokeWidth={2} />}
+                >
+                  Show Gender Popup
                 </Button>
               </View>
             </Section>

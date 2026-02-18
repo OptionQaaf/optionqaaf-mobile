@@ -1,4 +1,5 @@
 import type { CurrencyCode } from "@/features/currency/config"
+import { useFypGenderStore } from "@/features/fyp"
 import type { CountryCode } from "@/features/locale/countries"
 import { COUNTRIES } from "@/features/locale/countries"
 import { getPushPermissionsStatus, requestPushPermissionsAndToken } from "@/features/notifications/permissions"
@@ -10,25 +11,35 @@ import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { Button } from "@/ui/primitives/Button"
-import { H2, Muted } from "@/ui/primitives/Typography"
+import { Muted, Text } from "@/ui/primitives/Typography"
 import { cn } from "@/ui/utils/cva"
 import { useRouter } from "expo-router"
 import { Bell } from "lucide-react-native"
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Image, Modal, Pressable, Text as RNText, View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function LocaleOnboarding() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { setPrefs } = usePrefs()
   const { setPushPreference, pushEnabled } = useNotificationSettings()
+  const storedGender = useFypGenderStore((state) => state.gender)
+  const setFypGender = useFypGenderStore((state) => state.setGender)
   const { show } = useToast()
 
   const [language] = useState<LanguageCode>("EN")
   const [country, setCountry] = useState<CountryCode>("SA")
   const [currency, setCurrency] = useState<CurrencyCode>("SAR")
-  const [gender, setGenderSelection] = useState<"male" | "female">("male")
+  const [gender, setGenderSelection] = useState<"male" | "female">(storedGender === "female" ? "female" : "male")
   const [showPushModal, setShowPushModal] = useState(false)
+  const sheetOverlap = 16
+
+  useEffect(() => {
+    if (storedGender === "male" || storedGender === "female") {
+      setGenderSelection(storedGender)
+    }
+  }, [storedGender])
 
   const applyCountry = (c: CountryCode) => {
     setCountry(c)
@@ -76,6 +87,7 @@ export default function LocaleOnboarding() {
   }, [finishOnboarding, setPushPreference])
 
   const handleContinue = useCallback(async () => {
+    setFypGender(gender)
     setPrefs({ language, country, currency })
     if (pushEnabled) {
       finishOnboarding().catch(() => {})
@@ -93,77 +105,88 @@ export default function LocaleOnboarding() {
       // fall through to showing modal
     }
     setShowPushModal(true)
-  }, [country, currency, finishOnboarding, gender, handlePushSetup, language, pushEnabled, setPrefs])
+  }, [country, currency, finishOnboarding, gender, handlePushSetup, language, pushEnabled, setFypGender, setPrefs])
 
   return (
     <Screen bleedTop bleedBottom>
-      <View className="relative max-h-[220px] min-h-[200px] w-full bg-black">
+      <View className="relative max-h-72 min-h-60 w-full bg-black">
         <Image
           source={require("@/assets/images/hero-blur.png")}
           resizeMode="cover"
           className="absolute inset-0 opacity-60"
         />
-        <View className="flex-1 items-center justify-center">
-          <Image source={require("@/assets/images/optionqaaf-logo-white.png")} style={{ width: 220, height: 48 }} />
+        <View
+          className="absolute inset-x-0 items-center justify-center"
+          style={{ top: insets.top, bottom: sheetOverlap }}
+        >
+          <Image source={require("@/assets/images/optionqaaf-logo-white.png")} style={{ width: 220, height: 56 }} />
         </View>
       </View>
 
       {/* SHEET that fills remaining height */}
-      <View className="flex-1 -mt-14 overflow-hidden rounded-t-[32px] bg-white">
+      <View className="flex-1 -mt-4 overflow-hidden rounded-t-[28px] bg-white">
         <PageScrollView isFooterHidden>
-          <SafeAreaView className="flex-1 justify-between px-4 pt-8" edges={["bottom"]}>
+          <SafeAreaView className="flex-1 justify-between px-4 pt-6" edges={["bottom"]}>
             {/* FORM GROUP */}
-            <View className="flex-col gap-6">
+            <View className="flex-col gap-2">
               <View className="flex-col gap-4">
-                <View>
-                  <H2>For You Profile</H2>
-                  <Muted className="text-md">Choose the feed you want to start with</Muted>
-                </View>
+                <View className="flex-col gap-2">
+                  <View>
+                    <Text className="text-[20px] font-semibold">Personalization</Text>
+                    <Muted className="text-sm">Set your preferences to personalize your experience</Muted>
+                  </View>
 
-                <View className="flex-row gap-2">
-                  <PressableOverlay
-                    haptic="light"
-                    onPress={() => setGenderSelection("male")}
-                    pressableClassName="flex-1"
-                    className={cn(
-                      "items-center rounded-2xl border px-3 py-3",
-                      gender === "male" ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
-                    )}
-                  >
-                    <RNText
+                  <View className="flex-row gap-2">
+                    <PressableOverlay
+                      haptic="light"
+                      onPress={() => {
+                        setGenderSelection("male")
+                        setFypGender("male")
+                      }}
+                      pressableClassName="flex-1"
                       className={cn(
-                        "text-[16px] font-semibold",
-                        gender === "male" ? "text-[#0f172a]" : "text-[#0f172a]",
+                        "items-center rounded-2xl border px-3 py-2.5",
+                        gender === "male" ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
                       )}
                     >
-                      Male
-                    </RNText>
-                  </PressableOverlay>
-                  <PressableOverlay
-                    haptic="light"
-                    onPress={() => setGenderSelection("female")}
-                    pressableClassName="flex-1"
-                    className={cn(
-                      "items-center rounded-2xl border px-3 py-3",
-                      gender === "female" ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
-                    )}
-                  >
-                    <RNText
+                      <RNText
+                        className={cn(
+                          "text-[15px] font-semibold",
+                          gender === "male" ? "text-[#0f172a]" : "text-[#0f172a]",
+                        )}
+                      >
+                        Male
+                      </RNText>
+                    </PressableOverlay>
+                    <PressableOverlay
+                      haptic="light"
+                      onPress={() => {
+                        setGenderSelection("female")
+                        setFypGender("female")
+                      }}
+                      pressableClassName="flex-1"
                       className={cn(
-                        "text-[16px] font-semibold",
-                        gender === "female" ? "text-[#0f172a]" : "text-[#0f172a]",
+                        "items-center rounded-2xl border px-3 py-2.5",
+                        gender === "female" ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
                       )}
                     >
-                      Female
-                    </RNText>
-                  </PressableOverlay>
+                      <RNText
+                        className={cn(
+                          "text-[15px] font-semibold",
+                          gender === "female" ? "text-[#0f172a]" : "text-[#0f172a]",
+                        )}
+                      >
+                        Female
+                      </RNText>
+                    </PressableOverlay>
+                  </View>
                 </View>
               </View>
               {/* Country (pills grid; no FlatList) */}
-              <View className="flex-col gap-4">
-                <View>
-                  <H2>Country / الدولة</H2>
-                  <Muted className="text-md">Choose your country / اختر دولتك</Muted>
+              <View className="flex-col gap-3">
+                <View className="pt-1">
+                  <Text className="text-[20px] font-semibold">Country / الدولة</Text>
+                  <Muted className="text-sm">Choose your country / اختر دولتك</Muted>
                 </View>
 
                 <View className="gap-2">
@@ -175,16 +198,16 @@ export default function LocaleOnboarding() {
                         key={c.id}
                         onPress={() => applyCountry(c.id)}
                         className={cn(
-                          "justify-center rounded-2xl border px-3 py-3",
+                          "justify-center rounded-2xl border px-3 py-2.5",
                           active ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
                         )}
                       >
                         <View className="flex-row items-center justify-between gap-2">
                           <View className="flex-row items-center gap-2">
-                            <RNText className="text-[20px]">{c.flag}</RNText>
+                            <RNText className="text-[18px]">{c.flag}</RNText>
                             <RNText
                               numberOfLines={1}
-                              className={cn("text-[18px] font-semibold", active ? "text-brand" : "text-primary")}
+                              className={cn("text-[16px] font-semibold", active ? "text-brand" : "text-primary")}
                             >
                               {c.label}
                             </RNText>
@@ -200,7 +223,7 @@ export default function LocaleOnboarding() {
               </View>
             </View>
 
-            <View className="gap-6">
+            <View className="gap-4">
               <View className="items-center">
                 <Muted className="text-center text-sm text-primary/80" style={{ writingDirection: "rtl" }}>
                   لا تشيل هم ، شحن سريع لباب البيت بدون اي قيمة اضافية 🚛
@@ -208,7 +231,7 @@ export default function LocaleOnboarding() {
               </View>
 
               {/* CTA */}
-              <Button size="lg" onPress={handleContinue}>
+              <Button size="md" onPress={handleContinue}>
                 Continue
               </Button>
             </View>
@@ -220,24 +243,24 @@ export default function LocaleOnboarding() {
         <View className="flex-1 justify-end bg-black/30">
           <Pressable className="flex-1" onPress={handleSkipPush} accessibilityLabel="Dismiss push prompt" />
 
-          <View className="gap-5 rounded-t-[28px] bg-white px-5 pb-6 pt-6">
+          <View className="gap-4 rounded-t-[24px] bg-white px-5 pb-5 pt-5">
             <View className="items-center gap-3">
-              <View className="h-12 w-12 items-center justify-center rounded-full border border-[#cbd5f5] bg-[#e2e8f0]">
-                <Bell color="#0f172a" size={24} strokeWidth={2.2} />
+              <View className="h-10 w-10 items-center justify-center rounded-full border border-[#cbd5f5] bg-[#e2e8f0]">
+                <Bell color="#0f172a" size={20} strokeWidth={2.2} />
               </View>
-              <RNText className="text-center font-geist-semibold text-[18px] text-[#0f172a]">
+              <RNText className="text-center font-geist-semibold text-[16px] text-[#0f172a]">
                 Enable notifications to get order updates, delivery alerts, and exclusive pricing.
               </RNText>
-              <RNText className="text-center text-[13px] leading-[18px] text-[#475569]">
+              <RNText className="text-center text-[12px] leading-[17px] text-[#475569]">
                 We will ask your device for permission on the next step.
               </RNText>
             </View>
 
             <View className="gap-3">
-              <Button size="lg" fullWidth onPress={handleEnablePush}>
+              <Button size="md" fullWidth onPress={handleEnablePush}>
                 Enable notifications
               </Button>
-              <Button size="lg" variant="outline" fullWidth onPress={handleSkipPush}>
+              <Button size="md" variant="outline" fullWidth onPress={handleSkipPush}>
                 Not now
               </Button>
             </View>
