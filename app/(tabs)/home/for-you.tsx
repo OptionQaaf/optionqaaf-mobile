@@ -122,7 +122,10 @@ export default function ForYouScreen() {
                   const handle = String(item?.handle ?? "").trim()
                   if (!handle) return
                   recordView(handle)
-                  router.push(`/products/${handle}` as any)
+                  router.push({
+                    pathname: "/products/for-you-feed",
+                    params: { seed: handle, open: String(Date.now()) },
+                  } as any)
                 }}
               />
             </View>

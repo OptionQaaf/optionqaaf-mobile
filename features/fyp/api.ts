@@ -120,6 +120,20 @@ function distributeByVendor(items: ProductSearchCandidate[], seed: string): Prod
   return result
 }
 
+function shuffleInChunks<T>(items: T[], seed: string, chunkSize = 6): T[] {
+  if (items.length <= 2) return items
+  const chunks: T[][] = []
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize))
+  }
+  const shuffledChunks = chunks.map((chunk, idx) => shuffleBySeed(chunk, `${seed}:chunk:${idx}`))
+  const order = shuffleBySeed(
+    shuffledChunks.map((_, idx) => idx),
+    `${seed}:order`,
+  )
+  return order.flatMap((idx) => shuffledChunks[idx])
+}
+
 function parseEmbedding(value: unknown): number[] | null {
   if (Array.isArray(value)) {
     const parsed = value.map((entry) => Number(entry)).filter((entry) => Number.isFinite(entry))
@@ -303,10 +317,12 @@ async function fetchMatchedHandles(args: {
       if (!handle || similarity < MIN_SIMILARITY) return null
       const cappedSimilarity = Math.min(similarity, MAX_SIMILARITY)
       const nearTargetBonus = similarity >= TARGET_SIMILARITY ? 0.025 : -0.02
-      const jitter = (pseudoRandom01(`${args.profileHash}:${handle}`) - 0.5) * 0.08
+      const jitter = (pseudoRandom01(`${args.profileHash}:${handle}`) - 0.5) * 0.22
+      const explorationBonus = (pseudoRandom01(`${args.profileHash}:explore:${handle}`) - 0.5) * 0.14
+      const tooSimilarPenalty = similarity > 0.94 ? 0.04 : 0
       return {
         handle,
-        score: cappedSimilarity + nearTargetBonus + jitter,
+        score: cappedSimilarity + nearTargetBonus + jitter + explorationBonus - tooSimilarPenalty,
       }
     })
     .filter((entry): entry is { handle: string; score: number } => Boolean(entry))
@@ -360,7 +376,8 @@ async function fetchMatchedHandles(args: {
 
   const unique = new Set<string>()
   const handles: string[] = []
-  for (const entry of diversified) {
+  const chaotic = shuffleInChunks(diversified, `${args.profileHash}:${args.offset}:matched`)
+  for (const entry of chaotic) {
     if (unique.has(entry.handle)) continue
     unique.add(entry.handle)
     handles.push(entry.handle)
@@ -480,7 +497,6 @@ async function fillFromNewest(args: {
 export function useForYouProducts(pageSize = FYP_PAGE_SIZE, refreshKey = 0, enabled = true) {
   const locale = currentLocale()
   const gender = useFypGenderStore((state) => state.gender)
-  const trackedProducts = useFypTrackingStore((state) => state.products)
   const getWeightedProducts = useFypTrackingStore((state) => state.getWeightedProducts)
 
   const weighted = useMemo<WeightedHandle[]>(() => {
@@ -491,7 +507,7 @@ export function useForYouProducts(pageSize = FYP_PAGE_SIZE, refreshKey = 0, enab
         weightedScore: entry.weightedScore,
       }))
       .filter((entry) => normalizeHandle(entry.handle))
-  }, [getWeightedProducts, trackedProducts])
+  }, [getWeightedProducts, refreshKey])
 
   const personalizationGender = gender === "male" || gender === "female" ? gender : null
   const trackedForProfile = useMemo(() => weighted.slice(0, 20), [weighted])
@@ -606,7 +622,7 @@ export function useForYouProducts(pageSize = FYP_PAGE_SIZE, refreshKey = 0, enab
       }
 
       const randomizedNodes = distributeByVendor(
-        shuffleBySeed(nodes.slice(0, pageSize), `${seedBase}:${param.offset}:page`),
+        shuffleInChunks(shuffleBySeed(nodes.slice(0, pageSize), `${seedBase}:${param.offset}:page`), `${seedBase}:${param.offset}:mix`),
         `${seedBase}:${param.offset}:vendor`,
       )
 
