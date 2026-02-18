@@ -10,9 +10,10 @@ import { usePopupStore } from "@/store/popup"
 type UsePopupServiceOptions = {
   fontsReady: boolean
   navigationReady: boolean
+  splashReady: boolean
 }
 
-export function usePopupService({ fontsReady, navigationReady }: UsePopupServiceOptions) {
+export function usePopupService({ fontsReady, navigationReady, splashReady }: UsePopupServiceOptions) {
   const { isAuthenticated, initializing } = useShopifyAuth()
   const { data: profile, isFetched: profileFetched } = useCustomerProfile({ enabled: isAuthenticated })
   const viewerKey = useMemo(() => {
@@ -22,7 +23,7 @@ export function usePopupService({ fontsReady, navigationReady }: UsePopupService
   const lastViewerKey = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!fontsReady || !navigationReady || initializing) return
+    if (!fontsReady || !navigationReady || !splashReady || initializing) return
     if (!viewerKey) return
     if (lastViewerKey.current && lastViewerKey.current !== viewerKey) {
       usePopupStore.getState().clearPopup()
@@ -50,5 +51,5 @@ export function usePopupService({ fontsReady, navigationReady }: UsePopupService
     return () => {
       cancelled = true
     }
-  }, [fontsReady, navigationReady, initializing, viewerKey])
+  }, [fontsReady, navigationReady, splashReady, initializing, viewerKey])
 }

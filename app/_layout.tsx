@@ -58,6 +58,7 @@ LogBox.ignoreLogs([
 export default function RootLayout() {
   const [fontsReady, setFontsReady] = useState(false)
   const [cartReady, setCartReady] = useState(false)
+  const [splashReady, setSplashReady] = useState(false)
 
   useEffect(() => {
     SplashScreen.preventAutoHideAsync().catch(() => {})
@@ -72,7 +73,22 @@ export default function RootLayout() {
   }, [])
 
   useEffect(() => {
-    if (fontsReady && cartReady) SplashScreen.hideAsync().catch(() => {})
+    if (!fontsReady || !cartReady) return
+
+    let active = true
+    ;(async () => {
+      try {
+        await SplashScreen.hideAsync()
+      } catch {
+        // noop
+      } finally {
+        if (active) setSplashReady(true)
+      }
+    })()
+
+    return () => {
+      active = false
+    }
   }, [fontsReady, cartReady])
 
   return (
@@ -80,7 +96,7 @@ export default function RootLayout() {
       <ShopifyAuthProvider>
         <QueryClientProvider client={client}>
           <GestureHandlerRootView style={{ flex: 1 }}>
-            <AppBootstrap fontsReady={fontsReady} />
+            <AppBootstrap fontsReady={fontsReady} splashReady={splashReady} />
             <AuthGate>
               <FontProvider onReady={() => setFontsReady(true)}>
                 <DrawerProvider>
@@ -107,7 +123,7 @@ export default function RootLayout() {
               </FontProvider>
             </AuthGate>
             <InAppPopupHost />
-            <FypGenderPopup />
+            <FypGenderPopup enabled={splashReady} />
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ShopifyAuthProvider>
@@ -158,27 +174,30 @@ function InAppPopupHost() {
   return <InAppPopupModal popup={popup} visible={Boolean(popup)} onDismiss={handleDismiss} onCtaPress={handleCta} />
 }
 
-function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
+function AppBootstrap({ fontsReady, splashReady }: { fontsReady: boolean; splashReady: boolean }) {
   const metadata = useAppMetadata()
   const segments = useSegments()
   const navigationReady = segments.length > 0
+  const startupReady = fontsReady && splashReady && navigationReady
   const networkStatus = useNetworkStatus()
   const isExpoGo = metadata.applicationId === "host.exp.Exponent"
   const hydrateFypGender = useFypGenderStore((state) => state.hydrate)
   const loadFypTracking = useFypTrackingStore((state) => state.loadFromStorage)
 
-  useNotificationsService({ enabled: !isExpoGo })
-  usePushToken({ enabled: !isExpoGo })
-  usePopupService({ fontsReady, navigationReady })
+  useNotificationsService({ enabled: startupReady && !isExpoGo })
+  usePushToken({ enabled: startupReady && !isExpoGo })
+  usePopupService({ fontsReady: startupReady, navigationReady: startupReady, splashReady: startupReady })
 
   useEffect(() => {
+    if (!startupReady) return
     hydrateFypGender().catch(() => {})
     loadFypTracking()
-  }, [hydrateFypGender, loadFypTracking])
+  }, [startupReady, hydrateFypGender, loadFypTracking])
 
   useEffect(() => {
+    if (!startupReady) return
     requestTrackingAuthorizationIfNeeded()
-  }, [])
+  }, [startupReady])
 
   useEffect(() => {
     if (!__DEV__ || isExpoGo) return

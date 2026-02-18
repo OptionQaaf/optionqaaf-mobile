@@ -5,7 +5,7 @@ import { Button } from "@/ui/primitives/Button"
 import { useFypGenderStore } from "@/features/fyp/genderStore"
 import type { Gender } from "@/features/fyp/fypStorage"
 
-export function useShouldShowGenderPopup(): boolean {
+export function useShouldShowGenderPopup(enabled: boolean): boolean {
   const gender = useFypGenderStore((state) => state.gender)
   const hasHydrated = useFypGenderStore((state) => state.hasHydrated)
   const forceShowPopup = useFypGenderStore((state) => state.forceShowPopup)
@@ -30,14 +30,19 @@ export function useShouldShowGenderPopup(): boolean {
     }
   }, [])
 
+  if (!enabled) return false
   if (!hasHydrated) return false
   if (forceShowPopup) return true
   if (!checked) return false
   return onboardingDone && gender === "unknown"
 }
 
-export function FypGenderPopup(): ReactElement | null {
-  const shouldShow = useShouldShowGenderPopup()
+type FypGenderPopupProps = {
+  enabled: boolean
+}
+
+export function FypGenderPopup({ enabled }: FypGenderPopupProps): ReactElement | null {
+  const shouldShow = useShouldShowGenderPopup(enabled)
   const setGender = useFypGenderStore((state) => state.setGender)
   const clearPopupTrigger = useFypGenderStore((state) => state.clearPopupTrigger)
 
