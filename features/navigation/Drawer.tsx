@@ -12,10 +12,10 @@ import { Icon } from "@/ui/nav/MenuBar"
 import { useQueryClient } from "@tanstack/react-query"
 import { router, usePathname } from "expo-router"
 import { ChevronLeft, RefreshCcw, X } from "lucide-react-native"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Dimensions, Image, Linking, ScrollView, Text, View } from "react-native"
 import { Gesture, GestureDetector } from "react-native-gesture-handler"
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { DrawerContext } from "./drawerContext"
 
@@ -26,15 +26,18 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const x = useSharedValue(-WIDTH)
   const startX = useSharedValue(-WIDTH)
-  const isOpen = useSharedValue(false)
+  const [isOpen, setIsOpen] = useState(false)
 
-  const setOpen = (v: boolean) => {
-    isOpen.value = v
-    x.value = withTiming(v ? 0 : -WIDTH, { duration: 240 })
-  }
-  const open = () => setOpen(true)
-  const close = () => setOpen(false)
-  const toggle = () => setOpen(!isOpen.value)
+  const setOpen = useCallback(
+    (v: boolean) => {
+      setIsOpen(v)
+      x.value = withTiming(v ? 0 : -WIDTH, { duration: 240 })
+    },
+    [x],
+  )
+  const open = useCallback(() => setOpen(true), [setOpen])
+  const close = useCallback(() => setOpen(false), [setOpen])
+  const toggle = useCallback(() => setOpen(!isOpen), [isOpen, setOpen])
 
   const pan = Gesture.Pan()
     .onBegin(() => {
@@ -51,32 +54,31 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
       const shouldOpen = startedOpen
         ? !(x.value < -WIDTH * 0.1 || e.velocityX < -300)
         : x.value > -WIDTH * 0.9 || e.velocityX > 300
-      isOpen.value = !!shouldOpen
       x.value = withTiming(shouldOpen ? 0 : -WIDTH, { duration: 240 })
+      runOnJS(setIsOpen)(!!shouldOpen)
     })
 
   const EDGE_W = 32
   const edgePan = Gesture.Pan()
     .activeOffsetX(10)
     .onBegin(() => {
-      if (!isOpen.value) startX.value = x.value
+      startX.value = x.value
     })
     .onUpdate((e) => {
       "worklet"
-      if (isOpen.value) return
+      if (startX.value > -WIDTH * 0.5) return
       const next = Math.min(0, Math.max(-WIDTH, startX.value + e.translationX))
       x.value = next
     })
     .onEnd((e) => {
-      if (!isOpen.value) {
-        const shouldOpen = x.value > -WIDTH * 0.9 || e.velocityX > 300
-        isOpen.value = !!shouldOpen
-        x.value = withTiming(shouldOpen ? 0 : -WIDTH, { duration: 240 })
-      }
+      if (startX.value > -WIDTH * 0.5) return
+      const shouldOpen = x.value > -WIDTH * 0.9 || e.velocityX > 300
+      x.value = withTiming(shouldOpen ? 0 : -WIDTH, { duration: 240 })
+      runOnJS(setIsOpen)(!!shouldOpen)
     })
 
   const drawerA = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }))
-  const value = useMemo(() => ({ open, close, toggle }), [])
+  const value = useMemo(() => ({ open, close, toggle }), [open, close, toggle])
 
   const DISABLED_EDGE_PAN_PATHS = [
     /^\/products\//,

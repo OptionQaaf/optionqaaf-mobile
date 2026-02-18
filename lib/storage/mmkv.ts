@@ -23,7 +23,7 @@ try {
       mem.delete(key)
     },
   }
-  if (__DEV__) {
+  if (__DEV__ && process.env.EXPO_PUBLIC_LOG_STORAGE_FALLBACK === "1") {
     console.warn("[storage] MMKV not available (likely Expo Go). Using in-memory fallback.")
   }
 }

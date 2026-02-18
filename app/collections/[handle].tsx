@@ -234,7 +234,7 @@ export default function CollectionScreen() {
     return (
       <Screen bleedBottom bleedTop>
         <View className="flex-1 bg-white">
-          <MenuBar floating back backIconBackground="rgba(0,0,0,0.1)" />
+          <MenuBar floating back />
           <PageScrollView contentContainerClassName="bg-white">
             <View className="pt-0">
               <MetaobjectSectionList sections={sections} onNavigate={go} />
@@ -248,7 +248,7 @@ export default function CollectionScreen() {
   return (
     <Screen bleedTop bleedBottom>
       <View className="flex-1 bg-white">
-        <MenuBar floating back backIconBackground="rgba(0,0,0,0.05)" />
+        <MenuBar floating back />
 
         <PageScrollView
           scrollEventThrottle={16}

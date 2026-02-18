@@ -1,7 +1,7 @@
 import type { CurrencyCode } from "@/features/currency/config"
 import type { CountryCode } from "@/features/locale/countries"
 import { COUNTRIES } from "@/features/locale/countries"
-import { requestPushPermissionsAndToken } from "@/features/notifications/permissions"
+import { getPushPermissionsStatus, requestPushPermissionsAndToken } from "@/features/notifications/permissions"
 import { markOnboardingDone } from "@/lib/storage/flags"
 import { useNotificationSettings } from "@/store/notifications"
 import { usePrefs, type LanguageCode } from "@/store/prefs"
@@ -12,7 +12,6 @@ import { Screen } from "@/ui/layout/Screen"
 import { Button } from "@/ui/primitives/Button"
 import { H2, Muted } from "@/ui/primitives/Typography"
 import { cn } from "@/ui/utils/cva"
-import * as Notifications from "expo-notifications"
 import { useRouter } from "expo-router"
 import { Bell } from "lucide-react-native"
 import { useCallback, useState } from "react"
@@ -84,7 +83,7 @@ export default function LocaleOnboarding() {
     }
 
     try {
-      const status = await Notifications.getPermissionsAsync()
+      const status = await getPushPermissionsStatus()
       if (status.granted) {
         void handlePushSetup(false)
         finishOnboarding().catch(() => {})

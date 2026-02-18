@@ -4,6 +4,7 @@ import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { isPushAdmin } from "@/features/notifications/admin"
+import { getPushPermissionsStatus } from "@/features/notifications/permissions"
 import { useAppMetadata, type AppMetadata } from "@/lib/diagnostics/appMetadata"
 import { useNetworkStatus, type NetworkStatus } from "@/lib/network/useNetworkStatus"
 import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
@@ -16,7 +17,6 @@ import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
-import * as Notifications from "expo-notifications"
 import { useRouter, type RelativePathString } from "expo-router"
 import * as Updates from "expo-updates"
 import { Clock, Megaphone, RefreshCcw, Settings2, Sparkles, Trash2 } from "lucide-react-native"
@@ -373,7 +373,7 @@ function DiagnosticsModal({
       })
     }
 
-    Notifications.getPermissionsAsync()
+    getPushPermissionsStatus()
       .then((status) => {
         applyStatus({
           status: status.status,

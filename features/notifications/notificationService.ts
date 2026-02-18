@@ -1,21 +1,12 @@
-import * as Notifications from "expo-notifications"
 import { router } from "expo-router"
 import { useCustomerProfile } from "@/features/account/api"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { getNotificationSettings } from "@/store/notifications"
 import { useCallback, useEffect, useRef } from "react"
 import { Linking } from "react-native"
+import type * as ExpoNotifications from "expo-notifications"
 
 const WORKER_URL = (process.env.EXPO_PUBLIC_PUSH_WORKER_URL || "").replace(/\/+$/, "")
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-})
 
 type NotificationData = Record<string, unknown> | undefined
 
@@ -59,10 +50,14 @@ function navigateFromNotification(data: NotificationData, opts?: { delayMs?: num
   setTimeout(go, delay)
 }
 
-export function useNotificationsService() {
+type UseNotificationsServiceOptions = {
+  enabled?: boolean
+}
+
+export function useNotificationsService({ enabled = true }: UseNotificationsServiceOptions = {}) {
   const handledInitial = useRef(false)
   const { isAuthenticated } = useShopifyAuth()
-  const { data: profile } = useCustomerProfile({ enabled: isAuthenticated })
+  const { data: profile } = useCustomerProfile({ enabled: isAuthenticated && enabled })
 
   const trackOpen = useCallback(
     async (data: NotificationData) => {
@@ -78,7 +73,7 @@ export function useNotificationsService() {
           body: JSON.stringify({
             notificationId,
             token: expoPushToken,
-            email: isAuthenticated ? profile?.email ?? null : null,
+            email: isAuthenticated ? (profile?.email ?? null) : null,
           }),
         })
       } catch {
@@ -89,24 +84,39 @@ export function useNotificationsService() {
   )
 
   useEffect(() => {
+    if (!enabled) return
     let mounted = true
+    let responseSub: { remove: () => void } | null = null
 
-    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as Record<string, unknown> | undefined
-      trackOpen(data)
-      navigateFromNotification(data)
-    })
+    const setup = async () => {
+      const Notifications = (await import("expo-notifications")) as typeof ExpoNotifications
+      if (!mounted) return
 
-    const checkInitial = async () => {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      })
+
+      responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+        const data = response.notification.request.content.data as Record<string, unknown> | undefined
+        trackOpen(data)
+        navigateFromNotification(data)
+      })
+
       const getLastAsync =
         typeof (Notifications as typeof Notifications & { getLastNotificationResponseAsync?: () => Promise<any> })
           .getLastNotificationResponseAsync === "function"
           ? (Notifications as typeof Notifications & { getLastNotificationResponseAsync: () => Promise<any> })
               .getLastNotificationResponseAsync
           : null
-      const getLastSync = typeof Notifications.getLastNotificationResponse === "function"
-        ? Notifications.getLastNotificationResponse
-        : null
+      const getLastSync =
+        typeof Notifications.getLastNotificationResponse === "function"
+          ? Notifications.getLastNotificationResponse
+          : null
       if (!getLastAsync && !getLastSync) return
       const lastResponse = getLastAsync ? await getLastAsync() : getLastSync ? getLastSync() : null
       if (!mounted || !lastResponse || handledInitial.current) return
@@ -118,11 +128,11 @@ export function useNotificationsService() {
       })
     }
 
-    checkInitial()
+    void setup()
 
     return () => {
       mounted = false
-      responseSub.remove()
+      responseSub?.remove()
     }
-  }, [trackOpen])
+  }, [enabled, trackOpen])
 }

@@ -1,8 +1,8 @@
 import Constants from "expo-constants"
-import * as Notifications from "expo-notifications"
+import type * as ExpoNotifications from "expo-notifications"
 import { Platform } from "react-native"
 
-export type PushPermissionsStatus = Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>
+export type PushPermissionsStatus = Awaited<ReturnType<typeof ExpoNotifications.getPermissionsAsync>>
 
 export type PushRegistrationResult = {
   status: PushPermissionsStatus
@@ -10,8 +10,14 @@ export type PushRegistrationResult = {
   token: string | null
 }
 
+export async function getPushPermissionsStatus(): Promise<PushPermissionsStatus> {
+  const Notifications = (await import("expo-notifications")) as typeof ExpoNotifications
+  return Notifications.getPermissionsAsync()
+}
+
 export async function requestPushPermissionsAndToken(): Promise<PushRegistrationResult> {
-  let status = await Notifications.getPermissionsAsync()
+  const Notifications = (await import("expo-notifications")) as typeof ExpoNotifications
+  let status = await getPushPermissionsStatus()
 
   if (!status.granted && status.canAskAgain) {
     status = await Notifications.requestPermissionsAsync()

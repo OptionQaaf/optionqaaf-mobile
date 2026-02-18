@@ -41,9 +41,13 @@ async function registerWithWorker(token: string, email: string | null) {
   }
 }
 
-export function usePushToken() {
+type UsePushTokenOptions = {
+  enabled?: boolean
+}
+
+export function usePushToken({ enabled = true }: UsePushTokenOptions = {}) {
   const { isAuthenticated } = useShopifyAuth()
-  const { data: profile } = useCustomerProfile({ enabled: isAuthenticated })
+  const { data: profile } = useCustomerProfile({ enabled: isAuthenticated && enabled })
   const expoPushToken = useNotificationSettings((s) => s.expoPushToken)
   const pushEnabled = useNotificationSettings((s) => s.pushEnabled)
   const setPreferences = useNotificationSettings((s) => s.setPreferences)
@@ -55,12 +59,14 @@ export function usePushToken() {
   const [syncKey, setSyncKey] = useState(0)
 
   useEffect(() => {
+    if (!enabled) return
     if (!pushEnabled || !expoPushToken) {
       lastRegisteredKey.current = null
     }
-  }, [pushEnabled, expoPushToken])
+  }, [enabled, pushEnabled, expoPushToken])
 
   useEffect(() => {
+    if (!enabled) return
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         // Force a re-register attempt when the app resumes to recover from revoked tokens.
@@ -69,9 +75,10 @@ export function usePushToken() {
       }
     })
     return () => sub.remove()
-  }, [])
+  }, [enabled])
 
   useEffect(() => {
+    if (!enabled) return
     let cancelled = false
 
     const scheduleRetry = () => {
@@ -121,7 +128,7 @@ export function usePushToken() {
           })
         }
 
-        const email = isAuthenticated ? profile?.email ?? null : null
+        const email = isAuthenticated ? (profile?.email ?? null) : null
         const payloadKey = `${result.token}:${email ?? ""}`
 
         if (payloadKey !== lastRegisteredKey.current) {
@@ -136,7 +143,6 @@ export function usePushToken() {
             }
           } catch (err) {
             if (typeof __DEV__ !== "undefined" && __DEV__) {
-              // eslint-disable-next-line no-console
               console.warn("[push] Unable to register push token", err)
             }
             scheduleRetry()
@@ -144,7 +150,6 @@ export function usePushToken() {
         }
       } catch (err) {
         if (typeof __DEV__ !== "undefined" && __DEV__) {
-          // eslint-disable-next-line no-console
           console.warn("[push] Unable to register push token", err)
         }
         scheduleRetry()
@@ -161,6 +166,7 @@ export function usePushToken() {
       }
     }
   }, [
+    enabled,
     expoPushToken,
     isAuthenticated,
     profile?.email,

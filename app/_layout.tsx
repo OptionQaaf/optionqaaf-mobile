@@ -21,6 +21,7 @@ import * as SplashScreen from "expo-splash-screen"
 import { useCallback, useEffect, useState } from "react"
 import { Linking, LogBox } from "react-native"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
+import { configureReanimatedLogger, ReanimatedLogLevel } from "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 
 const client = new QueryClient({
@@ -35,9 +36,15 @@ const client = new QueryClient({
   },
 })
 
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false,
+})
+
 LogBox.ignoreLogs([
   "VirtualizedLists should never be nested",
   "Non-serializable values were found in the navigation state",
+  "SafeAreaView has been deprecated and will be removed in a future release",
   "[Reanimated]",
   "Require cycle:",
   "Setting a timer",
@@ -65,12 +72,12 @@ export default function RootLayout() {
   }, [fontsReady, cartReady])
 
   return (
-    <ShopifyAuthProvider>
-      <QueryClientProvider client={client}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <AppBootstrap fontsReady={fontsReady} />
-          <AuthGate>
-            <SafeAreaProvider>
+    <SafeAreaProvider>
+      <ShopifyAuthProvider>
+        <QueryClientProvider client={client}>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <AppBootstrap fontsReady={fontsReady} />
+            <AuthGate>
               <FontProvider onReady={() => setFontsReady(true)}>
                 <DrawerProvider>
                   <FloatingDockScaleProvider>
@@ -93,12 +100,12 @@ export default function RootLayout() {
                   <ToastHost />
                 </DrawerProvider>
               </FontProvider>
-            </SafeAreaProvider>
-          </AuthGate>
-          <InAppPopupHost />
-        </GestureHandlerRootView>
-      </QueryClientProvider>
-    </ShopifyAuthProvider>
+            </AuthGate>
+            <InAppPopupHost />
+          </GestureHandlerRootView>
+        </QueryClientProvider>
+      </ShopifyAuthProvider>
+    </SafeAreaProvider>
   )
 }
 
@@ -150,9 +157,10 @@ function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
   const segments = useSegments()
   const navigationReady = segments.length > 0
   const networkStatus = useNetworkStatus()
+  const isExpoGo = metadata.applicationId === "host.exp.Exponent"
 
-  useNotificationsService()
-  usePushToken()
+  useNotificationsService({ enabled: !isExpoGo })
+  usePushToken({ enabled: !isExpoGo })
   usePopupService({ fontsReady, navigationReady })
 
   useEffect(() => {
@@ -160,17 +168,27 @@ function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
   }, [])
 
   useEffect(() => {
+    if (!__DEV__ || isExpoGo) return
     console.debug("[app] metadata", metadata)
-  }, [metadata, metadata.appName, metadata.version, metadata.buildNumber, metadata.applicationId, metadata.ownership])
+  }, [
+    isExpoGo,
+    metadata,
+    metadata.appName,
+    metadata.version,
+    metadata.buildNumber,
+    metadata.applicationId,
+    metadata.ownership,
+  ])
 
   const { isConnected, isInternetReachable, type } = networkStatus
   useEffect(() => {
+    if (!__DEV__ || isExpoGo) return
     console.debug("[app] network", {
       isConnected,
       isInternetReachable,
       type,
     })
-  }, [isConnected, isInternetReachable, type])
+  }, [isConnected, isExpoGo, isInternetReachable, type])
 
   return null
 }

@@ -1,13 +1,16 @@
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
-import { requestPushPermissionsAndToken } from "@/features/notifications/permissions"
+import {
+  getPushPermissionsStatus,
+  requestPushPermissionsAndToken,
+  type PushPermissionsStatus,
+} from "@/features/notifications/permissions"
 import { useNotificationSettings } from "@/store/notifications"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Card } from "@/ui/surfaces/Card"
 import { Button } from "@/ui/primitives/Button"
-import * as Notifications from "expo-notifications"
 import { useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AppState, Linking, Platform, ScrollView, Switch, Text, View } from "react-native"
@@ -28,7 +31,7 @@ export default function NotificationsScreen() {
   )
 }
 
-type PermissionsStatus = Awaited<ReturnType<typeof Notifications.getPermissionsAsync>>
+type PermissionsStatus = PushPermissionsStatus
 
 function NotificationsContent() {
   const { pushEnabled, emailEnabled, setPreferences, setPushPreference, expoPushToken } = useNotificationSettings()
@@ -39,7 +42,7 @@ function NotificationsContent() {
 
   const refreshPermissions = useCallback(async () => {
     try {
-      const status = await Notifications.getPermissionsAsync()
+      const status = await getPushPermissionsStatus()
       setPermissions(status)
     } catch {
       setPermissions(null)
