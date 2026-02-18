@@ -32,7 +32,9 @@ export default function ForYouScreen() {
     })
   }, [data])
 
-  const gridData = useMemo(() => padToFullRow(products, 2), [products])
+  const showRefreshSkeleton = isPullRefreshing && (isRefetching || isFetching || isPending)
+  const visibleProducts = useMemo(() => (showRefreshSkeleton ? [] : products), [showRefreshSkeleton, products])
+  const gridData = useMemo(() => padToFullRow(visibleProducts, 2), [visibleProducts])
   const { width } = useWindowDimensions()
   const padH = 16
   const gap = 8
@@ -52,7 +54,7 @@ export default function ForYouScreen() {
     setIsPullRefreshing(false)
   }, [isPullRefreshing, isFetching, isPending])
 
-  const showInitialSkeletons = isPending || (isFetching && products.length === 0)
+  const showInitialSkeletons = showRefreshSkeleton || isPending || (isFetching && visibleProducts.length === 0)
 
   return (
     <Screen bleedTop bleedBottom>
@@ -89,7 +91,7 @@ export default function ForYouScreen() {
               </View>
             ) : null}
 
-            {!showInitialSkeletons && !products.length ? (
+            {!showInitialSkeletons && !visibleProducts.length ? (
               <View className="items-center py-16">
                 <Text className="text-primary font-geist-semibold text-[17px]">No products available right now</Text>
                 <Text className="mt-1 text-secondary">Pull down to refresh and try again.</Text>
