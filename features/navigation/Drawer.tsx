@@ -196,8 +196,8 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
   return (
     <Screen>
       {/* header */}
-      <View className="px-4 pb-6 flex-row items-center justify-between" style={{ paddingTop: insets.top ? 0 : 12 }}>
-        <View className="w-6" />
+      <View className="px-4 pb-6 flex-row items-center justify-between" style={{ paddingTop: insets.top ? 4 : 12 }}>
+        <View className="h-10 w-10" />
         <Icon onPress={onLogoPress}>
           <Image
             source={require("@/assets/images/optionqaaf-logo.png")}
