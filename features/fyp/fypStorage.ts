@@ -69,6 +69,10 @@ export async function clearFypSettings(): Promise<void> {
 
 export function readFypTrackingState(): FypTrackingState {
   const raw = kv.get(FYP_TRACKING_KEY)
+  return parseFypTrackingStateRaw(raw)
+}
+
+function parseFypTrackingStateRaw(raw: string | null): FypTrackingState {
   if (!raw) return { ...DEFAULT_FYP_TRACKING_STATE }
   try {
     const parsed = JSON.parse(raw) as Partial<FypTrackingState>
@@ -100,6 +104,15 @@ export function readFypTrackingState(): FypTrackingState {
   }
 }
 
+export async function readFypTrackingStateAsync(): Promise<FypTrackingState> {
+  const fromMmkv = parseFypTrackingStateRaw(kv.get(FYP_TRACKING_KEY))
+  if (Object.keys(fromMmkv.products).length > 0 || fromMmkv.updatedAt > 0) {
+    return fromMmkv
+  }
+  const raw = await asyncKv.get(FYP_TRACKING_KEY)
+  return parseFypTrackingStateRaw(raw)
+}
+
 export function writeFypTrackingState(state: FypTrackingState): void {
   const products = Object.fromEntries(
     Object.entries(state.products).map(([key, value]) => {
@@ -118,15 +131,16 @@ export function writeFypTrackingState(state: FypTrackingState): void {
     }),
   )
 
-  kv.set(
-    FYP_TRACKING_KEY,
-    JSON.stringify({
-      products,
-      updatedAt: state.updatedAt,
-    }),
-  )
+  const payload = JSON.stringify({
+    products,
+    updatedAt: state.updatedAt,
+  })
+
+  kv.set(FYP_TRACKING_KEY, payload)
+  void asyncKv.set(FYP_TRACKING_KEY, payload).catch(() => {})
 }
 
 export function clearFypTrackingState(): void {
   kv.del(FYP_TRACKING_KEY)
+  void asyncKv.del(FYP_TRACKING_KEY).catch(() => {})
 }

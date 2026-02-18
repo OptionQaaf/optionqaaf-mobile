@@ -103,7 +103,19 @@ export function useAddToCart() {
     },
     onSuccess: (_cart, payload) => {
       const handle = payload.tracking?.handle?.trim()
-      if (!handle) return
+      if (!handle) {
+        if (__DEV__) {
+          console.debug("[fyp:track] add_to_cart skipped", {
+            reason: "missing_tracking_handle",
+          })
+        }
+        return
+      }
+      if (__DEV__) {
+        console.debug("[fyp:track] add_to_cart success", {
+          handle: handle.toLowerCase(),
+        })
+      }
       useFypTrackingStore.getState().recordAddToCart(handle)
     },
   })

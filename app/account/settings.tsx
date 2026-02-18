@@ -3,7 +3,12 @@ import { isDeletionRequestPending } from "@/features/account/deletion"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
-import { FYP_SETTINGS_KEY, FYP_TRACKING_KEY, readFypSettings, readFypTrackingState } from "@/features/fyp/fypStorage"
+import {
+  FYP_SETTINGS_KEY,
+  FYP_TRACKING_KEY,
+  readFypSettings,
+  readFypTrackingStateAsync,
+} from "@/features/fyp/fypStorage"
 import { useFypGenderStore } from "@/features/fyp/genderStore"
 import { useFypTrackingStore } from "@/features/fyp/trackingStore"
 import { isPushAdmin } from "@/features/notifications/admin"
@@ -195,9 +200,9 @@ function AccountSettingsContent() {
     show({ title: "Logged FYP gender state to console", type: "info" })
   }, [show])
 
-  const handleLogFypTrackingState = useCallback(() => {
+  const handleLogFypTrackingState = useCallback(async () => {
     const snapshot = useFypTrackingStore.getState().getDebugTrackingSnapshot()
-    const persisted = readFypTrackingState()
+    const persisted = await readFypTrackingStateAsync()
     console.log("[fyp:tracking] debug", {
       storageKey: FYP_TRACKING_KEY,
       snapshot,
@@ -218,7 +223,7 @@ function AccountSettingsContent() {
       const genderStoreState = useFypGenderStore.getState()
       const trackingStoreState = useFypTrackingStore.getState()
       const persistedSettings = await readFypSettings()
-      const persistedTracking = readFypTrackingState()
+      const persistedTracking = await readFypTrackingStateAsync()
       const payload = {
         capturedAt: new Date().toISOString(),
         keys: {

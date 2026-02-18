@@ -115,6 +115,60 @@ const PRODUCTS_BY_HANDLES_DOCUMENT = gql`
   }
 `
 
+const NEWEST_PRODUCTS_DOCUMENT = gql`
+  query NewestProducts(
+    $pageSize: Int!
+    $after: String
+    $query: String
+    $country: CountryCode
+    $language: LanguageCode
+  ) @inContext(country: $country, language: $language) {
+    products(first: $pageSize, after: $after, query: $query, sortKey: CREATED_AT, reverse: true) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        id
+        handle
+        title
+        vendor
+        productType
+        tags
+        createdAt
+        availableForSale
+        featuredImage {
+          id
+          url(transform: { preferredContentType: WEBP })
+          altText
+          width
+          height
+        }
+        priceRange {
+          minVariantPrice {
+            amount
+            currencyCode
+          }
+          maxVariantPrice {
+            amount
+            currencyCode
+          }
+        }
+        compareAtPriceRange {
+          minVariantPrice {
+            amount
+            currencyCode
+          }
+          maxVariantPrice {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+`
+
 const PRODUCT_EMBEDDING_BY_HANDLE_DOCUMENT = gql`
   query ProductEmbeddingByHandle($handle: String!, $country: CountryCode, $language: LanguageCode)
   @inContext(country: $country, language: $language) {
@@ -489,6 +543,56 @@ function normalizeHandle(input?: string | null): string {
   return input.trim().toLowerCase()
 }
 
+function mapProductDetailToCandidate(product: any): ProductSearchCandidate | null {
+  const handle = normalizeHandle(product?.handle)
+  const id = typeof product?.id === "string" ? product.id : ""
+  if (!handle || !id) return null
+
+  const variants: any[] = Array.isArray(product?.variants?.nodes) ? product.variants.nodes : []
+  let minPrice = Number.POSITIVE_INFINITY
+  let minCompareAt = Number.POSITIVE_INFINITY
+  let currencyCode = "USD"
+  let availableForSale = false
+
+  for (const variant of variants) {
+    if (!variant) continue
+    const amount = Number(variant?.price?.amount ?? Number.NaN)
+    const compareAmount = Number(variant?.compareAtPrice?.amount ?? Number.NaN)
+    if (Number.isFinite(amount) && amount < minPrice) minPrice = amount
+    if (Number.isFinite(compareAmount) && compareAmount < minCompareAt) minCompareAt = compareAmount
+    if (typeof variant?.price?.currencyCode === "string" && variant.price.currencyCode) {
+      currencyCode = variant.price.currencyCode
+    }
+    if (variant?.availableForSale !== false) {
+      availableForSale = true
+    }
+  }
+
+  if (!Number.isFinite(minPrice)) minPrice = 0
+  const compareAt = Number.isFinite(minCompareAt) ? minCompareAt : minPrice
+
+  return {
+    id,
+    handle,
+    title: typeof product?.title === "string" ? product.title : null,
+    vendor: typeof product?.vendor === "string" ? product.vendor : null,
+    productType: null,
+    tags: null,
+    createdAt: null,
+    availableForSale,
+    featuredImage: product?.featuredImage ?? null,
+    priceRange: {
+      minVariantPrice: { amount: String(minPrice), currencyCode },
+      maxVariantPrice: { amount: String(minPrice), currencyCode },
+    },
+    compareAtPriceRange: {
+      minVariantPrice: { amount: String(compareAt), currencyCode },
+      maxVariantPrice: { amount: String(compareAt), currencyCode },
+    },
+    metafield: product?.metafield ?? null,
+  }
+}
+
 export async function getProductsByHandles(
   handles: string[],
   locale?: { country?: string; language?: string },
@@ -539,7 +643,77 @@ export async function getProductsByHandles(
     }),
   )
 
+  const missingHandles = requested.filter((handle) => !byHandle.has(handle))
+  if (missingHandles.length) {
+    const fallbackChunkSize = 8
+    for (let i = 0; i < missingHandles.length; i += fallbackChunkSize) {
+      const chunk = missingHandles.slice(i, i + fallbackChunkSize)
+      const results = await Promise.all(
+        chunk.map(async (handle) => {
+          const response = await getProductByHandle(handle, locale).catch(() => null)
+          return mapProductDetailToCandidate((response as any)?.product)
+        }),
+      )
+      for (const candidate of results) {
+        if (!candidate) continue
+        const key = normalizeHandle(candidate.handle)
+        if (!key || byHandle.has(key)) continue
+        byHandle.set(key, candidate)
+      }
+    }
+  }
+
   return requested.map((handle) => byHandle.get(handle)).filter((item): item is ProductSearchCandidate => Boolean(item))
+}
+
+type NewestProductsQuery = {
+  products?: {
+    pageInfo?: {
+      hasNextPage?: boolean | null
+      endCursor?: string | null
+    } | null
+    nodes?: Array<ProductSearchCandidate | null> | null
+  } | null
+}
+
+export async function getNewestProductsPage(
+  args: {
+    pageSize?: number
+    after?: string | null
+    query?: string | null
+  },
+  locale?: { country?: string; language?: string },
+): Promise<{ items: ProductSearchCandidate[]; cursor: string | null; hasNext: boolean }> {
+  const pageSize = Math.max(8, Math.min(80, args.pageSize ?? 40))
+  const response = await callShopify<NewestProductsQuery>(() =>
+    shopifyClient.request(NEWEST_PRODUCTS_DOCUMENT, {
+      pageSize,
+      after: args.after ?? null,
+      query: args.query?.trim() ? args.query.trim() : null,
+      country: locale?.country as any,
+      language: locale?.language as any,
+    }),
+  )
+  const page = response.products
+  const items = (page?.nodes ?? []).filter(Boolean).map((node) => ({
+    id: String(node?.id ?? ""),
+    handle: String(node?.handle ?? ""),
+    title: typeof node?.title === "string" ? node.title : null,
+    vendor: typeof node?.vendor === "string" ? node.vendor : null,
+    productType: typeof node?.productType === "string" ? node.productType : null,
+    tags: Array.isArray(node?.tags) ? node.tags : null,
+    createdAt: typeof node?.createdAt === "string" ? node.createdAt : null,
+    availableForSale: typeof node?.availableForSale === "boolean" ? node.availableForSale : null,
+    featuredImage: node?.featuredImage ?? null,
+    priceRange: node?.priceRange ?? null,
+    compareAtPriceRange: node?.compareAtPriceRange ?? null,
+    metafield: null,
+  }))
+  return {
+    items: items.filter((entry) => Boolean(entry.id && entry.handle)),
+    cursor: page?.pageInfo?.endCursor ?? null,
+    hasNext: Boolean(page?.pageInfo?.hasNextPage),
+  }
 }
 
 function normalizeSearchTerm(value: string): string {

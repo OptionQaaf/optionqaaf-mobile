@@ -209,9 +209,12 @@ export default function ProductScreen() {
 
   const BAR_H = 64
   const GAP = 12
+  const trackedViewHandleRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!h) return
+    if (trackedViewHandleRef.current === h) return
+    trackedViewHandleRef.current = h
     recordView(h)
   }, [h, recordView])
 

@@ -2,7 +2,7 @@ import { create } from "zustand"
 import {
   clearFypTrackingState,
   type ProductAffinity,
-  readFypTrackingState,
+  readFypTrackingStateAsync,
   type FypTrackingState,
   writeFypTrackingState,
 } from "@/features/fyp/fypStorage"
@@ -36,7 +36,7 @@ type FypTrackingStore = {
   getWeightedProducts: () => ProductAffinityWithComputedScore[]
   getDebugTrackingSnapshot: () => DebugTrackingSnapshot
   pruneIfNeeded: () => void
-  loadFromStorage: () => void
+  loadFromStorage: () => Promise<void>
   reset: () => void
 }
 
@@ -65,7 +65,7 @@ function computeWeightedScore(affinity: ProductAffinity, now: number): number {
 
 function normalizeStoredAffinity(key: string, value: ProductAffinity, now: number): ProductAffinity | null {
   const affinity = value as Partial<ProductAffinity>
-  const handle = (typeof affinity.handle === "string" ? affinity.handle : key).trim()
+  const handle = (typeof affinity.handle === "string" ? affinity.handle : key).trim().toLowerCase()
   if (!handle) return null
 
   const rawScore = clampNonNegative(safeNumber(affinity.rawScore, 0))
@@ -109,7 +109,7 @@ function recordInteraction(
   increment: number,
   eventType: "view" | "add_to_cart",
 ): Record<string, ProductAffinity> {
-  const key = handle.trim()
+  const key = handle.trim().toLowerCase()
   if (!key) return products
   const now = Date.now()
   const existing = products[key]
@@ -138,6 +138,17 @@ export const useFypTrackingStore = create<FypTrackingStore>((set, get) => ({
   recordView: (handle) => {
     set((state) => {
       const products = pruneProducts(recordInteraction(state.products, handle, 1, "view"))
+      if (__DEV__) {
+        const normalized = handle.trim().toLowerCase()
+        const entry = normalized ? products[normalized] : null
+        console.debug("[fyp:track] view", {
+          handle: normalized || null,
+          totalProducts: Object.keys(products).length,
+          rawScore: entry?.rawScore ?? null,
+          viewCount: entry?.viewCount ?? null,
+          addToCartCount: entry?.addToCartCount ?? null,
+        })
+      }
       persist({ products, updatedAt: Date.now() })
       return { products }
     })
@@ -145,6 +156,17 @@ export const useFypTrackingStore = create<FypTrackingStore>((set, get) => ({
   recordAddToCart: (handle) => {
     set((state) => {
       const products = pruneProducts(recordInteraction(state.products, handle, 4, "add_to_cart"))
+      if (__DEV__) {
+        const normalized = handle.trim().toLowerCase()
+        const entry = normalized ? products[normalized] : null
+        console.debug("[fyp:track] add_to_cart", {
+          handle: normalized || null,
+          totalProducts: Object.keys(products).length,
+          rawScore: entry?.rawScore ?? null,
+          viewCount: entry?.viewCount ?? null,
+          addToCartCount: entry?.addToCartCount ?? null,
+        })
+      }
       persist({ products, updatedAt: Date.now() })
       return { products }
     })
@@ -193,8 +215,8 @@ export const useFypTrackingStore = create<FypTrackingStore>((set, get) => ({
     persist({ products, updatedAt: Date.now() })
     set({ products })
   },
-  loadFromStorage: () => {
-    const saved = readFypTrackingState()
+  loadFromStorage: async () => {
+    const saved = await readFypTrackingStateAsync()
     const now = Date.now()
     const migratedProducts: Record<string, ProductAffinity> = {}
 
@@ -205,6 +227,12 @@ export const useFypTrackingStore = create<FypTrackingStore>((set, get) => ({
     }
 
     const products = pruneProducts(migratedProducts)
+    if (__DEV__) {
+      console.debug("[fyp:track] hydrate", {
+        persistedProducts: Object.keys(saved.products ?? {}).length,
+        hydratedProducts: Object.keys(products).length,
+      })
+    }
     set({ products })
     persist({ products, updatedAt: Date.now() })
   },
