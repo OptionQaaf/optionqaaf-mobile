@@ -1,30 +1,97 @@
 import { create } from "zustand"
 import {
   clearFypTrackingState,
-  DEFAULT_FYP_TRACKING_STATE,
+  type ProductAffinity,
   readFypTrackingState,
   type FypTrackingState,
-  type ProductAffinity,
   writeFypTrackingState,
 } from "@/features/fyp/fypStorage"
 
 export const MAX_PRODUCTS_TRACKED = 200
+const HALF_LIFE_HOURS = 72
+const HOUR_MS = 60 * 60 * 1000
+
+export type ProductAffinityWithComputedScore = ProductAffinity & {
+  weightedScore: number
+}
+
+export type DebugTrackingSnapshot = {
+  totalProducts: number
+  totalTrackedEvents: number
+  last10Interactions: {
+    handle: string
+    at: number
+  }[]
+  top10: {
+    handle: string
+    rawScore: number
+    weightedScore: number
+  }[]
+}
 
 type FypTrackingStore = {
   products: Record<string, ProductAffinity>
   recordView: (handle: string) => void
   recordAddToCart: (handle: string) => void
+  getWeightedProducts: () => ProductAffinityWithComputedScore[]
+  getDebugTrackingSnapshot: () => DebugTrackingSnapshot
   pruneIfNeeded: () => void
   loadFromStorage: () => void
   reset: () => void
+}
+
+function safeNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback
+}
+
+function clampNonNegative(value: number): number {
+  if (!Number.isFinite(value) || value < 0) return 0
+  return value
+}
+
+function computeWeightedScore(affinity: ProductAffinity, now: number): number {
+  const rawScore = clampNonNegative(safeNumber(affinity.rawScore))
+  const lastInteractionAt = clampNonNegative(safeNumber(affinity.lastInteractionAt))
+  const elapsedMs = Math.max(0, now - lastInteractionAt)
+  const hoursSinceLastInteraction = elapsedMs / HOUR_MS
+  const decayFactor = Math.pow(0.5, hoursSinceLastInteraction / HALF_LIFE_HOURS)
+
+  let recencyMultiplier = 1
+  if (hoursSinceLastInteraction < 6) recencyMultiplier = 1.25
+  else if (hoursSinceLastInteraction < 24) recencyMultiplier = 1.1
+
+  return clampNonNegative(rawScore * decayFactor * recencyMultiplier)
+}
+
+function normalizeStoredAffinity(key: string, value: ProductAffinity, now: number): ProductAffinity | null {
+  const affinity = value as Partial<ProductAffinity>
+  const handle = (typeof affinity.handle === "string" ? affinity.handle : key).trim()
+  if (!handle) return null
+
+  const rawScore = clampNonNegative(safeNumber(affinity.rawScore, 0))
+  const lastInteractionAt = clampNonNegative(safeNumber(affinity.lastInteractionAt, 0))
+  const firstFromStored = clampNonNegative(safeNumber(affinity.firstInteractionAt, 0))
+  const firstInteractionAt = firstFromStored > 0 ? firstFromStored : lastInteractionAt
+
+  return {
+    handle,
+    rawScore,
+    viewCount: clampNonNegative(safeNumber(affinity.viewCount, 0)),
+    addToCartCount: clampNonNegative(safeNumber(affinity.addToCartCount, 0)),
+    firstInteractionAt: Math.min(firstInteractionAt || lastInteractionAt || now, lastInteractionAt || now),
+    lastInteractionAt,
+  }
 }
 
 function pruneProducts(products: Record<string, ProductAffinity>): Record<string, ProductAffinity> {
   const entries = Object.entries(products)
   if (entries.length <= MAX_PRODUCTS_TRACKED) return products
 
+  const now = Date.now()
   const sorted = entries.sort(([, a], [, b]) => {
-    if (a.score !== b.score) return b.score - a.score
+    const weightedA = computeWeightedScore(a, now)
+    const weightedB = computeWeightedScore(b, now)
+    if (weightedA !== weightedB) return weightedB - weightedA
     if (a.lastInteractionAt !== b.lastInteractionAt) return b.lastInteractionAt - a.lastInteractionAt
     return a.handle.localeCompare(b.handle)
   })
@@ -40,36 +107,84 @@ function recordInteraction(
   products: Record<string, ProductAffinity>,
   handle: string,
   increment: number,
+  eventType: "view" | "add_to_cart",
 ): Record<string, ProductAffinity> {
   const key = handle.trim()
   if (!key) return products
   const now = Date.now()
   const existing = products[key]
+  const nextRawScore = clampNonNegative(safeNumber(existing?.rawScore, 0) + increment)
+  const nextViewCount = clampNonNegative(safeNumber(existing?.viewCount, 0) + (eventType === "view" ? 1 : 0))
+  const nextAddToCartCount = clampNonNegative(
+    safeNumber(existing?.addToCartCount, 0) + (eventType === "add_to_cart" ? 1 : 0),
+  )
+  const previousFirstInteraction = clampNonNegative(safeNumber(existing?.firstInteractionAt, 0))
+
   return {
     ...products,
     [key]: {
       handle: key,
-      score: (existing?.score ?? 0) + increment,
+      rawScore: nextRawScore,
+      viewCount: nextViewCount,
+      addToCartCount: nextAddToCartCount,
+      firstInteractionAt: previousFirstInteraction > 0 ? previousFirstInteraction : now,
       lastInteractionAt: now,
     },
   }
 }
 
 export const useFypTrackingStore = create<FypTrackingStore>((set, get) => ({
-  products: DEFAULT_FYP_TRACKING_STATE.products,
+  products: {} as Record<string, ProductAffinity>,
   recordView: (handle) => {
     set((state) => {
-      const products = pruneProducts(recordInteraction(state.products, handle, 1))
+      const products = pruneProducts(recordInteraction(state.products, handle, 1, "view"))
       persist({ products, updatedAt: Date.now() })
       return { products }
     })
   },
   recordAddToCart: (handle) => {
     set((state) => {
-      const products = pruneProducts(recordInteraction(state.products, handle, 3))
+      const products = pruneProducts(recordInteraction(state.products, handle, 4, "add_to_cart"))
       persist({ products, updatedAt: Date.now() })
       return { products }
     })
+  },
+  getWeightedProducts: () => {
+    const now = Date.now()
+    const products = Object.values(get().products).map((entry) => ({
+      ...entry,
+      weightedScore: computeWeightedScore(entry, now),
+    }))
+
+    products.sort((a, b) => {
+      if (a.weightedScore !== b.weightedScore) return b.weightedScore - a.weightedScore
+      if (a.lastInteractionAt !== b.lastInteractionAt) return b.lastInteractionAt - a.lastInteractionAt
+      return a.handle.localeCompare(b.handle)
+    })
+
+    return products
+  },
+  getDebugTrackingSnapshot: () => {
+    const weighted = get().getWeightedProducts()
+    const last10Interactions = Object.values(get().products)
+      .slice()
+      .sort((a, b) => b.lastInteractionAt - a.lastInteractionAt)
+      .slice(0, 10)
+      .map((entry) => ({ handle: entry.handle, at: entry.lastInteractionAt }))
+
+    return {
+      totalProducts: weighted.length,
+      totalTrackedEvents: Object.values(get().products).reduce(
+        (sum, entry) => sum + entry.viewCount + entry.addToCartCount,
+        0,
+      ),
+      last10Interactions,
+      top10: weighted.slice(0, 10).map((entry) => ({
+        handle: entry.handle,
+        rawScore: entry.rawScore,
+        weightedScore: entry.weightedScore,
+      })),
+    }
   },
   pruneIfNeeded: () => {
     const current = get().products
@@ -80,7 +195,16 @@ export const useFypTrackingStore = create<FypTrackingStore>((set, get) => ({
   },
   loadFromStorage: () => {
     const saved = readFypTrackingState()
-    const products = pruneProducts(saved.products)
+    const now = Date.now()
+    const migratedProducts: Record<string, ProductAffinity> = {}
+
+    for (const [key, value] of Object.entries(saved.products ?? {})) {
+      const migrated = normalizeStoredAffinity(key, value, now)
+      if (!migrated) continue
+      migratedProducts[migrated.handle] = migrated
+    }
+
+    const products = pruneProducts(migratedProducts)
     set({ products })
     persist({ products, updatedAt: Date.now() })
   },

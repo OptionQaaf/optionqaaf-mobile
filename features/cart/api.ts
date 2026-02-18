@@ -1,4 +1,3 @@
-import { useFypTrackingStore } from "@/features/fyp"
 import { qk } from "@/lib/shopify/queryKeys"
 import {
   addLines,
@@ -15,6 +14,7 @@ import {
 import { useCartId } from "@/store/cartId"
 import { currentLocale } from "@/store/prefs"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useFypTrackingStore } from "../fyp/trackingStore"
 
 export function useCartQuery() {
   const locale = currentLocale()

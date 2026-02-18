@@ -7,6 +7,7 @@ import type { Gender } from "@/features/fyp/fypStorage"
 
 export function useShouldShowGenderPopup(): boolean {
   const gender = useFypGenderStore((state) => state.gender)
+  const hasHydrated = useFypGenderStore((state) => state.hasHydrated)
   const forceShowPopup = useFypGenderStore((state) => state.forceShowPopup)
   const [onboardingDone, setOnboardingDone] = useState(false)
   const [checked, setChecked] = useState(false)
@@ -29,6 +30,7 @@ export function useShouldShowGenderPopup(): boolean {
     }
   }, [])
 
+  if (!hasHydrated) return false
   if (forceShowPopup) return true
   if (!checked) return false
   return onboardingDone && gender === "unknown"

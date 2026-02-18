@@ -1,7 +1,7 @@
 import { useCustomerProfile } from "@/features/account/api"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { useAddToCart, useEnsureCart } from "@/features/cart/api"
-import { useFypTrackingStore } from "@/features/fyp"
+import { useFypTrackingStore } from "@/features/fyp/trackingStore"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { useProduct } from "@/features/pdp/api"
 import { useRecommendedProducts } from "@/features/recommendations/api"

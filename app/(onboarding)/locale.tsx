@@ -1,5 +1,5 @@
 import type { CurrencyCode } from "@/features/currency/config"
-import { useFypGenderStore } from "@/features/fyp"
+import { useFypGenderStore } from "@/features/fyp/genderStore"
 import type { CountryCode } from "@/features/locale/countries"
 import { COUNTRIES } from "@/features/locale/countries"
 import { getPushPermissionsStatus, requestPushPermissionsAndToken } from "@/features/notifications/permissions"
@@ -44,7 +44,7 @@ export default function LocaleOnboarding() {
   const applyCountry = (c: CountryCode) => {
     setCountry(c)
     const match = COUNTRIES.find((x) => x.id === c)
-    if (match) setCurrency(match.currency) // auto-set currency
+    if (match) setCurrency(match.currency)
   }
 
   const finishOnboarding = useCallback(async () => {

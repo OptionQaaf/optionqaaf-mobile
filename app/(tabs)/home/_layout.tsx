@@ -2,7 +2,7 @@ import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { createMaterialTopTabNavigator, type MaterialTopTabBarProps } from "@react-navigation/material-top-tabs"
 import { BlurView } from "expo-blur"
 import { withLayoutContext } from "expo-router"
-import { Text, View } from "react-native"
+import { DeviceEventEmitter, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const { Navigator } = createMaterialTopTabNavigator()
@@ -63,7 +63,12 @@ function HomeTabsBar({
               <PressableOverlay
                 key={route.key}
                 onPress={() => {
-                  if (isFocused) return
+                  if (isFocused) {
+                    if (route.name === "for-you") {
+                      DeviceEventEmitter.emit("fyp:tabReselect")
+                    }
+                    return
+                  }
                   const event = navigation.emit({
                     type: "tabPress",
                     target: route.key,

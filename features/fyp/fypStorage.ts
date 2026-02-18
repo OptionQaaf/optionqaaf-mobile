@@ -1,4 +1,5 @@
 import { kv } from "@/lib/storage/mmkv"
+import { kv as asyncKv } from "@/lib/storage/storage"
 
 export type Gender = "male" | "female" | "unknown"
 
@@ -9,7 +10,10 @@ export type FypSettings = {
 
 export type ProductAffinity = {
   handle: string
-  score: number
+  rawScore: number
+  viewCount: number
+  addToCartCount: number
+  firstInteractionAt: number
   lastInteractionAt: number
 }
 
@@ -35,8 +39,8 @@ function isGender(value: unknown): value is Gender {
   return value === "male" || value === "female" || value === "unknown"
 }
 
-export function readFypSettings(): FypSettings {
-  const raw = kv.get(FYP_SETTINGS_KEY)
+export async function readFypSettings(): Promise<FypSettings> {
+  const raw = await asyncKv.get(FYP_SETTINGS_KEY)
   if (!raw) return { ...DEFAULT_FYP_SETTINGS }
   try {
     const parsed = JSON.parse(raw) as Partial<FypSettings>
@@ -49,8 +53,8 @@ export function readFypSettings(): FypSettings {
   }
 }
 
-export function writeFypSettings(settings: FypSettings): void {
-  kv.set(
+export async function writeFypSettings(settings: FypSettings): Promise<void> {
+  await asyncKv.set(
     FYP_SETTINGS_KEY,
     JSON.stringify({
       gender: settings.gender,
@@ -59,8 +63,8 @@ export function writeFypSettings(settings: FypSettings): void {
   )
 }
 
-export function clearFypSettings(): void {
-  kv.del(FYP_SETTINGS_KEY)
+export async function clearFypSettings(): Promise<void> {
+  await asyncKv.del(FYP_SETTINGS_KEY)
 }
 
 export function readFypTrackingState(): FypTrackingState {
@@ -76,10 +80,14 @@ export function readFypTrackingState(): FypTrackingState {
       const affinity = value as Partial<ProductAffinity>
       const handle = typeof affinity.handle === "string" ? affinity.handle.trim() : key.trim()
       if (!handle) continue
+      const lastInteractionAt = typeof affinity.lastInteractionAt === "number" ? affinity.lastInteractionAt : 0
       products[handle] = {
         handle,
-        score: typeof affinity.score === "number" ? affinity.score : 0,
-        lastInteractionAt: typeof affinity.lastInteractionAt === "number" ? affinity.lastInteractionAt : 0,
+        rawScore: typeof affinity.rawScore === "number" ? affinity.rawScore : 0,
+        viewCount: typeof affinity.viewCount === "number" ? affinity.viewCount : 0,
+        addToCartCount: typeof affinity.addToCartCount === "number" ? affinity.addToCartCount : 0,
+        firstInteractionAt: typeof affinity.firstInteractionAt === "number" ? affinity.firstInteractionAt : 0,
+        lastInteractionAt,
       }
     }
 
@@ -93,10 +101,27 @@ export function readFypTrackingState(): FypTrackingState {
 }
 
 export function writeFypTrackingState(state: FypTrackingState): void {
+  const products = Object.fromEntries(
+    Object.entries(state.products).map(([key, value]) => {
+      const affinity = value as Partial<ProductAffinity>
+      return [
+        key,
+        {
+          handle: typeof affinity.handle === "string" ? affinity.handle : key,
+          rawScore: typeof affinity.rawScore === "number" ? affinity.rawScore : 0,
+          viewCount: typeof affinity.viewCount === "number" ? affinity.viewCount : 0,
+          addToCartCount: typeof affinity.addToCartCount === "number" ? affinity.addToCartCount : 0,
+          firstInteractionAt: typeof affinity.firstInteractionAt === "number" ? affinity.firstInteractionAt : 0,
+          lastInteractionAt: typeof affinity.lastInteractionAt === "number" ? affinity.lastInteractionAt : 0,
+        } satisfies ProductAffinity,
+      ]
+    }),
+  )
+
   kv.set(
     FYP_TRACKING_KEY,
     JSON.stringify({
-      products: state.products,
+      products,
       updatedAt: state.updatedAt,
     }),
   )

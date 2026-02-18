@@ -1,5 +1,5 @@
+import { useFypTrackingStore } from "@/features/fyp/trackingStore"
 import { useMobileHome } from "@/features/home/api"
-import { useFypTrackingStore } from "@/features/fyp"
 import { useCollectionMeta, useCollectionProductsWithImages } from "@/features/plp/api"
 import { useSearch } from "@/features/search/api"
 import { type ProductCollectionSortKeys, type ProductSortKeys } from "@/lib/shopify/gql/graphql"

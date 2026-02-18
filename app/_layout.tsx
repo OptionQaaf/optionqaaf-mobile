@@ -1,10 +1,12 @@
 import { AuthGate } from "@/features/auth/AuthGate"
 import { ShopifyAuthProvider } from "@/features/auth/useShopifyAuth"
+import { FypGenderPopup } from "@/features/fyp/genderPopup"
+import { useFypGenderStore } from "@/features/fyp/genderStore"
+import { useFypTrackingStore } from "@/features/fyp/trackingStore"
 import { DrawerProvider } from "@/features/navigation/Drawer"
 import { useNotificationsService } from "@/features/notifications/notificationService"
 import { usePushToken } from "@/features/notifications/usePushToken"
 import { usePopupService } from "@/features/popup/usePopupService"
-import { FypGenderPopup, useFypGenderStore, useFypTrackingStore } from "@/features/fyp"
 import { requestTrackingAuthorizationIfNeeded } from "@/lib/TrackingAuthorizationManager"
 import { useAppMetadata } from "@/lib/diagnostics/appMetadata"
 import { useNetworkStatus } from "@/lib/network/useNetworkStatus"
@@ -162,7 +164,7 @@ function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
   const navigationReady = segments.length > 0
   const networkStatus = useNetworkStatus()
   const isExpoGo = metadata.applicationId === "host.exp.Exponent"
-  const loadFypGender = useFypGenderStore((state) => state.loadFromStorage)
+  const hydrateFypGender = useFypGenderStore((state) => state.hydrate)
   const loadFypTracking = useFypTrackingStore((state) => state.loadFromStorage)
 
   useNotificationsService({ enabled: !isExpoGo })
@@ -170,9 +172,9 @@ function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
   usePopupService({ fontsReady, navigationReady })
 
   useEffect(() => {
-    loadFypGender()
+    hydrateFypGender().catch(() => {})
     loadFypTracking()
-  }, [loadFypGender, loadFypTracking])
+  }, [hydrateFypGender, loadFypTracking])
 
   useEffect(() => {
     requestTrackingAuthorizationIfNeeded()

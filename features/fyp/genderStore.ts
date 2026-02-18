@@ -9,8 +9,10 @@ import {
 
 type FypGenderState = {
   gender: Gender
+  hasHydrated: boolean
   forceShowPopup: boolean
   setGender: (gender: Gender) => void
+  hydrate: () => Promise<void>
   loadFromStorage: () => void
   reset: () => void
   triggerPopup: () => void
@@ -19,19 +21,26 @@ type FypGenderState = {
 
 export const useFypGenderStore = create<FypGenderState>((set) => ({
   gender: DEFAULT_FYP_SETTINGS.gender,
+  hasHydrated: false,
   forceShowPopup: false,
   setGender: (gender) => {
     const next = { gender, updatedAt: Date.now() }
-    writeFypSettings(next)
-    set({ gender, forceShowPopup: false })
+    void writeFypSettings(next).catch(() => {})
+    set({ gender, hasHydrated: true, forceShowPopup: false })
+  },
+  hydrate: async () => {
+    const saved = await readFypSettings()
+    set({ gender: saved.gender, hasHydrated: true })
   },
   loadFromStorage: () => {
-    const saved = readFypSettings()
-    set({ gender: saved.gender })
+    void (async () => {
+      const saved = await readFypSettings()
+      set({ gender: saved.gender, hasHydrated: true })
+    })()
   },
   reset: () => {
-    clearFypSettings()
-    set({ gender: "unknown", forceShowPopup: false })
+    void clearFypSettings().catch(() => {})
+    set({ gender: "unknown", hasHydrated: true, forceShowPopup: false })
   },
   triggerPopup: () => set({ forceShowPopup: true }),
   clearPopupTrigger: () => set({ forceShowPopup: false }),

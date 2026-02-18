@@ -1,15 +1,15 @@
-import { useFypTrackingStore } from "@/features/fyp"
+import { useFypTrackingStore } from "@/features/fyp/trackingStore"
 import { useMobileHome } from "@/features/home/api"
 import { useSearch } from "@/features/search/api"
 import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
+import { padToFullRow } from "@/ui/layout/gridUtils"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
-import { padToFullRow } from "@/ui/layout/gridUtils"
 import { router, useLocalSearchParams } from "expo-router"
-import { Linking, Text, View } from "react-native"
 import { useMemo } from "react"
+import { Linking, Text, View } from "react-native"
 
 const ABSOLUTE_RE = /^(https?:|mailto:|tel:|sms:)/i
 
