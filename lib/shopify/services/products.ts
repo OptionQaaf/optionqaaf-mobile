@@ -1,16 +1,15 @@
 import { callShopify, shopifyClient } from "@/lib/shopify/client"
-import { addFypDebugProductPayload, fypLogOnce, summarizeProductPayload } from "@/features/debug/fypDebug"
-import { gql } from "graphql-tag"
 import {
   CollectionByHandleDocument,
-  type CollectionByHandleQuery,
-  type ProductCollectionSortKeys,
   ProductByHandleDocument,
+  type CollectionByHandleQuery,
   type ProductByHandleQuery,
+  type ProductCollectionSortKeys,
   type ProductSortKeys,
   type ProductVariant,
   type SearchProductsQuery,
 } from "@/lib/shopify/gql/graphql"
+import { gql } from "graphql-tag"
 
 const SEARCH_PRODUCTS_WITH_SORT_DOCUMENT = gql`
   query SearchProducts(
@@ -27,6 +26,54 @@ const SEARCH_PRODUCTS_WITH_SORT_DOCUMENT = gql`
         hasNextPage
         endCursor
       }
+      nodes {
+        id
+        handle
+        title
+        vendor
+        productType
+        tags
+        createdAt
+        availableForSale
+        metafield(namespace: "ai_data", key: "embedding_v1") {
+          value
+        }
+        featuredImage {
+          id
+          url(transform: { preferredContentType: WEBP })
+          altText
+          width
+          height
+        }
+        priceRange {
+          minVariantPrice {
+            amount
+            currencyCode
+          }
+          maxVariantPrice {
+            amount
+            currencyCode
+          }
+        }
+        compareAtPriceRange {
+          minVariantPrice {
+            amount
+            currencyCode
+          }
+          maxVariantPrice {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+  }
+`
+
+const PRODUCTS_BY_HANDLES_DOCUMENT = gql`
+  query ProductsByHandles($query: String!, $pageSize: Int!, $country: CountryCode, $language: LanguageCode)
+  @inContext(country: $country, language: $language) {
+    products(first: $pageSize, query: $query, sortKey: RELEVANCE, reverse: false) {
       nodes {
         id
         handle
@@ -68,6 +115,27 @@ const SEARCH_PRODUCTS_WITH_SORT_DOCUMENT = gql`
   }
 `
 
+const PRODUCT_EMBEDDING_BY_HANDLE_DOCUMENT = gql`
+  query ProductEmbeddingByHandle($handle: String!, $country: CountryCode, $language: LanguageCode)
+  @inContext(country: $country, language: $language) {
+    product(handle: $handle) {
+      id
+      metafield(namespace: "ai_data", key: "embedding_v1") {
+        value
+      }
+    }
+  }
+`
+
+type ProductEmbeddingByHandleQuery = {
+  product?: {
+    id?: string | null
+    metafield?: {
+      value?: string | null
+    } | null
+  } | null
+}
+
 const COLLECTION_PRODUCTS_WITH_IMAGES_DOCUMENT = gql`
   query CollectionByHandleWithImages(
     $handle: String!
@@ -99,6 +167,9 @@ const COLLECTION_PRODUCTS_WITH_IMAGES_DOCUMENT = gql`
           title
           vendor
           availableForSale
+          metafield(namespace: "ai_data", key: "embedding_v1") {
+            value
+          }
           featuredImage {
             id
             url(transform: { preferredContentType: WEBP })
@@ -141,14 +212,38 @@ const COLLECTION_PRODUCTS_WITH_IMAGES_DOCUMENT = gql`
   }
 `
 
-export async function getProductByHandle(handle: string, locale?: { country?: string; language?: string }) {
-  return callShopify<ProductByHandleQuery>(() =>
+export async function getProductByHandle(
+  handle: string,
+  locale?: { country?: string; language?: string },
+  options?: { includeEmbedding?: boolean },
+) {
+  const productResponse = await callShopify<ProductByHandleQuery>(() =>
     shopifyClient.request(ProductByHandleDocument, {
       handle,
       country: locale?.country as any,
       language: locale?.language as any,
     }),
   )
+
+  if (!options?.includeEmbedding || !productResponse.product) {
+    return productResponse
+  }
+
+  const embeddingResponse = await callShopify<ProductEmbeddingByHandleQuery>(() =>
+    shopifyClient.request(PRODUCT_EMBEDDING_BY_HANDLE_DOCUMENT, {
+      handle,
+      country: locale?.country as any,
+      language: locale?.language as any,
+    }),
+  ).catch(() => null)
+
+  return {
+    ...productResponse,
+    product: {
+      ...productResponse.product,
+      metafield: embeddingResponse?.product?.metafield ?? null,
+    },
+  }
 }
 
 export async function getCollectionProducts(
@@ -238,6 +333,7 @@ export async function searchProducts(
       vendor: (p as any)?.vendor ?? "",
       availableForSale: available,
       featuredImage: p.featuredImage as any,
+      metafield: (p as any)?.metafield ?? null,
       priceRange: {
         minVariantPrice: { amount: String(minPrice), currencyCode: currency as any },
         maxVariantPrice: { amount: String(minPrice), currencyCode: currency as any },
@@ -355,19 +451,7 @@ export async function searchProducts(
       language: locale?.language as any,
     }),
   )
-  fypLogOnce(
-    `SHOPIFY_PRODUCTS_SUMMARY:searchProducts:${args.query}:${args.after ?? "first"}`,
-    "SHOPIFY_PRODUCTS_SUMMARY",
-    {
-      source: "searchProducts",
-      query: args.query,
-      ...summarizeProductPayload((response.products?.nodes ?? []).filter(Boolean) as any[]),
-    },
-  )
-  const firstSearchNode = (response.products?.nodes ?? []).find(Boolean) as any
-  if (firstSearchNode?.handle) {
-    addFypDebugProductPayload("searchProducts", String(firstSearchNode.handle), firstSearchNode)
-  }
+
   return response
 }
 
@@ -395,6 +479,67 @@ export type ProductSearchCandidate = {
     minVariantPrice?: { amount?: string | null; currencyCode?: string | null } | null
     maxVariantPrice?: { amount?: string | null; currencyCode?: string | null } | null
   } | null
+  metafield?: {
+    value?: string | null
+  } | null
+}
+
+function normalizeHandle(input?: string | null): string {
+  if (typeof input !== "string") return ""
+  return input.trim().toLowerCase()
+}
+
+export async function getProductsByHandles(
+  handles: string[],
+  locale?: { country?: string; language?: string },
+  options?: { chunkSize?: number },
+): Promise<ProductSearchCandidate[]> {
+  const requested = Array.from(new Set(handles.map((entry) => normalizeHandle(entry)).filter(Boolean)))
+  if (!requested.length) return []
+
+  const chunkSize = Math.max(10, Math.min(30, options?.chunkSize ?? 25))
+  const chunks: string[][] = []
+  for (let i = 0; i < requested.length; i += chunkSize) {
+    chunks.push(requested.slice(i, i + chunkSize))
+  }
+
+  const byHandle = new Map<string, ProductSearchCandidate>()
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const query = chunk.map((handle) => `handle:${JSON.stringify(handle)}`).join(" OR ")
+      const response = await callShopify<SearchProductsQuery>(() =>
+        shopifyClient.request(PRODUCTS_BY_HANDLES_DOCUMENT, {
+          query,
+          pageSize: chunk.length,
+          country: locale?.country as any,
+          language: locale?.language as any,
+        }),
+      ).catch(() => null)
+
+      const nodes = (response?.products?.nodes ?? []).filter(Boolean)
+      for (const node of nodes as any[]) {
+        const handle = normalizeHandle(node?.handle)
+        if (!handle || byHandle.has(handle)) continue
+        byHandle.set(handle, {
+          id: String(node?.id ?? ""),
+          handle: String(node?.handle ?? ""),
+          title: typeof node?.title === "string" ? node.title : null,
+          vendor: typeof node?.vendor === "string" ? node.vendor : null,
+          productType: typeof node?.productType === "string" ? node.productType : null,
+          tags: Array.isArray(node?.tags) ? node.tags : null,
+          createdAt: typeof node?.createdAt === "string" ? node.createdAt : null,
+          availableForSale: typeof node?.availableForSale === "boolean" ? node.availableForSale : null,
+          featuredImage: node?.featuredImage ?? null,
+          priceRange: node?.priceRange ?? null,
+          compareAtPriceRange: node?.compareAtPriceRange ?? null,
+          metafield: null,
+        })
+      }
+    }),
+  )
+
+  return requested.map((handle) => byHandle.get(handle)).filter((item): item is ProductSearchCandidate => Boolean(item))
 }
 
 function normalizeSearchTerm(value: string): string {
@@ -467,18 +612,10 @@ export async function searchProductsByTerms(
     featuredImage: node?.featuredImage ?? null,
     priceRange: node?.priceRange ?? null,
     compareAtPriceRange: node?.compareAtPriceRange ?? null,
+    metafield: node?.metafield ?? null,
   }))
   const pageInfo = res.products?.pageInfo
-  fypLogOnce(
-    `SHOPIFY_PRODUCTS_SUMMARY:searchProductsByTerms:${query}:${args.after ?? "first"}`,
-    "SHOPIFY_PRODUCTS_SUMMARY",
-    {
-      source: "searchProductsByTerms",
-      query,
-      ...summarizeProductPayload(items as any[]),
-    },
-  )
-  if (items[0]?.handle) addFypDebugProductPayload("searchProductsByTerms", items[0].handle, items[0])
+
   return {
     items: items.filter((entry) => Boolean(entry.id && entry.handle)),
     cursor: pageInfo?.endCursor ?? null,

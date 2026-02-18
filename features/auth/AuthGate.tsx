@@ -5,7 +5,7 @@ import { Card } from "@/ui/surfaces/Card"
 import { Image } from "expo-image"
 import { Lock, MapPin, Receipt, UserRound } from "lucide-react-native"
 import React, { useCallback, useState } from "react"
-import { ScrollView, Text, View } from "react-native"
+import { Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 
 const PERKS = [
@@ -89,8 +89,8 @@ export function SignInPrompt({
         />
       ) : null}
 
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <View className="flex-1 justify-between gap-8 px-5 pt-10 pb-8">
+      <View className="flex-grow">
+        <View className="flex-1 justify-between gap-8 px-5 pt-10 pb-14">
           <View className="gap-6">
             <Card padding="lg" className="gap-4">
               <View className="flex-row items-center gap-3">
@@ -126,7 +126,10 @@ export function SignInPrompt({
             </Card>
           </View>
 
-          <View className="gap-3">
+          <View className="gap-2 pb-6">
+            <Text className="text-center text-[#64748b] text-[10px] leading-[18px] px-4">
+              We handle the secure part. You'll be redirected back here.
+            </Text>
             <Button
               size="lg"
               fullWidth
@@ -136,12 +139,9 @@ export function SignInPrompt({
             >
               {buttonLabel}
             </Button>
-            <Text className="text-center text-[#64748b] text-[12px] leading-[18px] px-4">
-              We handle the secure part. We’ll bring you right back here when you’re done.
-            </Text>
           </View>
         </View>
-      </ScrollView>
+      </View>
     </SafeAreaView>
   )
 }

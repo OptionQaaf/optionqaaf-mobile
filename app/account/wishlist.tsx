@@ -3,9 +3,9 @@ import { AuthGate } from "@/features/auth/AuthGate"
 import { useWishlist } from "@/store/wishlist"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
+import { padToFullRow } from "@/ui/layout/gridUtils"
 import { Screen } from "@/ui/layout/Screen"
 import { MenuBar } from "@/ui/nav/MenuBar"
-import { padToFullRow } from "@/ui/layout/gridUtils"
 import { Button } from "@/ui/primitives/Button"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
@@ -76,6 +76,8 @@ function WishlistContent() {
         data={gridData}
         gap={8}
         renderItem={(item, itemWidth) => {
+          if (!item) return <View style={{ width: itemWidth }} />
+
           const price = item.price?.amount ?? 0
           const currency = item.price?.currencyCode ?? "USD"
           return (

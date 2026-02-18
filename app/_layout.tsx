@@ -1,9 +1,5 @@
 import { AuthGate } from "@/features/auth/AuthGate"
-import { useCustomerProfile } from "@/features/account/api"
-import { ShopifyAuthProvider, useShopifyAuth } from "@/features/auth/useShopifyAuth"
-import { FYP_DEBUG, fypLog } from "@/features/debug/fypDebug"
-import { GenderPromptGate } from "@/features/for-you/GenderPromptGate"
-import { getForYouStorageDebugSnapshot } from "@/features/for-you/service"
+import { ShopifyAuthProvider } from "@/features/auth/useShopifyAuth"
 import { DrawerProvider } from "@/features/navigation/Drawer"
 import { useNotificationsService } from "@/features/notifications/notificationService"
 import { usePushToken } from "@/features/notifications/usePushToken"
@@ -39,22 +35,14 @@ const client = new QueryClient({
   },
 })
 
-if (FYP_DEBUG) {
-  LogBox.ignoreLogs([
-    "VirtualizedLists should never be nested",
-    "Non-serializable values were found in the navigation state",
-    "[Reanimated]",
-    "Require cycle:",
-    "Setting a timer",
-    "expo-router",
-  ])
-  const originalWarn = console.warn
-  console.warn = (...args) => {
-    const message = String(args[0] ?? "")
-    const allowed = message.includes("FYP_DEBUG")
-    if (allowed) originalWarn(...args)
-  }
-}
+LogBox.ignoreLogs([
+  "VirtualizedLists should never be nested",
+  "Non-serializable values were found in the navigation state",
+  "[Reanimated]",
+  "Require cycle:",
+  "Setting a timer",
+  "expo-router",
+])
 
 export default function RootLayout() {
   const [fontsReady, setFontsReady] = useState(false)
@@ -102,7 +90,6 @@ export default function RootLayout() {
                     />
                     <FloatingDock />
                   </FloatingDockScaleProvider>
-                  <GenderPromptGate />
                   <ToastHost />
                 </DrawerProvider>
               </FontProvider>
@@ -159,12 +146,10 @@ function InAppPopupHost() {
 }
 
 function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
-  const { isAuthenticated } = useShopifyAuth()
   const metadata = useAppMetadata()
   const segments = useSegments()
   const navigationReady = segments.length > 0
   const networkStatus = useNetworkStatus()
-  const { data: customer } = useCustomerProfile({ enabled: isAuthenticated })
 
   useNotificationsService()
   usePushToken()
@@ -175,45 +160,17 @@ function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
   }, [])
 
   useEffect(() => {
-    if (FYP_DEBUG) return
     console.debug("[app] metadata", metadata)
   }, [metadata, metadata.appName, metadata.version, metadata.buildNumber, metadata.applicationId, metadata.ownership])
 
   const { isConnected, isInternetReachable, type } = networkStatus
   useEffect(() => {
-    if (FYP_DEBUG) return
     console.debug("[app] network", {
       isConnected,
       isInternetReachable,
       type,
     })
   }, [isConnected, isInternetReachable, type])
-
-  useEffect(() => {
-    ;(async () => {
-      const snapshot = await getForYouStorageDebugSnapshot().catch(() => null)
-      fypLog("STARTUP_AUTH_CUSTOMER", {
-        isAuthenticated,
-        customerId: customer?.id ?? null,
-        customerEmail: customer?.email ?? null,
-        customerName: customer?.displayName ?? null,
-      })
-      if (!snapshot) {
-        fypLog("STARTUP_STORAGE", null)
-        return
-      }
-      fypLog("STARTUP_STORAGE_SUMMARY", {
-        identity: snapshot.identity,
-        customerMetafieldHasProfile: snapshot.customerMetafieldHasProfile,
-        customerMetafieldStatus: snapshot.customerMetafieldStatus,
-        customerMetafieldError: snapshot.customerMetafieldError,
-        localGuestHasProfile: snapshot.localGuestHasProfile,
-        localCustomerHasProfile: snapshot.localCustomerHasProfile,
-        resolvedProfileGender: snapshot.resolvedProfileGender,
-      })
-      fypLog("STARTUP_STORAGE_PAYLOAD", snapshot)
-    })()
-  }, [isAuthenticated, customer?.id, customer?.email, customer?.displayName])
 
   return null
 }

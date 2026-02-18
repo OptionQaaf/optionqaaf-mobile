@@ -18,7 +18,7 @@ export function AccountSignInFallback({ onSuccess }: Props) {
           style={{ position: "absolute", top: 0, left: 0, right: 0, height: 240, opacity: 0.25 }}
           contentFit="cover"
         />
-        <SafeAreaView edges={["top"]}>
+        <SafeAreaView edges={["top"]} className="bg-white">
           <MenuBar />
         </SafeAreaView>
         <View className="flex-1">

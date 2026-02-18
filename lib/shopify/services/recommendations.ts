@@ -1,5 +1,4 @@
 import { callShopify, shopifyClient } from "@/lib/shopify/client"
-import { addFypDebugProductPayload, fypLogOnce, summarizeProductPayload } from "@/features/debug/fypDebug"
 import type { ProductRecommendationIntent } from "@/lib/shopify/gql/graphql"
 import { gql } from "graphql-tag"
 
@@ -12,6 +11,9 @@ const PRODUCT_RECOMMENDATION_FIELDS = `
   tags
   createdAt
   availableForSale
+  metafield(namespace: "ai_data", key: "embedding_v1") {
+    value
+  }
   featuredImage {
     id
     url(transform: { preferredContentType: WEBP })
@@ -91,6 +93,9 @@ export type RecommendedProductItem = {
     minVariantPrice?: { amount?: string | null; currencyCode?: string | null } | null
     maxVariantPrice?: { amount?: string | null; currencyCode?: string | null } | null
   } | null
+  metafield?: {
+    value?: string | null
+  } | null
 }
 
 type ProductRecommendationsQueryResult = {
@@ -120,12 +125,7 @@ export async function getRecommendedProducts(
         language: locale?.language as any,
       }),
     )
-    fypLogOnce(`SHOPIFY_PRODUCTS_SUMMARY:recommendations:id:${normalizedProductId}`, "SHOPIFY_PRODUCTS_SUMMARY", {
-      source: "productRecommendationsById",
-      ...summarizeProductPayload((response.productRecommendations ?? []) as any[]),
-    })
-    const first = (response.productRecommendations ?? [])[0] as any
-    if (first?.handle) addFypDebugProductPayload("recommendationsById", String(first.handle), first)
+
     return response
   }
 
@@ -137,11 +137,6 @@ export async function getRecommendedProducts(
       language: locale?.language as any,
     }),
   )
-  fypLogOnce(`SHOPIFY_PRODUCTS_SUMMARY:recommendations:handle:${normalizedProductHandle}`, "SHOPIFY_PRODUCTS_SUMMARY", {
-    source: "productRecommendationsByHandle",
-    ...summarizeProductPayload((response.productRecommendations ?? []) as any[]),
-  })
-  const first = (response.productRecommendations ?? [])[0] as any
-  if (first?.handle) addFypDebugProductPayload("recommendationsByHandle", String(first.handle), first)
+
   return response
 }

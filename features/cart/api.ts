@@ -1,14 +1,13 @@
 import { qk } from "@/lib/shopify/queryKeys"
-import { trackForYouEvent } from "@/features/for-you/tracking"
 import {
   addLines,
   createCart,
   getCart,
   removeLines,
+  replaceCartDeliveryAddresses,
   updateBuyerIdentity,
   updateCartAttributes,
   updateCartNote,
-  replaceCartDeliveryAddresses,
   updateDiscountCodes,
   updateLines,
 } from "@/lib/shopify/services/cart"
@@ -63,16 +62,6 @@ export function useAddToCart() {
         if (cart) qc.setQueryData(qk.cart(id) as any, cart)
       }
 
-      const trackAddToCart = () => {
-        trackForYouEvent({
-          type: "add_to_cart",
-          handle: payload.tracking?.handle ?? null,
-          vendor: payload.tracking?.vendor ?? null,
-          productType: payload.tracking?.productType ?? null,
-          tags: payload.tracking?.tags ?? null,
-        })
-      }
-
       const ensureCartId = async () => {
         const existing = useCartId.getState().cartId
         if (existing) return existing
@@ -85,13 +74,8 @@ export function useAddToCart() {
       }
 
       const addTo = async (id: string) => {
-        const res = await addLines(
-          id,
-          [{ merchandiseId: payload.merchandiseId, quantity: payload.quantity }],
-          locale,
-        )
+        const res = await addLines(id, [{ merchandiseId: payload.merchandiseId, quantity: payload.quantity }], locale)
         primeCart(id, res.cartLinesAdd?.cart)
-        trackAddToCart()
         return res.cartLinesAdd?.cart ?? null
       }
 

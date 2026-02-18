@@ -17,6 +17,9 @@ fragment ProductCard on Product {
   title
   vendor
   availableForSale
+  metafield(namespace: "ai_data", key: "embedding_v1") {
+    value
+  }
   featuredImage {
     ...Image
   }
@@ -45,6 +48,9 @@ fragment ProductDetail on Product {
   vendor
   description
   descriptionHtml
+  metafield(namespace: "ai_data", key: "embedding_v1") {
+    value
+  }
   featuredImage {
     ...Image
   }

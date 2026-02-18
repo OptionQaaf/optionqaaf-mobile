@@ -1,5 +1,4 @@
 import type { CurrencyCode } from "@/features/currency/config"
-import { setGender } from "@/features/for-you/service"
 import type { CountryCode } from "@/features/locale/countries"
 import { COUNTRIES } from "@/features/locale/countries"
 import { requestPushPermissionsAndToken } from "@/features/notifications/permissions"
@@ -79,7 +78,6 @@ export default function LocaleOnboarding() {
 
   const handleContinue = useCallback(async () => {
     setPrefs({ language, country, currency })
-    void setGender(gender).catch(() => {})
     if (pushEnabled) {
       finishOnboarding().catch(() => {})
       return
