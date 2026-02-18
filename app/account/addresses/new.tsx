@@ -5,7 +5,6 @@ import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useCallback, useMemo } from "react"
 import { KeyboardAvoidingView, Platform } from "react-native"
@@ -19,7 +18,6 @@ export default function NewAddressScreen() {
       fallback={<AccountSignInFallback onSuccess={() => router.replace("/account/addresses/new" as const)} />}
     >
       <Screen bleedBottom>
-        <MenuBar back />
         <NewAddressContent />
       </Screen>
     </AuthGate>

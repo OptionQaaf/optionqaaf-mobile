@@ -14,6 +14,7 @@ import type { PopupCTA } from "@/types/popup"
 import { ToastHost } from "@/ui/feedback/Toast"
 import { FloatingDock } from "@/ui/nav/FloatingDock"
 import { FloatingDockScaleProvider } from "@/ui/nav/FloatingDockContext"
+import { RootMenuBar } from "@/ui/nav/RootMenuBar"
 import { InAppPopupModal } from "@/ui/popup/InAppPopupModal"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { router, Stack, useSegments } from "expo-router"
@@ -80,6 +81,7 @@ export default function RootLayout() {
             <AuthGate>
               <FontProvider onReady={() => setFontsReady(true)}>
                 <DrawerProvider>
+                  <RootMenuBar />
                   <FloatingDockScaleProvider>
                     <Stack
                       screenOptions={({ route }) => ({

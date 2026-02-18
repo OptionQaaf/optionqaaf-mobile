@@ -5,7 +5,6 @@ import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Input } from "@/ui/primitives/Input"
 import { Card } from "@/ui/surfaces/Card"
@@ -62,7 +61,6 @@ export default function BroadcastScreen() {
       fallback={<AccountSignInFallback onSuccess={() => router.replace("/account/broadcast" as const)} />}
     >
       <Screen bleedBottom>
-        <MenuBar back />
         <BroadcastContent />
       </Screen>
     </AuthGate>

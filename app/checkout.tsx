@@ -1,6 +1,5 @@
 import { qk } from "@/lib/shopify/queryKeys"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { useLocalSearchParams } from "expo-router"
 import { useCallback, useMemo, useRef } from "react"
 import { View } from "react-native"
@@ -35,7 +34,6 @@ export default function CheckoutScreen() {
 
   return (
     <Screen bleedBottom>
-      <MenuBar back />
       <View style={{ flex: 1 }}>
         <WebView source={checkoutSource} style={{ flex: 1 }} onNavigationStateChange={handleNavChange} />
       </View>

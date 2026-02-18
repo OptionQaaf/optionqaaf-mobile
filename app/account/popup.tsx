@@ -8,7 +8,6 @@ import { PopupAudience, PopupCTA, PopupPayload, StoredPopup } from "@/types/popu
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { InAppPopupModal } from "@/ui/popup/InAppPopupModal"
 import { SYSTEM_ICON_MAP, type SystemIconName } from "@/ui/popup/systemIcons"
 import { Button } from "@/ui/primitives/Button"
@@ -129,7 +128,6 @@ export default function PopupAdminScreen() {
       fallback={<AccountSignInFallback onSuccess={() => router.replace("/account/popup" as const)} />}
     >
       <Screen bleedBottom>
-        <MenuBar back />
         <PopupAdminContent />
       </Screen>
     </AuthGate>

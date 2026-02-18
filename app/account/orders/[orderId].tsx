@@ -8,7 +8,6 @@ import { formatMoney } from "@/lib/shopify/money"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import * as Clipboard from "expo-clipboard"
@@ -31,7 +30,6 @@ export default function OrderDetailScreen() {
       fallback={<AccountSignInFallback onSuccess={() => router.replace("/account/orders" as const)} />}
     >
       <Screen bleedBottom>
-        <MenuBar back />
         <OrderDetailContent />
       </Screen>
     </AuthGate>

@@ -9,7 +9,6 @@ import { Skeleton } from "@/ui/feedback/Skeleton"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { useQueryClient } from "@tanstack/react-query"
@@ -24,7 +23,6 @@ export default function AccountScreen() {
   return (
     <AuthGate requireAuth fallback={<AccountSignInFallback onSuccess={() => router.replace("/account" as const)} />}>
       <Screen bleedBottom>
-        <MenuBar />
         <AccountContent />
       </Screen>
     </AuthGate>
@@ -177,7 +175,7 @@ function AccountContent() {
 
   return (
     <ScrollView
-      contentContainerStyle={{ paddingBottom: 32, flexGrow: 1 }}
+      contentContainerStyle={{ paddingVertical: 40, flexGrow: 1 }}
       className="bg-[#f8fafc]"
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} tintColor="#111827" />}
     >

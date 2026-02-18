@@ -16,7 +16,6 @@ import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
 import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { Animated, MOTION } from "@/ui/motion/motion"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Input } from "@/ui/primitives/Input"
 import { Price } from "@/ui/product/Price"
@@ -44,6 +43,8 @@ const KSA_ORDER_PAUSE_END = Date.UTC(2026, 1, 21, 23, 59, 59)
  * ───────────────────────────────────────────────────────────── */
 
 export default function CartScreen() {
+  const TOP_MENU_BAR_OFFSET = 42
+  const SUMMARY_BOTTOM_OFFSET = 64
   const insets = useSafeAreaInsets()
   const { currency: prefCurrencyState } = usePrefs()
   const { show } = useToast()
@@ -513,84 +514,87 @@ export default function CartScreen() {
           .join("  ·  ")
 
         return (
-          <Animated.View
-            entering={MOTION.enter.fadeDown}
-            exiting={MOTION.exit.fadeUp}
-            layout={MOTION.spring()}
-            className="flex-row gap-3 p-3 mb-3 rounded-md bg-surface border border-border"
-            accessibilityRole="summary"
+          <PressableOverlay
+            onPress={goToPDP}
+            className="rounded-md"
+            accessibilityLabel="Open product"
+            pressableClassName="mb-2"
           >
-            <PressableOverlay
-              onPress={goToPDP}
-              className="rounded-md overflow-hidden"
-              accessibilityLabel="Open product"
+            <Animated.View
+              entering={MOTION.enter.fadeDown}
+              exiting={MOTION.exit.fadeUp}
+              layout={MOTION.spring()}
+              className="flex-row items-center gap-2 p-2 rounded-md bg-surface border border-border"
+              accessibilityRole="summary"
             >
-              <Image
-                source={
-                  imageUrl
-                    ? {
-                        uri:
-                          optimizeImageUrl(imageUrl, {
-                            width: 168,
-                            height: 120,
-                            format: "webp",
-                            dpr: Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1)),
-                          }) || imageUrl,
-                      }
-                    : undefined
-                }
-                contentFit="cover"
-                className="bg-neutral-100"
-                style={{ width: 84, height: 84, borderRadius: 16 }}
-                cachePolicy="disk"
-                transition={120}
-                placeholder={DEFAULT_PLACEHOLDER}
-              />
-            </PressableOverlay>
+              <View className="rounded-md overflow-hidden">
+                {imageUrl ? (
+                  <Image
+                    source={{
+                      uri:
+                        optimizeImageUrl(imageUrl, {
+                          width: 168,
+                          height: 120,
+                          format: "webp",
+                          dpr: Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1)),
+                        }) || imageUrl,
+                    }}
+                    contentFit="cover"
+                    className="bg-neutral-100"
+                    style={{ width: 64, height: 64, borderRadius: 12 }}
+                    cachePolicy="disk"
+                    transition={120}
+                    placeholder={DEFAULT_PLACEHOLDER}
+                  />
+                ) : (
+                  <View className="h-16 w-16 items-center justify-center rounded-[12px] bg-neutral-100">
+                    <Text className="text-muted text-[12px]">—</Text>
+                  </View>
+                )}
+              </View>
 
-            <View className="flex-1 min-w-0">
-              {/* Title + delete */}
-              <View className="flex-row items-start">
-                <View className="flex-1 min-w-0 pr-2">
-                  <PressableOverlay onPress={goToPDP} className="active:opacity-90">
-                    <Text className="text-primary font-geist-semibold text-[16px]" numberOfLines={1}>
+              <View className="flex-1 min-w-0">
+                {/* Title + delete */}
+                <View className="flex-row items-start">
+                  <View className="flex-1 min-w-0 pr-2">
+                    <Text className="text-primary font-geist-semibold text-[14px]" numberOfLines={1}>
                       {product?.title ?? "Product"}
                     </Text>
+                    {optionsText ? (
+                      <Text className="text-secondary text-[11px] mt-0.5" numberOfLines={1}>
+                        {optionsText}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <PressableOverlay
+                    accessibilityLabel="Remove from cart"
+                    onPress={() => onDelete(item.id)}
+                    className="w-7 h-7 rounded-full items-center justify-center"
+                  >
+                    <Trash2 size={14} color="#8a8a8a" />
                   </PressableOverlay>
-                  {optionsText ? (
-                    <Text className="text-secondary text-[12px] mt-1" numberOfLines={1}>
-                      {optionsText}
-                    </Text>
-                  ) : null}
                 </View>
-                <PressableOverlay
-                  accessibilityLabel="Remove from cart"
-                  onPress={() => onDelete(item.id)}
-                  className="w-9 h-9 rounded-full items-center justify-center"
-                >
-                  <Trash2 size={18} color="#8a8a8a" />
-                </PressableOverlay>
-              </View>
 
-              {/* Price + Qty */}
-              <View className="flex-row items-center justify-between mt-2">
-                <View className="flex-1 min-w-0 pr-3">
-                  <Price amount={unitPrice} currency={String(variant?.price?.currencyCode ?? currency)} />
-                </View>
-                <View className="px-2 py-1 rounded-full bg-surface border border-border">
-                  <QuantityStepper value={qty} onChange={(q) => onChangeQty(item.id, q)} />
+                {/* Price + Qty */}
+                <View className="flex-row items-center justify-between mt-1">
+                  <View className="flex-1 min-w-0 pr-2">
+                    <Price amount={unitPrice} currency={String(variant?.price?.currencyCode ?? currency)} size="xs" />
+                  </View>
+                  <View className="px-1 py-0.5 rounded-full bg-surface border border-border">
+                    <QuantityStepper size="sm" value={qty} onChange={(q) => onChangeQty(item.id, q)} />
+                  </View>
                 </View>
               </View>
-            </View>
-          </Animated.View>
+            </Animated.View>
+          </PressableOverlay>
         )
       }),
     [currency, onChangeQty, onDelete],
   )
 
   // Footer sizing
-  const [footerH, setFooterH] = useState(220)
-  const listBottomPad = Math.max(footerH + (insets?.bottom ?? 0) + 16, 24)
+  const [footerH, setFooterH] = useState(200)
+  const listBottomPad = Math.max(footerH + SUMMARY_BOTTOM_OFFSET + (insets?.bottom ?? 0) + 16, 24)
 
   // Currency display helper
   const formatCurrencyText = useMemo(
@@ -614,12 +618,13 @@ export default function CartScreen() {
 
   return (
     <Screen bleedBottom>
-      <MenuBar />
       <KeyboardAvoidingView
         behavior={Platform.select({ ios: "padding", android: "height" })}
         style={{ flex: 1 }}
         keyboardVerticalOffset={(insets?.top ?? 0) + 72}
       >
+        <View style={{ height: TOP_MENU_BAR_OFFSET }} />
+
         {!authInitializing && !isAuthenticated ? (
           <View className="px-4 pt-4">
             <Card padding="md" className="gap-3">
@@ -676,24 +681,24 @@ export default function CartScreen() {
             {/* Sticky summary */}
             <KeyboardAvoidingView
               behavior={Platform.select({ ios: "padding", android: "height" })}
-              style={{ position: "absolute", left: 0, right: 0, bottom: 64 }}
+              style={{ position: "absolute", left: 0, right: 0, bottom: SUMMARY_BOTTOM_OFFSET }}
               keyboardVerticalOffset={(insets?.top ?? 0) + 32}
             >
               <View style={{ backgroundColor: "#fff" }}>
                 <SafeAreaView edges={["bottom"]} style={{ backgroundColor: "#fff" }}>
                   <View
                     onLayout={(e) => setFooterH(e.nativeEvent.layout.height)}
-                    className="px-4 py-3 border-t border-border"
+                    className="px-3 py-2 border-t border-border"
                     style={{ backgroundColor: "#fff" }}
                   >
-                    <View className="p-3 border border-border rounded-2xl bg-surface gap-2">
-                      <View className="gap-2">
+                    <View className="p-2.5 border border-border rounded-xl bg-surface gap-1.5">
+                      <View className="gap-1.5">
                         {discountCodes.length > 0 ? (
-                          <View className="gap-2">
+                          <View className="gap-1.5">
                             {discountCodes.map((code) => (
                               <View
                                 key={code.code}
-                                className="flex-row items-center justify-between rounded-xl border border-border bg-[#f8fafc] px-3 py-2"
+                                className="flex-row items-center justify-between rounded-lg border border-border bg-[#f8fafc] px-2.5 py-1.5"
                               >
                                 <View className="flex-1 pr-3 gap-[2px]">
                                   <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{code.code}</Text>
@@ -704,23 +709,23 @@ export default function CartScreen() {
                                 <PressableOverlay
                                   onPress={() => handleRemoveDiscount(code.code)}
                                   disabled={updatingDiscounts}
-                                  className="h-8 w-8 items-center justify-center rounded-full"
+                                  className="h-7 w-7 items-center justify-center rounded-full"
                                   accessibilityLabel={`Remove discount ${code.code}`}
                                 >
-                                  <X size={16} color="#475569" />
+                                  <X size={14} color="#475569" />
                                 </PressableOverlay>
                               </View>
                             ))}
                           </View>
                         ) : null}
                         {!hasItems && savedDiscountCodes.length > 0 ? (
-                          <View className="gap-2">
+                          <View className="gap-1.5">
                             <Text className="text-[#475569] text-[12px] font-geist-semibold">Saved coupons</Text>
-                            <View className="gap-2">
+                            <View className="gap-1.5">
                               {savedDiscountCodes.map((code) => (
                                 <View
                                   key={code.code}
-                                  className="flex-row items-center justify-between rounded-xl border border-dashed border-border bg-[#fdf2fa] px-3 py-2"
+                                  className="flex-row items-center justify-between rounded-lg border border-dashed border-border bg-[#fdf2fa] px-2.5 py-1.5"
                                 >
                                   <View className="flex-1 pr-3">
                                     <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{code.code}</Text>
@@ -729,10 +734,10 @@ export default function CartScreen() {
                                   <PressableOverlay
                                     onPress={() => handleRemoveDiscount(code.code)}
                                     disabled={updatingDiscounts}
-                                    className="h-8 w-8 items-center justify-center rounded-full"
+                                    className="h-7 w-7 items-center justify-center rounded-full"
                                     accessibilityLabel={`Remove saved coupon ${code.code}`}
                                   >
-                                    <X size={16} color="#475569" />
+                                    <X size={14} color="#475569" />
                                   </PressableOverlay>
                                 </View>
                               ))}
@@ -740,7 +745,7 @@ export default function CartScreen() {
                           </View>
                         ) : null}
 
-                        <View className="flex-row items-center gap-3">
+                        <View className="flex-row items-center gap-2">
                           <Input
                             value={codeInput}
                             onChangeText={setCodeInput}
@@ -753,7 +758,7 @@ export default function CartScreen() {
                           />
                           <Button
                             variant="outline"
-                            size="md"
+                            size="sm"
                             onPress={handleApplyDiscount}
                             disabled={updatingDiscounts || !codeInput.trim()}
                             isLoading={updatingDiscounts}
@@ -811,12 +816,12 @@ export default function CartScreen() {
                       })()}
 
                       <Button
-                        size="lg"
+                        size="md"
                         fullWidth
                         onPress={onCheckout}
                         isLoading={attachingBuyer}
                         disabled={!hasItems || attachingBuyer || ordersPaused}
-                        className="mt-3 bg-neutral-900"
+                        className="mt-2 bg-neutral-900"
                         leftIcon={ordersPaused ? <Lock size={16} color="#fff" /> : undefined}
                       >
                         {ordersPaused ? `Orders resume in ${pauseCountdownLabel}` : "Checkout"}

@@ -11,9 +11,17 @@ type Props = {
   scrim?: number
   back?: boolean
   backIconBackground?: string
+  rightAccessory?: ReactNode
 }
 
-export function MenuBar({ variant = "light", floating = false, scrim = 0, back = false, backIconBackground }: Props) {
+export function MenuBar({
+  variant = "light",
+  floating = false,
+  scrim = 0,
+  back = false,
+  backIconBackground,
+  rightAccessory,
+}: Props) {
   const color = "#1e1e1e"
   const pathname = usePathname()
   const navigation = useRouter()
@@ -59,7 +67,7 @@ export function MenuBar({ variant = "light", floating = false, scrim = 0, back =
           <Image source={require("@/assets/images/optionqaaf-logo.png")} className="h-8 w-8" resizeMode="contain" />
         </PressableOverlay>
 
-        <View className="h-10 w-10" />
+        <View className="h-10 w-10 items-center justify-center">{rightAccessory ?? null}</View>
       </View>
 
       <View className="h-px bg-[#e5e7eb]" />

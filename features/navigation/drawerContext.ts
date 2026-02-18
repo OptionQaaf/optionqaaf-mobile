@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react"
 
-export type DrawerCtx = { open: () => void; close: () => void; toggle: () => void }
+export type DrawerCtx = { open: () => void; close: () => void; toggle: () => void; isOpen: boolean }
 
 export const DrawerContext = createContext<DrawerCtx | null>(null)
 

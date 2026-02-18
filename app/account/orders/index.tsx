@@ -6,7 +6,6 @@ import { formatMoney } from "@/lib/shopify/money"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { H1 } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
 import { Image } from "expo-image"
@@ -25,7 +24,6 @@ export default function OrdersScreen() {
       fallback={<AccountSignInFallback onSuccess={() => router.replace("/account/orders" as const)} />}
     >
       <Screen bleedBottom>
-        <MenuBar back />
         <OrdersContent />
       </Screen>
     </AuthGate>
@@ -138,7 +136,7 @@ function OrdersContent() {
   )
 
   return (
-    <>
+    <View style={{ flex: 1, paddingTop: 52 }}>
       <H1 className="px-5">Orders</H1>
       <Text className="px-5 pt-1 text-[#64748b] text-[12px]" numberOfLines={2}>
         Recent orders from the last 60 days are shown here. Older orders are still safe—contact us if you need the full
@@ -176,7 +174,7 @@ function OrdersContent() {
           ) : null
         }
       />
-    </>
+    </View>
   )
 }
 

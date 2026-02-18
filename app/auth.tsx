@@ -1,7 +1,6 @@
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { SHOPIFY_CUSTOMER_REDIRECT_URI as REDIRECT_URI } from "@/lib/shopify/env"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { useFocusEffect } from "@react-navigation/native"
 import { router, useLocalSearchParams } from "expo-router"
 import * as WebBrowser from "expo-web-browser"
@@ -108,7 +107,6 @@ export default function AuthScreen() {
 
   return (
     <Screen bleedBottom>
-      <MenuBar back />
       <View style={{ flex: 1, paddingHorizontal: 12, paddingBottom: 12 }}>
         <View style={{ flex: 1, borderRadius: 16, overflow: "hidden", backgroundColor: "#ffffff" }}>
           {source ? (

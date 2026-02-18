@@ -5,7 +5,6 @@ import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Text } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
@@ -22,7 +21,6 @@ export default function EditAddressScreen() {
       fallback={<AccountSignInFallback onSuccess={() => router.replace("/account/addresses" as const)} />}
     >
       <Screen bleedBottom>
-        <MenuBar back />
         <EditAddressContent />
       </Screen>
     </AuthGate>

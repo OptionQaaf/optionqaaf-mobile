@@ -17,7 +17,6 @@ import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layo
 import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { ImageCarousel } from "@/ui/media/ImageCarousel"
 import { Animated, MOTION, useCrossfade } from "@/ui/motion/motion"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Accordion } from "@/ui/primitives/Accordion"
 import { AddToCart } from "@/ui/product/AddToCart"
 import { AddToCartBar } from "@/ui/product/AddToCartBar"
@@ -334,7 +333,6 @@ export default function ProductScreen() {
   if (isLoading) {
     return (
       <Screen bleedTop bleedBottom>
-        <MenuBar variant="light" floating back />
         <View className="px-4 py-6">
           <View className="w-full h-[420px] bg-neutral-200 rounded-2xl" />
           <View className="h-4" />
@@ -346,7 +344,6 @@ export default function ProductScreen() {
 
   return (
     <Screen bleedTop bleedBottom>
-      <MenuBar variant="light" floating back />
       <Animated.FlatList
         {...verticalScrollProps}
         onLayout={onListLayout}

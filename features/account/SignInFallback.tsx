@@ -1,9 +1,7 @@
 import { SignInPrompt } from "@/features/auth/AuthGate"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Image } from "expo-image"
 import { View } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
 
 type Props = {
   onSuccess: () => void
@@ -18,9 +16,6 @@ export function AccountSignInFallback({ onSuccess }: Props) {
           style={{ position: "absolute", top: 0, left: 0, right: 0, height: 240, opacity: 0.25 }}
           contentFit="cover"
         />
-        <SafeAreaView edges={["top"]} className="bg-white">
-          <MenuBar />
-        </SafeAreaView>
         <View className="flex-1">
           <SignInPrompt
             title="Sign in to your account"

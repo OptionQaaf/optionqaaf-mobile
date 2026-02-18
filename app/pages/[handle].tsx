@@ -3,7 +3,6 @@ import { useSearch } from "@/features/search/api"
 import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { padToFullRow } from "@/ui/layout/gridUtils"
@@ -42,8 +41,6 @@ export default function CustomPage() {
   return (
     <Screen bleedTop bleedBottom>
       <View className="flex-1">
-        <MenuBar variant="light" floating back />
-
         <PageScrollView contentContainerStyle={{ paddingBottom: 16 }} contentContainerClassName="bg-white">
           <View className="pt-0">
             {/* Aesthetic sections (reuse home metaobject) */}

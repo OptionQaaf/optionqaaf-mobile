@@ -5,7 +5,6 @@ import { Container } from "@/ui/layout/Container"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { MarkdownRenderer } from "@/ui/markdown/MarkdownRenderer"
-import { MenuBar } from "@/ui/nav/MenuBar"
 
 type Props = {
   title: string
@@ -16,7 +15,6 @@ type Props = {
 export function PolicyScreenTemplate({ title, markdownSource, headerSlot }: Props) {
   return (
     <Screen bleedBottom>
-      <MenuBar back />
       <PageScrollView contentContainerClassName="bg-white">
         <Container className="py-6 gap-4">
           <View className="gap-2">

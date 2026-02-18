@@ -7,7 +7,6 @@ import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
 import { padToFullRow } from "@/ui/layout/gridUtils"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { ProductTileSkeleton } from "@/ui/product/ProductTileSkeleton"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
@@ -234,7 +233,6 @@ export default function CollectionScreen() {
     return (
       <Screen bleedBottom bleedTop>
         <View className="flex-1 bg-white">
-          <MenuBar floating back />
           <PageScrollView contentContainerClassName="bg-white">
             <View className="pt-0">
               <MetaobjectSectionList sections={sections} onNavigate={go} />
@@ -248,8 +246,6 @@ export default function CollectionScreen() {
   return (
     <Screen bleedTop bleedBottom>
       <View className="flex-1 bg-white">
-        <MenuBar floating back />
-
         <PageScrollView
           scrollEventThrottle={16}
           onScroll={(e) => {

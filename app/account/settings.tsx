@@ -14,7 +14,6 @@ import { useNotificationSettings, type NotificationPermissionState } from "@/sto
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { useRouter, type RelativePathString } from "expo-router"
@@ -29,7 +28,6 @@ export default function AccountSettingsScreen() {
   return (
     <AuthGate requireAuth fallback={<AccountSignInFallback onSuccess={() => router.replace("/account" as const)} />}>
       <Screen bleedBottom>
-        <MenuBar back />
         <AccountSettingsContent />
       </Screen>
     </AuthGate>
@@ -162,7 +160,7 @@ function AccountSettingsContent() {
 
   return (
     <>
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} className="bg-[#f8fafc]">
+      <ScrollView contentContainerStyle={{ paddingTop: 42, paddingBottom: 32 }} className="bg-[#f8fafc]">
         <View className="px-5 pt-6 pb-4 gap-7">
           <View className="gap-2">
             <Text className="text-[#0f172a] font-geist-semibold text-[20px]">Account settings</Text>

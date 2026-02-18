@@ -90,7 +90,7 @@ export function SignInPrompt({
       ) : null}
 
       <View className="flex-grow">
-        <View className="flex-1 justify-between gap-8 px-5 pt-10 pb-14">
+        <View className="flex-1 justify-between gap-8 px-5 pt-16 pb-14">
           <View className="gap-6">
             <Card padding="lg" className="gap-4">
               <View className="flex-row items-center gap-3">
@@ -128,7 +128,7 @@ export function SignInPrompt({
 
           <View className="gap-2 pb-6">
             <Text className="text-center text-[#64748b] text-[10px] leading-[18px] px-4">
-              We handle the secure part. You'll be redirected back here.
+              We handle the secure part. You will be redirected back here.
             </Text>
             <Button
               size="lg"

@@ -78,7 +78,7 @@ export function DrawerProvider({ children }: { children: React.ReactNode }) {
     })
 
   const drawerA = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }))
-  const value = useMemo(() => ({ open, close, toggle }), [open, close, toggle])
+  const value = useMemo(() => ({ open, close, toggle, isOpen }), [open, close, toggle, isOpen])
 
   const DISABLED_EDGE_PAN_PATHS = [
     /^\/products\//,

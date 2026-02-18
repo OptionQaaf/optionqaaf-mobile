@@ -4,7 +4,6 @@ import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Input } from "@/ui/primitives/Input"
 import { useRouter } from "expo-router"
@@ -18,7 +17,6 @@ export default function AccountEditScreen() {
   return (
     <AuthGate requireAuth fallback={<AccountSignInFallback onSuccess={() => router.replace("/account" as const)} />}>
       <Screen bleedBottom>
-        <MenuBar back />
         <EditProfileContent />
       </Screen>
     </AuthGate>

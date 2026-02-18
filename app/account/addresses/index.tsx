@@ -5,7 +5,6 @@ import { AuthGate } from "@/features/auth/AuthGate"
 import { CustomerAddress } from "@/lib/shopify/customer/profile"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Text } from "@/ui/primitives/Typography"
 import { Card } from "@/ui/surfaces/Card"
@@ -22,7 +21,6 @@ export default function AccountAddressesScreen() {
       fallback={<AccountSignInFallback onSuccess={() => router.replace("/account/addresses" as const)} />}
     >
       <Screen bleedBottom>
-        <MenuBar back />
         <AddressesContent />
       </Screen>
     </AuthGate>
@@ -161,7 +159,7 @@ function AddressesContent() {
   return (
     <ScrollView
       className="bg-[#f8fafc]"
-      contentContainerStyle={{ paddingBottom: 48 }}
+      contentContainerStyle={{ paddingTop: 52, paddingBottom: 48 }}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} tintColor="#111827" />}
     >
       <View className="px-5 pt-6 pb-4 gap-5">

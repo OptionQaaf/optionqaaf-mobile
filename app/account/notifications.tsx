@@ -8,7 +8,6 @@ import {
 import { useNotificationSettings } from "@/store/notifications"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Card } from "@/ui/surfaces/Card"
 import { Button } from "@/ui/primitives/Button"
 import { useRouter } from "expo-router"
@@ -24,7 +23,6 @@ export default function NotificationsScreen() {
   return (
     <AuthGate requireAuth fallback={<AccountSignInFallback onSuccess={() => router.replace("/account" as const)} />}>
       <Screen bleedBottom>
-        <MenuBar back />
         <NotificationsContent />
       </Screen>
     </AuthGate>

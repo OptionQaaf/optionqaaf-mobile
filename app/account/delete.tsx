@@ -6,7 +6,6 @@ import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { useRouter } from "expo-router"
@@ -27,7 +26,6 @@ export default function AccountDeletionScreen() {
       fallback={<AccountSignInFallback onSuccess={() => router.replace("/account/delete" as const)} />}
     >
       <Screen bleedBottom>
-        <MenuBar back />
         <AccountDeletionContent />
       </Screen>
     </AuthGate>

@@ -1,5 +1,4 @@
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
-import { MenuBar } from "@/ui/nav/MenuBar"
 import { createMaterialTopTabNavigator, type MaterialTopTabBarProps } from "@react-navigation/material-top-tabs"
 import { BlurView } from "expo-blur"
 import { withLayoutContext } from "expo-router"
@@ -8,20 +7,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const { Navigator } = createMaterialTopTabNavigator()
 const Tabs = withLayoutContext(Navigator)
-const MENU_BAR_HEIGHT = 42
+const ROOT_MENU_BAR_HEIGHT = 42
 
 export default function HomeTabsLayout() {
   const insets = useSafeAreaInsets()
-  const sceneTopOffset = insets.top + MENU_BAR_HEIGHT
+  const rootTopOffset = insets.top + ROOT_MENU_BAR_HEIGHT
 
   return (
     <Tabs
       initialRouteName="index"
-      tabBar={(props) => <HomeTabsBar {...props} />}
+      tabBar={(props) => <HomeTabsBar {...props} rootTopOffset={rootTopOffset} />}
       screenOptions={{
         swipeEnabled: true,
         sceneStyle: {
-          paddingTop: sceneTopOffset,
+          paddingTop: rootTopOffset,
           backgroundColor: "#FFFFFF",
         },
       }}
@@ -32,12 +31,14 @@ export default function HomeTabsLayout() {
   )
 }
 
-function HomeTabsBar({ state, descriptors, navigation }: MaterialTopTabBarProps) {
-  const insets = useSafeAreaInsets()
-
+function HomeTabsBar({
+  state,
+  descriptors,
+  navigation,
+  rootTopOffset,
+}: MaterialTopTabBarProps & { rootTopOffset: number }) {
   return (
-    <View className="absolute left-0 right-0 top-0 z-50 bg-transparent" style={{ paddingTop: insets.top }}>
-      <MenuBar />
+    <View className="absolute left-0 right-0 z-50 bg-transparent" style={{ top: rootTopOffset }}>
       <View className="items-center px-4 pt-2">
         <BlurView
           tint="systemUltraThinMaterialDark"
