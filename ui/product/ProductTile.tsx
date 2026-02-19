@@ -114,7 +114,9 @@ export function ProductTile({
     [tileImages, targetW, targetH, dpr],
   )
   const src = optimizedImages[0] || image
-  const enableCarousel = Boolean(targetW && optimizedImages.length > 1)
+  const shouldRenderCarousel = Boolean(targetW && targetH && optimizedImages.length > 1)
+  const carouselWidth = targetW ?? 0
+  const carouselHeight = targetH ?? 0
   const tapGesture = useTapOrSwipe({ onPress, maxDistance: 12 })
   const titleLineHeight = 20
   const priceSize: PriceSize = (() => {
@@ -133,52 +135,52 @@ export function ProductTile({
   return (
     <GestureDetector gesture={tapGesture}>
       <View
-      className={cn("overflow-hidden", edgeToEdge ? undefined : "rounded-sm border-gray-200 border", className)}
-      style={width ? { width } : undefined}
+        className={cn("overflow-hidden", edgeToEdge ? undefined : "rounded-sm border-gray-200 border", className)}
+        style={width ? { width } : undefined}
       >
-      <View className={cn(cardChrome, "overflow-hidden")}>
-        <View style={{ aspectRatio: imageRatio, backgroundColor: "#F5F5F7", overflow: "hidden" }}>
-          {enableCarousel ? (
-            <ProductTileCarousel
-              images={optimizedImages}
-              width={targetW as number}
-              height={targetH as number}
-              priority={priority}
-            />
-          ) : (
-            <Image
-              source={{ uri: src }}
-              style={{ width: "100%", height: "100%" }}
-              contentFit="cover"
-              transition={priority === "high" ? 0 : 150}
-              cachePolicy="disk"
-              priority={priority ?? (width && width > 0 ? "normal" : "low")}
-              placeholder={DEFAULT_PLACEHOLDER}
-            />
-          )}
-        </View>
-
-        <View className={cn(pad, "gap-2")}>
-          <View style={{ minHeight: titleLineHeight * titleLines, justifyContent: "flex-start" }}>
-            <Text
-              className="text-primary text-[14px] font-semibold"
-              style={{ lineHeight: titleLineHeight }}
-              numberOfLines={titleLines}
-            >
-              {title}
-            </Text>
+        <View className={cn(cardChrome, "overflow-hidden")}>
+          <View style={{ aspectRatio: imageRatio, backgroundColor: "#F5F5F7", overflow: "hidden" }}>
+            {shouldRenderCarousel ? (
+              <ProductTileCarousel
+                images={optimizedImages}
+                width={carouselWidth}
+                height={carouselHeight}
+                priority={priority}
+              />
+            ) : (
+              <Image
+                source={{ uri: src }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+                transition={priority === "high" ? 0 : 150}
+                cachePolicy="disk"
+                priority={priority ?? (width && width > 0 ? "normal" : "low")}
+                placeholder={DEFAULT_PLACEHOLDER}
+              />
+            )}
           </View>
-          <Price
-            amount={price}
-            compareAt={compareAt}
-            currency={currency}
-            size={priceSize}
-            amountClassName={priceOverride.amount}
-            compareAtClassName={priceOverride.compare}
-            discountClassName={priceOverride.discount}
-          />
+
+          <View className={cn(pad, "gap-2")}>
+            <View style={{ minHeight: titleLineHeight * titleLines, justifyContent: "flex-start" }}>
+              <Text
+                className="text-primary text-[14px] font-semibold"
+                style={{ lineHeight: titleLineHeight }}
+                numberOfLines={titleLines}
+              >
+                {title}
+              </Text>
+            </View>
+            <Price
+              amount={price}
+              compareAt={compareAt}
+              currency={currency}
+              size={priceSize}
+              amountClassName={priceOverride.amount}
+              compareAtClassName={priceOverride.compare}
+              discountClassName={priceOverride.discount}
+            />
+          </View>
         </View>
-      </View>
       </View>
     </GestureDetector>
   )

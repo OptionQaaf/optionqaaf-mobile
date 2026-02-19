@@ -1,54 +1,81 @@
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { Image } from "expo-image"
 import { useEffect, useMemo, useState } from "react"
-import { Dimensions, FlatList, NativeScrollEvent, NativeSyntheticEvent, PixelRatio, View } from "react-native"
+import {
+  Dimensions,
+  FlatList,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  PixelRatio,
+  View,
+  type LayoutChangeEvent,
+} from "react-native"
 
-const { width } = Dimensions.get("window")
+const { width: screenWidth } = Dimensions.get("window")
 
-export function ImageCarousel({
-  images,
-  height = 420,
-  className,
-  onIndexChange,
-}: {
+type Props = {
   images: string[]
   height?: number
+  width?: number
   className?: string
   onIndexChange?: (index: number) => void
-}) {
+}
+
+export function ImageCarousel({ images, height = 420, width, className, onIndexChange }: Props) {
   const [index, setIndex] = useState(0)
+  const [measuredWidth, setMeasuredWidth] = useState(0)
+
+  const validImages = useMemo(() => images.filter((entry) => Boolean(entry?.trim())), [images])
+  const resolvedWidth = width && width > 0 ? width : measuredWidth > 0 ? measuredWidth : screenWidth
+
   useEffect(() => {
     setIndex(0)
-  }, [images])
+  }, [validImages])
+
   useEffect(() => {
     onIndexChange?.(index)
   }, [index, onIndexChange])
+
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const i = Math.round(e.nativeEvent.contentOffset.x / width)
+    if (!resolvedWidth) return
+    const i = Math.round(e.nativeEvent.contentOffset.x / resolvedWidth)
     setIndex(i)
   }
 
   const dpr = Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1))
   const optimized = useMemo(
-    () => images.map((u) => optimizeImageUrl(u, { width, height: Math.round(height), format: "webp", dpr }) || u),
-    [images, height, dpr],
+    () =>
+      validImages.map(
+        (uri) =>
+          optimizeImageUrl(uri, { width: resolvedWidth, height: Math.round(height), format: "webp", dpr }) || uri,
+      ),
+    [validImages, resolvedWidth, height, dpr],
   )
 
   useEffect(() => {
-    Image.prefetch(optimized.filter(Boolean) as string[])
+    const prefetchBatch = optimized.slice(0, 2).filter(Boolean) as string[]
+    if (!prefetchBatch.length) return
+    Image.prefetch(prefetchBatch)
   }, [optimized])
 
+  const onLayout = (event: LayoutChangeEvent) => {
+    if (width && width > 0) return
+    const nextWidth = Math.round(event.nativeEvent.layout.width)
+    if (!nextWidth || nextWidth === measuredWidth) return
+    setMeasuredWidth(nextWidth)
+  }
+
   return (
-    <View className={className}>
+    <View className={className} onLayout={onLayout}>
       <FlatList
-        data={images}
-        keyExtractor={(u, i) => `${i}-${u}`}
+        data={validImages}
+        keyExtractor={(uri, i) => `${i}-${uri}`}
         renderItem={({ item, index: i }) => (
           <Image
             source={{ uri: optimized[i] || item }}
-            style={{ width, height }}
+            style={{ width: resolvedWidth, height }}
             contentFit="cover"
-            transition={i === 0 ? 0 : 200}
+            transition={i === 0 ? 0 : 120}
             cachePolicy="disk"
             priority={i === 0 ? "high" : "normal"}
             placeholder={DEFAULT_PLACEHOLDER}
@@ -59,12 +86,22 @@ export function ImageCarousel({
         showsHorizontalScrollIndicator={false}
         onScroll={onScroll}
         scrollEventThrottle={16}
+        removeClippedSubviews
+        windowSize={3}
+        initialNumToRender={1}
+        maxToRenderPerBatch={2}
+        getItemLayout={(_, i) => ({ length: resolvedWidth, offset: resolvedWidth * i, index: i })}
       />
-      <View className="absolute bottom-3 left-0 right-0 flex-row items-center justify-center gap-2">
-        {images.map((_, i) => (
-          <View key={i} className={["h-2 rounded-full", i === index ? "w-5 bg-brand" : "w-2 bg-black/30"].join(" ")} />
-        ))}
-      </View>
+      {validImages.length > 1 ? (
+        <View className="absolute bottom-3 left-0 right-0 flex-row items-center justify-center gap-2">
+          {validImages.map((_, i) => (
+            <View
+              key={i}
+              className={["h-2 rounded-full", i === index ? "w-5 bg-brand" : "w-2 bg-black/30"].join(" ")}
+            />
+          ))}
+        </View>
+      ) : null}
     </View>
   )
 }

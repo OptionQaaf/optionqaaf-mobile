@@ -17,9 +17,15 @@ type Props = {
 
 const { width: screenWidth } = Dimensions.get("window")
 
-export const ImageCarouselSection = memo(function ImageCarouselSection({ items = [], height, onPressItem, size }: Props) {
+export const ImageCarouselSection = memo(function ImageCarouselSection({
+  items = [],
+  height,
+  onPressItem,
+  size,
+}: Props) {
   const slides = (items ?? []).filter((x) => x.image?.url)
   const [activeIndex, setActiveIndex] = useState(0)
+  const hasMultipleSlides = slides.length > 1
 
   if (!slides.length) return null
 
@@ -45,8 +51,8 @@ export const ImageCarouselSection = memo(function ImageCarouselSection({ items =
         width={screenWidth}
         height={slideHeight}
         data={slides}
-        loop
-        autoPlay
+        loop={hasMultipleSlides}
+        autoPlay={hasMultipleSlides}
         autoPlayInterval={4500}
         pagingEnabled
         scrollAnimationDuration={700}

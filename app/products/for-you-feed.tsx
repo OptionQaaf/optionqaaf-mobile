@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { FlatList, Text, View, useWindowDimensions } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
-function ReelItem({ product, cardHeight }: { product: any; cardHeight: number }) {
+function ReelItem({ product, cardHeight, cardWidth }: { product: any; cardHeight: number; cardWidth: number }) {
   const ensure = useEnsureCart()
   const add = useAddToCart()
   const recordView = useFypTrackingStore((state) => state.recordView)
@@ -95,7 +95,7 @@ function ReelItem({ product, cardHeight }: { product: any; cardHeight: number })
       }}
     >
       <View style={{ height: imageHeight }}>
-        <ImageCarousel images={images} />
+        <ImageCarousel images={images} width={cardWidth} />
       </View>
       <View className="flex-1 px-4 pt-3 pb-3">
         <Text className="text-[18px] font-geist-semibold text-primary" numberOfLines={2}>
@@ -140,7 +140,7 @@ export default function ForYouFeedScreen() {
   const sessionKey = typeof open === "string" ? open : ""
   const [refreshKey, setRefreshKey] = useState(0)
   const insets = useSafeAreaInsets()
-  const { height } = useWindowDimensions()
+  const { width, height } = useWindowDimensions()
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, refetch, isRefetching } = useForYouReel(
     seedHandle,
     refreshKey,
@@ -153,6 +153,7 @@ export default function ForYouFeedScreen() {
 
   const availableHeight = Math.max(400, height - insets.top)
   const cardHeight = Math.floor(availableHeight * 0.84)
+  const cardWidth = Math.max(0, Math.round(width - 28))
   const itemGap = Math.max(10, Math.floor(availableHeight * 0.03))
   const itemStep = cardHeight + itemGap
   const minItemsBeforeManualScroll = 6
@@ -193,7 +194,7 @@ export default function ForYouFeedScreen() {
           }}
           renderItem={({ item }) => (
             <View style={{ height: itemStep, paddingHorizontal: 14, paddingTop: 12 }}>
-              <ReelItem product={item} cardHeight={cardHeight} />
+              <ReelItem product={item} cardHeight={cardHeight} cardWidth={cardWidth} />
             </View>
           )}
           contentContainerStyle={{ paddingTop: insets.top + 48, paddingBottom: insets.bottom + 18 }}
