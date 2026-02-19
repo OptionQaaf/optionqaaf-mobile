@@ -1,4 +1,4 @@
-import { kv } from "@/lib/storage/mmkv"
+import { kv } from "@/lib/storage/storage"
 
 const SEEN_KEY_PREFIX = "popup:seen:"
 
@@ -8,8 +8,8 @@ function getSeenKey(viewerKey: string): string {
 
 type SeenMap = Record<string, string>
 
-function readSeenMap(viewerKey: string): SeenMap {
-  const raw = kv.get(getSeenKey(viewerKey))
+async function readSeenMap(viewerKey: string): Promise<SeenMap> {
+  const raw = await kv.get(getSeenKey(viewerKey))
   if (!raw) return {}
   try {
     const parsed = JSON.parse(raw)
@@ -22,34 +22,34 @@ function readSeenMap(viewerKey: string): SeenMap {
     }
     throw new Error("Invalid seen map")
   } catch {
-    kv.del(getSeenKey(viewerKey))
+    await kv.del(getSeenKey(viewerKey))
     return {}
   }
 }
 
-function persistSeenMap(viewerKey: string, entries: SeenMap) {
-  kv.set(getSeenKey(viewerKey), JSON.stringify(entries))
+async function persistSeenMap(viewerKey: string, entries: SeenMap): Promise<void> {
+  await kv.set(getSeenKey(viewerKey), JSON.stringify(entries))
 }
 
-export function hasSeenPopup(viewerKey: string, popupId: string, updatedAt?: string): boolean {
+export async function hasSeenPopup(viewerKey: string, popupId: string, updatedAt?: string): Promise<boolean> {
   if (!viewerKey || !popupId) return false
-  const map = readSeenMap(viewerKey)
+  const map = await readSeenMap(viewerKey)
   if (updatedAt) {
     return map[popupId] === updatedAt
   }
   return Boolean(map[popupId])
 }
 
-export function markPopupSeen(viewerKey: string, popupId: string, updatedAt?: string) {
+export async function markPopupSeen(viewerKey: string, popupId: string, updatedAt?: string): Promise<void> {
   if (!viewerKey || !popupId) return
-  const map = readSeenMap(viewerKey)
+  const map = await readSeenMap(viewerKey)
   const nextValue = updatedAt ?? map[popupId] ?? new Date().toISOString()
   if (map[popupId] === nextValue) return
   map[popupId] = nextValue
-  persistSeenMap(viewerKey, map)
+  await persistSeenMap(viewerKey, map)
 }
 
-export function clearSeenForViewer(viewerKey: string) {
+export async function clearSeenForViewer(viewerKey: string): Promise<void> {
   if (!viewerKey) return
-  kv.del(getSeenKey(viewerKey))
+  await kv.del(getSeenKey(viewerKey))
 }

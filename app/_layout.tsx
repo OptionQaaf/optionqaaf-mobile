@@ -28,6 +28,15 @@ import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { configureReanimatedLogger, ReanimatedLogLevel } from "react-native-reanimated"
 import { SafeAreaProvider } from "react-native-safe-area-context"
 
+const splashPreventAutoHidePromise: Promise<boolean> = (async () => {
+  try {
+    await SplashScreen.preventAutoHideAsync()
+    return true
+  } catch {
+    return false
+  }
+})()
+
 const client = new QueryClient({
   defaultOptions: {
     queries: {
@@ -61,7 +70,6 @@ export default function RootLayout() {
   const [splashReady, setSplashReady] = useState(false)
 
   useEffect(() => {
-    SplashScreen.preventAutoHideAsync().catch(() => {})
     ;(async () => {
       try {
         await hydrateCartId()
@@ -77,8 +85,11 @@ export default function RootLayout() {
 
     let active = true
     ;(async () => {
+      const shouldHideSplash = await splashPreventAutoHidePromise
       try {
-        await SplashScreen.hideAsync()
+        if (shouldHideSplash) {
+          await SplashScreen.hideAsync()
+        }
       } catch {
         // noop
       } finally {
