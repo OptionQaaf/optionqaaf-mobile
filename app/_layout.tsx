@@ -1,4 +1,5 @@
 import { AuthGate } from "@/features/auth/AuthGate"
+import { useFypExposureStore } from "@/features/fyp/exposureStore"
 import { ShopifyAuthProvider } from "@/features/auth/useShopifyAuth"
 import { FypGenderPopup } from "@/features/fyp/genderPopup"
 import { useFypGenderStore } from "@/features/fyp/genderStore"
@@ -194,6 +195,7 @@ function AppBootstrap({ fontsReady, splashReady }: { fontsReady: boolean; splash
   const isExpoGo = metadata.applicationId === "host.exp.Exponent"
   const hydrateFypGender = useFypGenderStore((state) => state.hydrate)
   const loadFypTracking = useFypTrackingStore((state) => state.loadFromStorage)
+  const loadFypExposure = useFypExposureStore((state) => state.loadFromStorage)
 
   useNotificationsService({ enabled: startupReady && !isExpoGo })
   usePushToken({ enabled: startupReady && !isExpoGo })
@@ -203,7 +205,8 @@ function AppBootstrap({ fontsReady, splashReady }: { fontsReady: boolean; splash
     if (!startupReady) return
     hydrateFypGender().catch(() => {})
     loadFypTracking()
-  }, [startupReady, hydrateFypGender, loadFypTracking])
+    loadFypExposure().catch(() => {})
+  }, [startupReady, hydrateFypGender, loadFypTracking, loadFypExposure])
 
   useEffect(() => {
     if (!startupReady) return

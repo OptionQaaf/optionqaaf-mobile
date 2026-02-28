@@ -1,5 +1,6 @@
 import { useForYouProducts } from "@/features/fyp/api"
 import { useFypTrackingStore } from "@/features/fyp/trackingStore"
+import { createLogger } from "@/lib/diagnostics/logger"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { padToFullRow } from "@/ui/layout/gridUtils"
 import { Screen } from "@/ui/layout/Screen"
@@ -9,6 +10,7 @@ import { useIsFocused } from "@react-navigation/native"
 import { router } from "expo-router"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { DeviceEventEmitter, FlatList, Text, useWindowDimensions, View } from "react-native"
+const log = createLogger("fyp:feed")
 
 export default function ForYouScreen() {
   const recordView = useFypTrackingStore((state) => state.recordView)
@@ -42,6 +44,7 @@ export default function ForYouScreen() {
 
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener("fyp:tabReselect", () => {
+      log.debug("tab_reselect_refetch")
       listRef.current?.scrollToOffset({ animated: true, offset: 0 })
       refetch()
     })
@@ -68,11 +71,13 @@ export default function ForYouScreen() {
         onEndReachedThreshold={0.5}
         onEndReached={() => {
           if (hasNextPage && !isFetchingNextPage) {
+            log.debug("pagination_fetch_next")
             fetchNextPage()
           }
         }}
         refreshing={(isRefetching && !isFetchingNextPage) || isPullRefreshing}
         onRefresh={() => {
+          log.debug("pull_to_refresh")
           setIsPullRefreshing(true)
           setRefreshKey((prev) => prev + 1)
         }}
@@ -121,6 +126,7 @@ export default function ForYouScreen() {
                 onPress={() => {
                   const handle = String(item?.handle ?? "").trim()
                   if (!handle) return
+                  log.debug("open_feed_reel", { handle: handle.toLowerCase() })
                   recordView(handle)
                   router.push({
                     pathname: "/products/for-you-feed",

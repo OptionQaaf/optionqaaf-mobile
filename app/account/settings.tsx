@@ -14,6 +14,7 @@ import { useFypTrackingStore } from "@/features/fyp/trackingStore"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { getPushPermissionsStatus } from "@/features/notifications/permissions"
 import { useAppMetadata, type AppMetadata } from "@/lib/diagnostics/appMetadata"
+import { createLogger, getLogs } from "@/lib/diagnostics/logger"
 import { useNetworkStatus, type NetworkStatus } from "@/lib/network/useNetworkStatus"
 import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
 import { clearOnboardingFlag } from "@/lib/storage/flags"
@@ -30,6 +31,7 @@ import * as Updates from "expo-updates"
 import { Clock, Megaphone, RefreshCcw, Settings2, Sparkles, Trash2 } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Modal, Pressable, ScrollView, Text, View } from "react-native"
+const log = createLogger("fyp:settings")
 
 export default function AccountSettingsScreen() {
   const router = useRouter()
@@ -190,25 +192,25 @@ function AccountSettingsContent() {
   const handleLogFypGenderState = useCallback(async () => {
     const store = useFypGenderStore.getState()
     const persisted = await readFypSettings()
-    console.log("[fyp:gender] debug", {
+    log.info("gender_state_snapshot", {
       hasHydrated: store.hasHydrated,
       gender: store.gender,
       forceShowPopup: store.forceShowPopup,
       storageKey: FYP_SETTINGS_KEY,
       persisted,
     })
-    show({ title: "Logged FYP gender state to console", type: "info" })
+    show({ title: "Logged FYP gender state", type: "info" })
   }, [show])
 
   const handleLogFypTrackingState = useCallback(async () => {
     const snapshot = useFypTrackingStore.getState().getDebugTrackingSnapshot()
     const persisted = await readFypTrackingStateAsync()
-    console.log("[fyp:tracking] debug", {
+    log.info("tracking_state_snapshot", {
       storageKey: FYP_TRACKING_KEY,
       snapshot,
       persistedCount: Object.keys(persisted.products).length,
     })
-    show({ title: "Logged FYP tracking state to console", type: "info" })
+    show({ title: "Logged FYP tracking state", type: "info" })
   }, [show])
 
   const handleResetFypTracking = useCallback(() => {
@@ -249,13 +251,16 @@ function AccountSettingsContent() {
             products: persistedTracking.products,
           },
         },
+        logs: {
+          fyp: getLogs("fyp:").slice(-200),
+        },
       }
       setFypLocalDataPayload(JSON.stringify(payload, null, 2))
       setShowFypLocalData(true)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unable to load local FYP data"
       show({ title: message, type: "danger" })
-    }
+  }
   }, [isAdmin, show])
 
   const handleCopyFypLocalData = useCallback(async () => {

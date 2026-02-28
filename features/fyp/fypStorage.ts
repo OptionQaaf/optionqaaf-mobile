@@ -22,8 +22,21 @@ export type FypTrackingState = {
   updatedAt: number
 }
 
+export type FypExposureBucket = {
+  handles: string[]
+  lastSeenAtByHandle: Record<string, number>
+  newestCursor: string | null
+  updatedAt: number
+}
+
+export type FypExposureState = {
+  buckets: Record<Gender, FypExposureBucket>
+  updatedAt: number
+}
+
 export const FYP_SETTINGS_KEY = "fyp_settings_v1"
 export const FYP_TRACKING_KEY = "fyp_tracking_v1"
+export const FYP_EXPOSURE_KEY = "fyp_exposure_v1"
 
 export const DEFAULT_FYP_SETTINGS: FypSettings = {
   gender: "unknown",
@@ -32,6 +45,24 @@ export const DEFAULT_FYP_SETTINGS: FypSettings = {
 
 export const DEFAULT_FYP_TRACKING_STATE: FypTrackingState = {
   products: {},
+  updatedAt: 0,
+}
+
+function createDefaultExposureBucket(): FypExposureBucket {
+  return {
+    handles: [],
+    lastSeenAtByHandle: {},
+    newestCursor: null,
+    updatedAt: 0,
+  }
+}
+
+export const DEFAULT_FYP_EXPOSURE_STATE: FypExposureState = {
+  buckets: {
+    male: createDefaultExposureBucket(),
+    female: createDefaultExposureBucket(),
+    unknown: createDefaultExposureBucket(),
+  },
   updatedAt: 0,
 }
 
@@ -143,4 +174,73 @@ export function writeFypTrackingState(state: FypTrackingState): void {
 export function clearFypTrackingState(): void {
   kv.del(FYP_TRACKING_KEY)
   void asyncKv.del(FYP_TRACKING_KEY).catch(() => {})
+}
+
+function normalizeExposureBucket(input: Partial<FypExposureBucket> | null | undefined): FypExposureBucket {
+  const handles = Array.isArray(input?.handles)
+    ? input.handles.map((entry) => (typeof entry === "string" ? entry.trim().toLowerCase() : "")).filter(Boolean)
+    : []
+  const lastSeenAtByHandle: Record<string, number> = {}
+  const rawLastSeen = input?.lastSeenAtByHandle ?? {}
+  for (const [key, value] of Object.entries(rawLastSeen)) {
+    const handle = key.trim().toLowerCase()
+    if (!handle) continue
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) continue
+    lastSeenAtByHandle[handle] = value
+  }
+
+  return {
+    handles,
+    lastSeenAtByHandle,
+    newestCursor: typeof input?.newestCursor === "string" && input.newestCursor ? input.newestCursor : null,
+    updatedAt: typeof input?.updatedAt === "number" && Number.isFinite(input.updatedAt) ? input.updatedAt : 0,
+  }
+}
+
+function parseFypExposureStateRaw(raw: string | null): FypExposureState {
+  if (!raw) return { ...DEFAULT_FYP_EXPOSURE_STATE }
+  try {
+    const parsed = JSON.parse(raw) as Partial<FypExposureState>
+    const buckets = (parsed.buckets ?? {}) as Partial<Record<Gender, Partial<FypExposureBucket>>>
+    return {
+      buckets: {
+        male: normalizeExposureBucket(buckets.male),
+        female: normalizeExposureBucket(buckets.female),
+        unknown: normalizeExposureBucket(buckets.unknown),
+      },
+      updatedAt: typeof parsed.updatedAt === "number" && Number.isFinite(parsed.updatedAt) ? parsed.updatedAt : 0,
+    }
+  } catch {
+    return { ...DEFAULT_FYP_EXPOSURE_STATE }
+  }
+}
+
+export function readFypExposureState(): FypExposureState {
+  const raw = kv.get(FYP_EXPOSURE_KEY)
+  return parseFypExposureStateRaw(raw)
+}
+
+export async function readFypExposureStateAsync(): Promise<FypExposureState> {
+  const fromMmkv = parseFypExposureStateRaw(kv.get(FYP_EXPOSURE_KEY))
+  if (fromMmkv.updatedAt > 0) return fromMmkv
+  const raw = await asyncKv.get(FYP_EXPOSURE_KEY)
+  return parseFypExposureStateRaw(raw)
+}
+
+export function writeFypExposureState(state: FypExposureState): void {
+  const payload = JSON.stringify({
+    buckets: {
+      male: normalizeExposureBucket(state.buckets.male),
+      female: normalizeExposureBucket(state.buckets.female),
+      unknown: normalizeExposureBucket(state.buckets.unknown),
+    },
+    updatedAt: typeof state.updatedAt === "number" && Number.isFinite(state.updatedAt) ? state.updatedAt : Date.now(),
+  })
+  kv.set(FYP_EXPOSURE_KEY, payload)
+  void asyncKv.set(FYP_EXPOSURE_KEY, payload).catch(() => {})
+}
+
+export function clearFypExposureState(): void {
+  kv.del(FYP_EXPOSURE_KEY)
+  void asyncKv.del(FYP_EXPOSURE_KEY).catch(() => {})
 }

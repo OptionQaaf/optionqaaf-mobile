@@ -6,10 +6,12 @@ import {
   type FypTrackingState,
   writeFypTrackingState,
 } from "@/features/fyp/fypStorage"
+import { createLogger } from "@/lib/diagnostics/logger"
 
 export const MAX_PRODUCTS_TRACKED = 200
 const HALF_LIFE_HOURS = 72
 const HOUR_MS = 60 * 60 * 1000
+const log = createLogger("fyp:tracking")
 
 export type ProductAffinityWithComputedScore = ProductAffinity & {
   weightedScore: number
@@ -141,7 +143,7 @@ export const useFypTrackingStore = create<FypTrackingStore>((set, get) => ({
       if (__DEV__) {
         const normalized = handle.trim().toLowerCase()
         const entry = normalized ? products[normalized] : null
-        console.debug("[fyp:track] view", {
+        log.debug("view", {
           handle: normalized || null,
           totalProducts: Object.keys(products).length,
           rawScore: entry?.rawScore ?? null,
@@ -159,7 +161,7 @@ export const useFypTrackingStore = create<FypTrackingStore>((set, get) => ({
       if (__DEV__) {
         const normalized = handle.trim().toLowerCase()
         const entry = normalized ? products[normalized] : null
-        console.debug("[fyp:track] add_to_cart", {
+        log.debug("add_to_cart", {
           handle: normalized || null,
           totalProducts: Object.keys(products).length,
           rawScore: entry?.rawScore ?? null,
@@ -228,7 +230,7 @@ export const useFypTrackingStore = create<FypTrackingStore>((set, get) => ({
 
     const products = pruneProducts(migratedProducts)
     if (__DEV__) {
-      console.debug("[fyp:track] hydrate", {
+      log.debug("hydrate", {
         persistedProducts: Object.keys(saved.products ?? {}).length,
         hydratedProducts: Object.keys(products).length,
       })

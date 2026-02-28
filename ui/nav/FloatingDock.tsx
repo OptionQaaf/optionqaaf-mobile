@@ -165,11 +165,8 @@ export function FloatingDock() {
             if (!tab.route) return
             if (isActive) {
               if (tab.key === "home") {
-                if (pathname.startsWith("/home/for-you")) {
-                  DeviceEventEmitter.emit("fyp:tabReselect")
-                } else {
-                  DeviceEventEmitter.emit("home:scrollToTop")
-                }
+                DeviceEventEmitter.emit("home:scrollToTop")
+                DeviceEventEmitter.emit("fyp:tabReselect")
               }
               return
             }

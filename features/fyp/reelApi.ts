@@ -1,4 +1,5 @@
 import { useFypGenderStore } from "@/features/fyp/genderStore"
+import { createLogger } from "@/lib/diagnostics/logger"
 import { qk } from "@/lib/shopify/queryKeys"
 import { getNewestProductsPage, getProductByHandle } from "@/lib/shopify/services/products"
 import { supabase } from "@/lib/supabase/client"
@@ -12,6 +13,7 @@ const REEL_SIMILARITY_START = 0.82
 const REEL_SIMILARITY_FLOOR = 0
 const REEL_SIMILARITY_STEP = 0.08
 const REEL_MAX_ATTEMPTS = 12
+const log = createLogger("fyp:reel")
 
 type ReelPageParam = {
   seedHandle: string
@@ -108,6 +110,7 @@ async function getSeedEmbedding(seedHandle: string, gender: "male" | "female"): 
     row = (fallback.data?.[0] as ProductVectorRow | undefined) ?? null
   }
   if (!row) return null
+  log.debug("seed_embedding_loaded", { seedHandle: normalized, gender })
   return parseEmbedding(row.embedding)
 }
 
@@ -188,6 +191,7 @@ export function useForYouReel(seedHandle: string, refreshKey = 0, sessionKey = "
       const seed = normalizeHandle(param.seedHandle) || normalizedSeed
 
       if (!personalizationGender) {
+        log.debug("query_skipped_missing_gender", { seed })
         return {
           items: [],
           nextParam: {
@@ -202,6 +206,7 @@ export function useForYouReel(seedHandle: string, refreshKey = 0, sessionKey = "
 
       const seedEmbedding = await getSeedEmbedding(seed, personalizationGender)
       if (!seedEmbedding?.length) {
+        log.debug("seed_embedding_missing_fallback", { seed, gender: personalizationGender })
         const fallback = await fillFallback({
           needed: REEL_PAGE_SIZE,
           cursor: param.fallbackCursor,
@@ -289,6 +294,14 @@ export function useForYouReel(seedHandle: string, refreshKey = 0, sessionKey = "
 
       const similarItems = await hydrateByHandles(handles, locale, personalizationGender)
       const items = similarItems.slice(0, REEL_PAGE_SIZE)
+      log.debug("reel_candidates_hydrated", {
+        seed,
+        rpcHandles: handles.length,
+        hydrated: similarItems.length,
+        selected: items.length,
+        attempts,
+        localSimilarity,
+      })
       const seenNextBase = Array.from(
         new Set(
           [...(param.seenHandles ?? []), ...items.map((item) => normalizeHandle(item?.handle))]
@@ -298,6 +311,11 @@ export function useForYouReel(seedHandle: string, refreshKey = 0, sessionKey = "
       )
 
       if (exhaustedAtZero) {
+        log.debug("similarity_floor_reached_fallback", {
+          seed,
+          itemsFromSimilarity: items.length,
+          fallbackNeeded: REEL_PAGE_SIZE - items.length,
+        })
         const fallback = await fillFallback({
           needed: REEL_PAGE_SIZE - items.length,
           cursor: param.fallbackCursor,
@@ -325,6 +343,12 @@ export function useForYouReel(seedHandle: string, refreshKey = 0, sessionKey = "
       }
 
       if (!items.length || !sawRows) {
+        log.debug("similarity_no_items_fallback", {
+          seed,
+          itemsLength: items.length,
+          sawRows,
+          localSimilarity,
+        })
         const fallback = await fillFallback({
           needed: REEL_PAGE_SIZE,
           cursor: param.fallbackCursor,

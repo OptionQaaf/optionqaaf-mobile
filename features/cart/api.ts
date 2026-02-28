@@ -1,4 +1,5 @@
 import { qk } from "@/lib/shopify/queryKeys"
+import { createLogger } from "@/lib/diagnostics/logger"
 import {
   addLines,
   createCart,
@@ -15,6 +16,7 @@ import { useCartId } from "@/store/cartId"
 import { currentLocale } from "@/store/prefs"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useFypTrackingStore } from "../fyp/trackingStore"
+const log = createLogger("fyp:event-tracking")
 
 export function useCartQuery() {
   const locale = currentLocale()
@@ -105,14 +107,14 @@ export function useAddToCart() {
       const handle = payload.tracking?.handle?.trim()
       if (!handle) {
         if (__DEV__) {
-          console.debug("[fyp:track] add_to_cart skipped", {
+          log.debug("add_to_cart_skipped", {
             reason: "missing_tracking_handle",
           })
         }
         return
       }
       if (__DEV__) {
-        console.debug("[fyp:track] add_to_cart success", {
+        log.debug("add_to_cart_success", {
           handle: handle.toLowerCase(),
         })
       }

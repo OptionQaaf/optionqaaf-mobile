@@ -76,6 +76,11 @@ function HomeTabsBar({
                   })
                   if (event.defaultPrevented) return
                   navigation.navigate(route.name, route.params)
+                  if (route.name === "for-you") {
+                    requestAnimationFrame(() => {
+                      DeviceEventEmitter.emit("fyp:tabReselect")
+                    })
+                  }
                 }}
                 accessibilityLabel={typeof title === "string" ? title : undefined}
                 className="items-center justify-center px-1"
