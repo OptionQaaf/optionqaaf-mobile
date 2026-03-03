@@ -19,7 +19,7 @@ export function getAppMetadata(): AppMetadata {
     version: Application.nativeApplicationVersion ?? null,
     buildNumber: Application.nativeBuildVersion ?? null,
     applicationId: Application.applicationId ?? null,
-    ownership: Application.appOwnership ?? null,
+    ownership: "Global Tejarah LLC",
   }
 
   return cachedMetadata

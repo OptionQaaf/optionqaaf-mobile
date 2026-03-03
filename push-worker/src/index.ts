@@ -1,10 +1,4 @@
-import {
-	StoredPopup,
-	PopupPayload,
-	meetsMinimumVersion,
-	resolveViewerAudience,
-	isAudienceMatch,
-} from "./popup"
+import { PopupPayload, StoredPopup, isAudienceMatch, meetsMinimumVersion, resolveViewerAudience } from './popup';
 
 export interface Env {
 	IMAGES: R2Bucket;
@@ -207,9 +201,7 @@ export class NotificationStatsDO {
 				...existing,
 				openCount: existing.openCount + 1,
 				uniqueOpenCount: existing.uniqueOpenCount + (alreadyOpened ? 0 : 1),
-				openers: alreadyOpened
-					? existing.openers
-					: [...existing.openers, entry].slice(-MAX_OPENERS),
+				openers: alreadyOpened ? existing.openers : [...existing.openers, entry].slice(-MAX_OPENERS),
 			};
 			await this.storage.put(key, next);
 
@@ -297,9 +289,7 @@ export class BroadcastQueueDO {
 			for (let i = 0; i < tokens.length; i += TOKEN_CHUNK_SIZE) {
 				tokenChunks.push(tokens.slice(i, i + TOKEN_CHUNK_SIZE));
 			}
-			await Promise.all(
-				tokenChunks.map((chunk, index) => this.storage.put(`${TOKEN_KEY_PREFIX}${index}`, chunk)),
-			);
+			await Promise.all(tokenChunks.map((chunk, index) => this.storage.put(`${TOKEN_KEY_PREFIX}${index}`, chunk)));
 
 			const now = new Date().toISOString();
 			const job: BroadcastJob = {
@@ -469,14 +459,9 @@ export class BroadcastQueueDO {
 			}
 
 			const completed =
-				chunkIndex >= job.chunkCount &&
-				pendingSuccessCount === 0 &&
-				pendingErrorCount === 0 &&
-				pendingInvalidTokenCount === 0;
+				chunkIndex >= job.chunkCount && pendingSuccessCount === 0 && pendingErrorCount === 0 && pendingInvalidTokenCount === 0;
 			// Back off alarm scheduling if the Expo push API was unreachable.
-			const nextBackoffMs = networkFailure
-				? Math.min((job.backoffMs ?? ALARM_DELAY_MS) * 2, MAX_ALARM_BACKOFF_MS)
-				: ALARM_DELAY_MS;
+			const nextBackoffMs = networkFailure ? Math.min((job.backoffMs ?? ALARM_DELAY_MS) * 2, MAX_ALARM_BACKOFF_MS) : ALARM_DELAY_MS;
 			const updatedJob: BroadcastJob = {
 				...job,
 				chunkIndex,
@@ -507,96 +492,96 @@ export class BroadcastQueueDO {
 	}
 }
 
-const POPUP_DO_NAME = "popup-manager"
-const POPUP_CURRENT_KEY = "popup:current"
-const POPUP_SEEN_PREFIX = "popupSeen:"
+const POPUP_DO_NAME = 'popup-manager';
+const POPUP_CURRENT_KEY = 'popup:current';
+const POPUP_SEEN_PREFIX = 'popupSeen:';
 
 export class PopupDO {
-	state: DurableObjectState
-	storage: DurableObjectStorage
+	state: DurableObjectState;
+	storage: DurableObjectStorage;
 
 	constructor(state: DurableObjectState) {
-		this.state = state
-		this.storage = state.storage
+		this.state = state;
+		this.storage = state.storage;
 	}
 
 	async fetch(request: Request): Promise<Response> {
-		const url = new URL(request.url)
-		if (url.pathname === "/current" && request.method === "GET") {
-			const current = (await this.storage.get<StoredPopup>(POPUP_CURRENT_KEY)) ?? null
-			return Response.json({ popup: current })
+		const url = new URL(request.url);
+		if (url.pathname === '/current' && request.method === 'GET') {
+			const current = (await this.storage.get<StoredPopup>(POPUP_CURRENT_KEY)) ?? null;
+			return Response.json({ popup: current });
 		}
 
-		if (url.pathname === "/set" && request.method === "POST") {
-			const body = await request.json<any>()
-			const payload = body?.popup
+		if (url.pathname === '/set' && request.method === 'POST') {
+			const body = await request.json<any>();
+			const payload = body?.popup;
 			if (!payload?.id) {
-				return new Response("Missing popup payload", { status: 400 })
+				return new Response('Missing popup payload', { status: 400 });
 			}
 			if (payload.schemaVersion !== 1) {
-				return new Response("Unsupported schema version", { status: 400 })
+				return new Response('Unsupported schema version', { status: 400 });
 			}
-			const now = new Date().toISOString()
+			const now = new Date().toISOString();
 			const stored: StoredPopup = {
 				...payload,
 				enabled: payload.enabled !== false,
 				updatedAt: now,
-			}
-			await this.storage.put(POPUP_CURRENT_KEY, stored)
-			return Response.json({ ok: true })
+			};
+			await this.storage.put(POPUP_CURRENT_KEY, stored);
+			return Response.json({ ok: true });
 		}
 
-		if (url.pathname === "/clear" && request.method === "POST") {
-			await this.storage.delete(POPUP_CURRENT_KEY)
-			return Response.json({ ok: true })
+		if (url.pathname === '/clear' && request.method === 'POST') {
+			await this.storage.delete(POPUP_CURRENT_KEY);
+			return Response.json({ ok: true });
 		}
 
-		if (url.pathname === "/has-seen" && request.method === "GET") {
-			const popupId = url.searchParams.get("popupId")
-			const viewerKey = url.searchParams.get("viewerKey")
+		if (url.pathname === '/has-seen' && request.method === 'GET') {
+			const popupId = url.searchParams.get('popupId');
+			const viewerKey = url.searchParams.get('viewerKey');
 			if (!popupId || !viewerKey) {
-				return new Response("Missing popupId or viewerKey", { status: 400 })
+				return new Response('Missing popupId or viewerKey', { status: 400 });
 			}
-			const key = this.seenKey(popupId, viewerKey)
-			const seen = Boolean(await this.storage.get<string>(key))
-			return Response.json({ seen })
+			const key = this.seenKey(popupId, viewerKey);
+			const seen = Boolean(await this.storage.get<string>(key));
+			return Response.json({ seen });
 		}
 
-		if (url.pathname === "/mark-seen" && request.method === "POST") {
-			const body = await request.json<any>()
-			const popupId = body?.popupId
-			const viewerKey = body?.viewerKey
+		if (url.pathname === '/mark-seen' && request.method === 'POST') {
+			const body = await request.json<any>();
+			const popupId = body?.popupId;
+			const viewerKey = body?.viewerKey;
 			if (!popupId || !viewerKey) {
-				return new Response("Missing popupId or viewerKey", { status: 400 })
+				return new Response('Missing popupId or viewerKey', { status: 400 });
 			}
-			const key = this.seenKey(popupId, viewerKey)
-			await this.storage.put(key, new Date().toISOString())
-			return Response.json({ ok: true })
+			const key = this.seenKey(popupId, viewerKey);
+			await this.storage.put(key, new Date().toISOString());
+			return Response.json({ ok: true });
 		}
 
-		if (url.pathname === "/clear-seen" && request.method === "POST") {
-			await this.clearSeenEntries()
-			return Response.json({ ok: true })
+		if (url.pathname === '/clear-seen' && request.method === 'POST') {
+			await this.clearSeenEntries();
+			return Response.json({ ok: true });
 		}
 
-		return new Response("Not found", { status: 404 })
+		return new Response('Not found', { status: 404 });
 	}
 
 	private seenKey(popupId: string, viewerKey: string) {
-		return `${POPUP_SEEN_PREFIX}${popupId}:${viewerKey}`
+		return `${POPUP_SEEN_PREFIX}${popupId}:${viewerKey}`;
 	}
 
 	private async clearSeenEntries() {
-		const list = await this.storage.list<string>({ prefix: POPUP_SEEN_PREFIX })
-		const keys = Array.from(list.keys())
-		await Promise.all(keys.map((key) => this.storage.delete(key)))
+		const list = await this.storage.list<string>({ prefix: POPUP_SEEN_PREFIX });
+		const keys = Array.from(list.keys());
+		await Promise.all(keys.map((key) => this.storage.delete(key)));
 	}
 }
 
 // The main Worker (the public API)
 function isAdminSecretValid(provided: string | null | undefined, env: Env): boolean {
-	if (!env.ADMIN_SECRET) return true
-	return Boolean(provided && provided === env.ADMIN_SECRET)
+	if (!env.ADMIN_SECRET) return true;
+	return Boolean(provided && provided === env.ADMIN_SECRET);
 }
 
 export default {
@@ -823,11 +808,14 @@ async function handleBroadcast(request: Request, env: Env): Promise<Response> {
 			return Response.json({ error: text || 'Failed to queue broadcast' }, { status: 500 });
 		}
 
-		return Response.json({
-			queued: true,
-			notificationId,
-			requestedCount: tokens.length,
-		}, { status: 202 });
+		return Response.json(
+			{
+				queued: true,
+				notificationId,
+				requestedCount: tokens.length,
+			},
+			{ status: 202 },
+		);
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : 'Broadcast failed';
 		return Response.json({ error: message }, { status: 500 });
@@ -874,16 +862,11 @@ function getPopupStub(env: Env): DurableObjectStub {
 
 async function handlePopupCurrent(request: Request, env: Env): Promise<Response> {
 	const url = new URL(request.url);
-	const viewerKey = (
-		(url.searchParams.get('viewerKey') ?? request.headers.get('x-viewer-key') ?? '')
-			.trim()
-	);
+	const viewerKey = (url.searchParams.get('viewerKey') ?? request.headers.get('x-viewer-key') ?? '').trim();
 	if (!viewerKey) {
 		return new Response('Missing viewerKey', { status: 400 });
 	}
-	const appVersion =
-		(url.searchParams.get('appVersion') ?? request.headers.get('x-app-version') ?? undefined)?.trim() ??
-		undefined;
+	const appVersion = (url.searchParams.get('appVersion') ?? request.headers.get('x-app-version') ?? undefined)?.trim() ?? undefined;
 
 	const stub = getPopupStub(env);
 	const popupRes = await stub.fetch('https://do/current');
@@ -921,9 +904,7 @@ async function handlePopupCurrent(request: Request, env: Env): Promise<Response>
 	}
 
 	const seenRes = await stub.fetch(
-		`https://do/has-seen?popupId=${encodeURIComponent(popup.id)}&viewerKey=${encodeURIComponent(
-			viewerKey,
-		)}`,
+		`https://do/has-seen?popupId=${encodeURIComponent(popup.id)}&viewerKey=${encodeURIComponent(viewerKey)}`,
 	);
 	if (!seenRes.ok) {
 		const text = await seenRes.text().catch(() => '');
@@ -1014,12 +995,13 @@ async function handleAdminPopupSetCurrent(request: Request, env: Env): Promise<R
 					label: cta.label,
 					action: cta.action,
 					value: cta.value,
-			  }
+				}
 			: undefined,
 		startAt: typeof body?.startAt === 'string' ? body.startAt : undefined,
 		endAt: typeof body?.endAt === 'string' ? body.endAt : undefined,
 		minAppVersion: typeof body?.minAppVersion === 'string' ? body.minAppVersion : undefined,
 		audience: body?.audience,
+		updatedAt: new Date().toISOString(),
 	};
 
 	const stub = getPopupStub(env);

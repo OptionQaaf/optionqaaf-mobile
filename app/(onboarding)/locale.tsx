@@ -1,5 +1,4 @@
 import type { CurrencyCode } from "@/features/currency/config"
-import { useFypGenderStore } from "@/features/fyp/genderStore"
 import type { CountryCode } from "@/features/locale/countries"
 import { COUNTRIES } from "@/features/locale/countries"
 import { getPushPermissionsStatus, requestPushPermissionsAndToken } from "@/features/notifications/permissions"
@@ -15,7 +14,7 @@ import { Muted, Text } from "@/ui/primitives/Typography"
 import { cn } from "@/ui/utils/cva"
 import { useRouter } from "expo-router"
 import { Bell } from "lucide-react-native"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import { Image, Modal, Pressable, Text as RNText, View } from "react-native"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
@@ -24,22 +23,13 @@ export default function LocaleOnboarding() {
   const insets = useSafeAreaInsets()
   const { setPrefs } = usePrefs()
   const { setPushPreference, pushEnabled } = useNotificationSettings()
-  const storedGender = useFypGenderStore((state) => state.gender)
-  const setFypGender = useFypGenderStore((state) => state.setGender)
   const { show } = useToast()
 
   const [language] = useState<LanguageCode>("EN")
   const [country, setCountry] = useState<CountryCode>("SA")
   const [currency, setCurrency] = useState<CurrencyCode>("SAR")
-  const [gender, setGenderSelection] = useState<"male" | "female">(storedGender === "female" ? "female" : "male")
   const [showPushModal, setShowPushModal] = useState(false)
   const sheetOverlap = 16
-
-  useEffect(() => {
-    if (storedGender === "male" || storedGender === "female") {
-      setGenderSelection(storedGender)
-    }
-  }, [storedGender])
 
   const applyCountry = (c: CountryCode) => {
     setCountry(c)
@@ -87,7 +77,6 @@ export default function LocaleOnboarding() {
   }, [finishOnboarding, setPushPreference])
 
   const handleContinue = useCallback(async () => {
-    setFypGender(gender)
     setPrefs({ language, country, currency })
     if (pushEnabled) {
       finishOnboarding().catch(() => {})
@@ -105,7 +94,7 @@ export default function LocaleOnboarding() {
       // fall through to showing modal
     }
     setShowPushModal(true)
-  }, [country, currency, finishOnboarding, gender, handlePushSetup, language, pushEnabled, setFypGender, setPrefs])
+  }, [country, currency, finishOnboarding, handlePushSetup, language, pushEnabled, setPrefs])
 
   return (
     <Screen bleedTop bleedBottom>
@@ -129,59 +118,16 @@ export default function LocaleOnboarding() {
           <SafeAreaView className="flex-1 justify-between px-4 pt-6" edges={["bottom"]}>
             {/* FORM GROUP */}
             <View className="flex-col gap-2">
-              <View className="flex-col gap-4">
+              {/* <View className="flex-col gap-4">
                 <View className="flex-col gap-2">
                   <View>
                     <Text className="text-[20px] font-semibold">Personalization</Text>
                     <Muted className="text-sm">Set your preferences to personalize your experience</Muted>
                   </View>
 
-                  <View className="flex-row gap-2">
-                    <PressableOverlay
-                      haptic="light"
-                      onPress={() => {
-                        setGenderSelection("male")
-                        setFypGender("male")
-                      }}
-                      pressableClassName="flex-1"
-                      className={cn(
-                        "items-center rounded-2xl border px-3 py-2.5",
-                        gender === "male" ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
-                      )}
-                    >
-                      <RNText
-                        className={cn(
-                          "text-[15px] font-semibold",
-                          gender === "male" ? "text-[#0f172a]" : "text-[#0f172a]",
-                        )}
-                      >
-                        Male
-                      </RNText>
-                    </PressableOverlay>
-                    <PressableOverlay
-                      haptic="light"
-                      onPress={() => {
-                        setGenderSelection("female")
-                        setFypGender("female")
-                      }}
-                      pressableClassName="flex-1"
-                      className={cn(
-                        "items-center rounded-2xl border px-3 py-2.5",
-                        gender === "female" ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
-                      )}
-                    >
-                      <RNText
-                        className={cn(
-                          "text-[15px] font-semibold",
-                          gender === "female" ? "text-[#0f172a]" : "text-[#0f172a]",
-                        )}
-                      >
-                        Female
-                      </RNText>
-                    </PressableOverlay>
-                  </View>
+                  
                 </View>
-              </View>
+              </View> */}
               {/* Country (pills grid; no FlatList) */}
               <View className="flex-col gap-3">
                 <View className="pt-1">

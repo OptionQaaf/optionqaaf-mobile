@@ -1,9 +1,5 @@
 import { AuthGate } from "@/features/auth/AuthGate"
-import { useFypExposureStore } from "@/features/fyp/exposureStore"
 import { ShopifyAuthProvider } from "@/features/auth/useShopifyAuth"
-import { FypGenderPopup } from "@/features/fyp/genderPopup"
-import { useFypGenderStore } from "@/features/fyp/genderStore"
-import { useFypTrackingStore } from "@/features/fyp/trackingStore"
 import { DrawerProvider } from "@/features/navigation/Drawer"
 import { useNotificationsService } from "@/features/notifications/notificationService"
 import { usePushToken } from "@/features/notifications/usePushToken"
@@ -135,7 +131,6 @@ export default function RootLayout() {
               </FontProvider>
             </AuthGate>
             <InAppPopupHost />
-            <FypGenderPopup enabled={splashReady} />
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ShopifyAuthProvider>
@@ -193,20 +188,10 @@ function AppBootstrap({ fontsReady, splashReady }: { fontsReady: boolean; splash
   const startupReady = fontsReady && splashReady && navigationReady
   const networkStatus = useNetworkStatus()
   const isExpoGo = metadata.applicationId === "host.exp.Exponent"
-  const hydrateFypGender = useFypGenderStore((state) => state.hydrate)
-  const loadFypTracking = useFypTrackingStore((state) => state.loadFromStorage)
-  const loadFypExposure = useFypExposureStore((state) => state.loadFromStorage)
 
   useNotificationsService({ enabled: startupReady && !isExpoGo })
   usePushToken({ enabled: startupReady && !isExpoGo })
   usePopupService({ fontsReady: startupReady, navigationReady: startupReady, splashReady: startupReady })
-
-  useEffect(() => {
-    if (!startupReady) return
-    hydrateFypGender().catch(() => {})
-    loadFypTracking()
-    loadFypExposure().catch(() => {})
-  }, [startupReady, hydrateFypGender, loadFypTracking, loadFypExposure])
 
   useEffect(() => {
     if (!startupReady) return

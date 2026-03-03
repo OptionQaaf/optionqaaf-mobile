@@ -1,7 +1,6 @@
 import { useCustomerProfile } from "@/features/account/api"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { useAddToCart, useEnsureCart } from "@/features/cart/api"
-import { useFypTrackingStore } from "@/features/fyp/trackingStore"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { useProduct } from "@/features/pdp/api"
 import { useRecommendedProducts } from "@/features/recommendations/api"
@@ -71,7 +70,6 @@ export default function ProductScreen() {
   const { width } = useWindowDimensions()
   const ensure = useEnsureCart()
   const add = useAddToCart()
-  const recordView = useFypTrackingStore((state) => state.recordView)
   const { show } = useToast()
   const wishlistItems = useWishlist((s) => s.items)
   const toggleWishlist = useWishlist((s) => s.toggle)
@@ -209,14 +207,6 @@ export default function ProductScreen() {
 
   const BAR_H = 64
   const GAP = 12
-  const trackedViewHandleRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!h) return
-    if (trackedViewHandleRef.current === h) return
-    trackedViewHandleRef.current = h
-    recordView(h)
-  }, [h, recordView])
 
   // Inline vs sticky states with hysteresis and fade crossfade
   const [mode, setMode] = useState<"inline" | "sticky">("inline")
@@ -332,7 +322,7 @@ export default function ProductScreen() {
       title: isWishlisted ? "Removed from wishlist" : "Added to wishlist",
       type: isWishlisted ? "info" : "success",
     })
-  }, [wishlistData, toggleWishlist, isWishlisted, show, isAuthenticated, login])
+  }, [wishlistData, toggleWishlist, isWishlisted, show, isAuthenticated, login, h])
 
   const copyVariantCode = useCallback(() => {
     if (!variantCode) return

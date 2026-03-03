@@ -90,6 +90,7 @@ function buildPreviewPopup(state: FormState): PopupPayload | null {
     startAt: state.startAt.trim() || undefined,
     endAt: state.endAt.trim() || undefined,
     audience: state.audience,
+    updatedAt: new Date().toISOString(),
   }
 }
 

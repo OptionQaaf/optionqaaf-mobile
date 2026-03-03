@@ -1,4 +1,3 @@
-import { useFypTrackingStore } from "@/features/fyp/trackingStore"
 import { useMobileHome } from "@/features/home/api"
 import { useCollectionMeta, useCollectionProductsWithImages } from "@/features/plp/api"
 import { useSearch } from "@/features/search/api"
@@ -63,7 +62,6 @@ export default function CollectionScreen() {
   // controls state
   const [searchTerm, setSearchTerm] = useState("")
   const [view, setView] = useState<1 | 2>(2)
-  const recordView = useFypTrackingStore((state) => state.recordView)
 
   // sorting/filters
   type SortOption = "newest" | "featured" | "priceAsc" | "priceDesc"
@@ -415,7 +413,6 @@ export default function CollectionScreen() {
                         onPress={() => {
                           const h = item?.handle
                           if (h) {
-                            recordView(h)
                             router.push(`/products/${h}` as any)
                           }
                         }}

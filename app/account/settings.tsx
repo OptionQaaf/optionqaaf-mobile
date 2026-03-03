@@ -3,18 +3,9 @@ import { isDeletionRequestPending } from "@/features/account/deletion"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
-import {
-  FYP_SETTINGS_KEY,
-  FYP_TRACKING_KEY,
-  readFypSettings,
-  readFypTrackingStateAsync,
-} from "@/features/fyp/fypStorage"
-import { useFypGenderStore } from "@/features/fyp/genderStore"
-import { useFypTrackingStore } from "@/features/fyp/trackingStore"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { getPushPermissionsStatus } from "@/features/notifications/permissions"
 import { useAppMetadata, type AppMetadata } from "@/lib/diagnostics/appMetadata"
-import { createLogger, getLogs } from "@/lib/diagnostics/logger"
 import { useNetworkStatus, type NetworkStatus } from "@/lib/network/useNetworkStatus"
 import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
 import { clearOnboardingFlag } from "@/lib/storage/flags"
@@ -26,12 +17,10 @@ import { Screen } from "@/ui/layout/Screen"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { useRouter, type RelativePathString } from "expo-router"
-import * as Clipboard from "expo-clipboard"
 import * as Updates from "expo-updates"
 import { Clock, Megaphone, RefreshCcw, Settings2, Sparkles, Trash2 } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Modal, Pressable, ScrollView, Text, View } from "react-native"
-const log = createLogger("fyp:settings")
 
 export default function AccountSettingsScreen() {
   const router = useRouter()
@@ -60,8 +49,6 @@ function AccountSettingsContent() {
   const deletionCacheRef = useRef(new Map<string, boolean>())
   const [diagnosticsUnlocked, setDiagnosticsUnlocked] = useState(false)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
-  const [showFypLocalData, setShowFypLocalData] = useState(false)
-  const [fypLocalDataPayload, setFypLocalDataPayload] = useState<string>("")
 
   const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
 
@@ -84,8 +71,6 @@ function AccountSettingsContent() {
   }, [isAdmin, diagnosticsUnlocked])
 
   const handleCloseDiagnostics = useCallback(() => setShowDiagnostics(false), [])
-
-  const handleCloseFypLocalDataModal = useCallback(() => setShowFypLocalData(false), [])
 
   const settingsLinks = useMemo(
     () => [
@@ -173,106 +158,6 @@ function AccountSettingsContent() {
     }
   }, [router, show])
 
-  const handleResetFypGender = useCallback(() => {
-    try {
-      useFypGenderStore.getState().reset()
-      useFypGenderStore.getState().triggerPopup()
-      show({ title: "FYP gender reset and popup triggered", type: "success" })
-    } catch (err: any) {
-      const message = err?.message || "Unable to reset FYP gender"
-      show({ title: message, type: "danger" })
-    }
-  }, [show])
-
-  const handleShowGenderPopup = useCallback(() => {
-    useFypGenderStore.getState().triggerPopup()
-    show({ title: "Gender popup triggered", type: "info" })
-  }, [show])
-
-  const handleLogFypGenderState = useCallback(async () => {
-    const store = useFypGenderStore.getState()
-    const persisted = await readFypSettings()
-    log.info("gender_state_snapshot", {
-      hasHydrated: store.hasHydrated,
-      gender: store.gender,
-      forceShowPopup: store.forceShowPopup,
-      storageKey: FYP_SETTINGS_KEY,
-      persisted,
-    })
-    show({ title: "Logged FYP gender state", type: "info" })
-  }, [show])
-
-  const handleLogFypTrackingState = useCallback(async () => {
-    const snapshot = useFypTrackingStore.getState().getDebugTrackingSnapshot()
-    const persisted = await readFypTrackingStateAsync()
-    log.info("tracking_state_snapshot", {
-      storageKey: FYP_TRACKING_KEY,
-      snapshot,
-      persistedCount: Object.keys(persisted.products).length,
-    })
-    show({ title: "Logged FYP tracking state", type: "info" })
-  }, [show])
-
-  const handleResetFypTracking = useCallback(() => {
-    useFypTrackingStore.getState().reset()
-    show({ title: "FYP tracking reset", type: "success" })
-  }, [show])
-
-  const handleOpenFypLocalDataModal = useCallback(async () => {
-    if (!isAdmin) return
-
-    try {
-      const genderStoreState = useFypGenderStore.getState()
-      const trackingStoreState = useFypTrackingStore.getState()
-      const persistedSettings = await readFypSettings()
-      const persistedTracking = await readFypTrackingStateAsync()
-      const payload = {
-        capturedAt: new Date().toISOString(),
-        keys: {
-          settings: FYP_SETTINGS_KEY,
-          tracking: FYP_TRACKING_KEY,
-        },
-        gender: {
-          store: {
-            gender: genderStoreState.gender,
-            hasHydrated: genderStoreState.hasHydrated,
-            forceShowPopup: genderStoreState.forceShowPopup,
-          },
-          persisted: persistedSettings,
-        },
-        tracking: {
-          store: {
-            products: trackingStoreState.products,
-            snapshot: trackingStoreState.getDebugTrackingSnapshot(),
-          },
-          persisted: {
-            updatedAt: persistedTracking.updatedAt,
-            productCount: Object.keys(persistedTracking.products).length,
-            products: persistedTracking.products,
-          },
-        },
-        logs: {
-          fyp: getLogs("fyp:").slice(-200),
-        },
-      }
-      setFypLocalDataPayload(JSON.stringify(payload, null, 2))
-      setShowFypLocalData(true)
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unable to load local FYP data"
-      show({ title: message, type: "danger" })
-  }
-  }, [isAdmin, show])
-
-  const handleCopyFypLocalData = useCallback(async () => {
-    try {
-      await Clipboard.setStringAsync(fypLocalDataPayload)
-      show({ title: "FYP data copied to clipboard", type: "success" })
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unable to copy FYP data"
-      show({ title: message, type: "danger" })
-    }
-  }, [fypLocalDataPayload, show])
-
   return (
     <>
       <ScrollView contentContainerStyle={{ paddingTop: 42, paddingBottom: 32 }} className="bg-[#f8fafc]">
@@ -321,9 +206,6 @@ function AccountSettingsContent() {
                     onPress={() => router.push(link.path)}
                   />
                 ))}
-                <Button variant="outline" size="lg" fullWidth onPress={handleOpenFypLocalDataModal}>
-                  View local FYP data
-                </Button>
               </View>
             </Section>
           ) : null}
@@ -348,33 +230,6 @@ function AccountSettingsContent() {
                   leftIcon={<Clock color="#111827" size={18} strokeWidth={2} />}
                 >
                   Expire token (debug)
-                </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  fullWidth
-                  onPress={handleResetFypGender}
-                  leftIcon={<RefreshCcw color="#111827" size={18} strokeWidth={2} />}
-                >
-                  Reset FYP Gender
-                </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  fullWidth
-                  onPress={handleShowGenderPopup}
-                  leftIcon={<Sparkles color="#111827" size={18} strokeWidth={2} />}
-                >
-                  Show Gender Popup
-                </Button>
-                <Button variant="outline" size="lg" fullWidth onPress={handleLogFypGenderState}>
-                  Log FYP Gender State
-                </Button>
-                <Button variant="outline" size="lg" fullWidth onPress={handleResetFypTracking}>
-                  Reset FYP Tracking
-                </Button>
-                <Button variant="outline" size="lg" fullWidth onPress={handleLogFypTrackingState}>
-                  Log FYP Tracking State
                 </Button>
               </View>
             </Section>
@@ -432,12 +287,6 @@ function AccountSettingsContent() {
         permissionsStatus={permissionsStatus}
         profileEmail={profile?.email ?? null}
         lastRegistrationAttempt={lastRegistrationAttempt}
-      />
-      <FypLocalDataModal
-        visible={showFypLocalData}
-        onClose={handleCloseFypLocalDataModal}
-        payload={fypLocalDataPayload}
-        onCopy={handleCopyFypLocalData}
       />
     </>
   )
@@ -587,43 +436,6 @@ function DiagnosticsModal({
             <DiagnosticSection title="OTA" rows={otaRows} />
             <DiagnosticSection title="Network" rows={networkRows} />
             <DiagnosticSection title="Push" rows={pushRows} />
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  )
-}
-
-type FypLocalDataModalProps = {
-  visible: boolean
-  onClose: () => void
-  payload: string
-  onCopy: () => void
-}
-
-function FypLocalDataModal({ visible, onClose, payload, onCopy }: FypLocalDataModalProps) {
-  return (
-    <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
-      <View className="flex-1 bg-black/20 justify-end">
-        <Pressable className="flex-1" onPress={onClose} />
-        <View className="bg-white rounded-t-3xl px-5 py-4" style={{ maxHeight: "90%" }}>
-          <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-[#0f172a] font-geist-semibold text-[18px]">Local FYP data</Text>
-            <View className="flex-row items-center gap-2">
-              <Button variant="outline" size="sm" onPress={onCopy}>
-                Copy JSON
-              </Button>
-              <Button variant="ghost" size="sm" onPress={onClose}>
-                Close
-              </Button>
-            </View>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
-              <Text selectable className="font-mono text-[12px] leading-[18px] text-[#0f172a]">
-                {payload}
-              </Text>
-            </View>
           </ScrollView>
         </View>
       </View>

@@ -1,8 +1,6 @@
 export type PopupAudience = "all" | "authenticated" | "guest"
 
-export type PopupIcon =
-  | { type: "system"; value: string }
-  | { type: "image"; value: string }
+export type PopupIcon = { type: "system"; value: string } | { type: "image"; value: string }
 
 export type PopupCTA = {
   label: string
@@ -22,6 +20,7 @@ export interface PopupPayload {
   endAt?: string
   minAppVersion?: string
   audience?: PopupAudience
+  updatedAt: string
 }
 
 export interface StoredPopup extends PopupPayload {

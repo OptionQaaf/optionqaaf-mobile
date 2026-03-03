@@ -1,4 +1,3 @@
-import { useFypTrackingStore } from "@/features/fyp/trackingStore"
 import { useMobileHome } from "@/features/home/api"
 import { useSearch } from "@/features/search/api"
 import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
@@ -19,7 +18,6 @@ const PAGE_CONFIG: Record<string, { homeHandle: string; title: string; searchQue
 }
 
 export default function CustomPage() {
-  const recordView = useFypTrackingStore((state) => state.recordView)
   const { handle } = useLocalSearchParams<{ handle: string }>()
   const h = String(handle || "")
   const cfg = PAGE_CONFIG[h] ?? { homeHandle: h, title: h, searchQuery: h }
@@ -69,7 +67,6 @@ export default function CustomPage() {
                     onPress={() => {
                       const productHandle = item?.handle
                       if (!productHandle) return
-                      recordView(productHandle)
                       router.push(`/products/${productHandle}` as any)
                     }}
                   />
