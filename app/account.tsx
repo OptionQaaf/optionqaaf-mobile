@@ -7,6 +7,7 @@ import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { useRecentlyViewedProducts } from "@/features/personalization/recentlyViewed"
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { qk } from "@/lib/shopify/queryKeys"
+import { usePersonalization } from "@/store/personalization"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -52,8 +53,9 @@ function AccountContent() {
   } = useCustomerProfile({
     enabled: isAuthenticated,
   })
+  const gender = usePersonalization((state) => state.gender)
 
-  const avatar = useMemo(() => avatarFromProfile(profile), [profile])
+  const avatar = useMemo(() => avatarFromProfile(profile, gender), [gender, profile])
   const showProfileSkeleton = (isLoading && !profile) || !deletionPendingLoaded
   const deletionCacheRef = useRef(new Map<string, boolean>())
   const { data: recentlyViewed, isLoading: recentlyViewedLoading } = useRecentlyViewedProducts(4)

@@ -1,13 +1,15 @@
+import { GenderChoice } from "@/lib/personalization/gender"
 import { CustomerProfile } from "@/lib/shopify/customer/profile"
-
-const PALETTE = ["#0f172a", "#1e293b", "#312e81", "#0f766e", "#92400e", "#6b21a8", "#be123c", "#1d4ed8"] as const
 
 export type AvatarDetails = {
   initials: string
   color: string
 }
 
-export function avatarFromProfile(profile: CustomerProfile | null | undefined): AvatarDetails {
+export function avatarFromProfile(
+  profile: CustomerProfile | null | undefined,
+  gender?: GenderChoice | null,
+): AvatarDetails {
   const fallback =
     profile?.displayName ||
     [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() ||
@@ -15,17 +17,18 @@ export function avatarFromProfile(profile: CustomerProfile | null | undefined): 
     profile?.id ||
     "Guest"
 
-  return avatarFromNames(profile?.firstName ?? null, profile?.lastName ?? null, fallback)
+  return avatarFromNames(profile?.firstName ?? null, profile?.lastName ?? null, fallback, gender)
 }
 
 export function avatarFromNames(
   firstName: string | null | undefined,
   lastName: string | null | undefined,
   fallback?: string | null,
+  gender?: GenderChoice | null,
 ): AvatarDetails {
   const basis = buildBasis(firstName, lastName, fallback)
   const initials = buildInitials(firstName, lastName, basis)
-  const color = colorFromSeed(basis)
+  const color = colorFromGender(gender ?? undefined)
   return { initials, color }
 }
 
@@ -52,10 +55,6 @@ function buildInitials(firstName?: string | null, lastName?: string | null, basi
   return `${firstChar}${secondChar}`
 }
 
-function colorFromSeed(seed: string): string {
-  let hash = 0
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0
-  }
-  return PALETTE[hash % PALETTE.length]
+function colorFromGender(gender: GenderChoice | undefined): string {
+  return gender === "male" ? "#1f3d6e" : gender === "female" ? "#be1293" : "#6b7280"
 }

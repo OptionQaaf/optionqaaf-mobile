@@ -2,6 +2,7 @@ import { useCustomerProfile, useUpdateCustomerProfile } from "@/features/account
 import { avatarFromNames } from "@/features/account/avatar"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
+import { usePersonalization } from "@/store/personalization"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { DOCK_HEIGHT } from "@/ui/nav/dockConstants"
@@ -28,6 +29,7 @@ export default function AccountEditScreen() {
 function EditProfileContent() {
   const { data: profile, isLoading } = useCustomerProfile()
   const { mutateAsync, isPending } = useUpdateCustomerProfile()
+  const gender = usePersonalization((state) => state.gender)
   const { show } = useToast()
   const router = useRouter()
   const insets = useSafeAreaInsets()
@@ -57,8 +59,8 @@ function EditProfileContent() {
       if (candidate.includes("@")) return candidate.split("@")[0] || "Guest"
       return candidate
     })()
-    return avatarFromNames(profile?.firstName ?? null, profile?.lastName ?? null, fallbackName)
-  }, [profile])
+    return avatarFromNames(profile?.firstName ?? null, profile?.lastName ?? null, fallbackName, gender)
+  }, [gender, profile])
   const bottomPadding = insets.bottom + DOCK_HEIGHT + 24
 
   const handleSave = useCallback(async () => {
@@ -98,10 +100,7 @@ function EditProfileContent() {
     >
       <View className="px-5 pt-6 gap-8">
         <View className="items-center gap-4">
-          <View
-            className="h-24 w-24 rounded-sm items-center justify-center"
-            style={{ backgroundColor: avatar.color }}
-          >
+          <View className="h-24 w-24 rounded-sm items-center justify-center" style={{ backgroundColor: avatar.color }}>
             <Text className="text-white font-geist-semibold text-[28px]">{avatar.initials}</Text>
           </View>
           <View className="flex-row gap-3">
