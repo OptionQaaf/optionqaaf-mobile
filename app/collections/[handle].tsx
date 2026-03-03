@@ -7,13 +7,14 @@ import { useWishlist } from "@/store/wishlist"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { useToast } from "@/ui/feedback/Toast"
 import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
+import { AppFooter } from "@/ui/layout/AppFooter"
 import { padToFullRow } from "@/ui/layout/gridUtils"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { ProductTileSkeleton } from "@/ui/product/ProductTileSkeleton"
-import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { WishlistRibbonButton } from "@/ui/product/WishlistRibbonButton"
+import { FlashList } from "@shopify/flash-list"
 import { router, useLocalSearchParams } from "expo-router"
 import { LayoutGrid, Square } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -259,6 +260,15 @@ export default function CollectionScreen() {
   const { width } = useWindowDimensions()
   const heroH = Math.max(280, Math.min(440, Math.round(width * 1.0)))
   const titleSize = Math.round(Math.min(72, Math.max(40, width * 0.16)))
+  const gridInset = 16
+  const tileWidth = (width - gridInset * 2 - GRID_GAP * (view - 1)) / view
+  const listData = useMemo(() => {
+    if (isLoadingProducts) {
+      const count = view === 2 ? 6 : 4
+      return Array.from({ length: count }, (_, idx) => ({ __skeleton: true, _key: `initial-skeleton-${idx}` }))
+    }
+    return gridItems
+  }, [gridItems, isLoadingProducts, view])
 
   // If special men-1 / women-1: render aesthetic sections + PLP-like grid
   if (special) {
@@ -285,201 +295,221 @@ export default function CollectionScreen() {
   return (
     <Screen bleedTop bleedBottom>
       <View className="flex-1 bg-white">
-        <PageScrollView
+        <FlashList
+          bounces={Platform.OS === "ios" ? false : undefined}
+          alwaysBounceVertical={Platform.OS === "ios" ? false : undefined}
+          overScrollMode={Platform.OS === "android" ? "never" : undefined}
+          data={listData}
+          extraData={{ view, wishlistItems }}
+          numColumns={view}
+          keyExtractor={(item: any, index) => {
+            if (!item) return `spacer-${index}`
+            if (item?.__skeleton) return item._key ?? `skeleton-${index}`
+            return String(item?.id ?? item?.handle ?? item?._key ?? index)
+          }}
+          contentContainerStyle={{ paddingBottom: 0 }}
           scrollEventThrottle={16}
-          onScroll={(e) => {
-            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
-            const threshold = 400
-            if (
-              activeHasNextPage &&
-              !reachedCap &&
-              !activeIsFetchingNextPage &&
-              contentOffset.y + layoutMeasurement.height > contentSize.height - threshold
-            ) {
+          ListHeaderComponent={
+            <>
+              <View className="w-full overflow-hidden" style={{ height: heroH }}>
+                {heroState === "image" ? (
+                  <ImageBackground source={{ uri: heroImage }} resizeMode="cover" className="flex-1">
+                    {LinearGradient ? (
+                      <LinearGradient
+                        colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0.55)"]}
+                        start={{ x: 0.5, y: 0.1 }}
+                        end={{ x: 0.5, y: 1 }}
+                        className="absolute inset-0"
+                      />
+                    ) : null}
+                    <View className="flex-1 items-center justify-end pb-6">
+                      <Text
+                        className="text-white font-extrabold px-4 text-center"
+                        style={{
+                          fontSize: titleSize,
+                          textShadowColor: "rgba(0,0,0,0.2)",
+                          textShadowOffset: { width: 0, height: 1 },
+                          textShadowRadius: 2,
+                        }}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.6}
+                      >
+                        {title}
+                      </Text>
+                    </View>
+                  </ImageBackground>
+                ) : heroState === "skeleton" ? (
+                  <View className="flex-1 bg-[#f1f5f9] px-4 pb-6 justify-end gap-3">
+                    <View className="flex-row justify-center">
+                      <Skeleton className="h-5 w-24 rounded-sm bg-[#dbe4ee]" />
+                    </View>
+                    <Skeleton className="h-12 w-3/4 self-center rounded-md bg-[#d5deea]" />
+                  </View>
+                ) : (
+                  <View className="flex-1 px-4 pb-6 items-center justify-end" style={{ backgroundColor: "#0f172a" }}>
+                    <Text
+                      className="text-white font-extrabold text-center"
+                      style={{
+                        fontSize: titleSize,
+                        textShadowColor: "rgba(0,0,0,0.2)",
+                        textShadowOffset: { width: 0, height: 1 },
+                        textShadowRadius: 2,
+                      }}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.6}
+                    >
+                      {title}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View className="px-4 -mt-8">
+                <View className="flex-row items-center gap-2">
+                  <View className="flex-1">
+                    <View className="bg-white rounded-md border border-black/10 px-3 py-1.5 flex-row items-center justify-between">
+                      <TextInput
+                        value={searchTerm}
+                        onChangeText={setSearchTerm}
+                        placeholder="Search in collection"
+                        placeholderTextColor="#6B7280"
+                        className="flex-1 py-1 px-2"
+                        style={{ textAlignVertical: "center" }}
+                      />
+                    </View>
+                  </View>
+
+                  <View className="flex-row rounded-sm bg-white border border-neutral-200 overflow-hidden p-0.5 relative">
+                    <View
+                      className={`absolute top-1 bottom-1 w-1/2 bg-[#8E1A26] rounded-sm ${view === 1 ? "left-1" : "right-1"}`}
+                    />
+                    <Pressable onPress={() => selectView(1)} className="p-2 z-10">
+                      <Square size={18} color={view === 1 ? "#FFF" : "#0B0B0B"} />
+                    </Pressable>
+                    <Pressable onPress={() => selectView(2)} className="p-2 z-10">
+                      <LayoutGrid size={18} color={view === 2 ? "#FFF" : "#0B0B0B"} />
+                    </Pressable>
+                  </View>
+                </View>
+
+                {pillFilters.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    className="mt-3"
+                    contentContainerClassName="gap-2.5"
+                  >
+                    {pillFilters.map((pill) => (
+                      <Pressable
+                        key={pill.key}
+                        onPress={pill.onPress}
+                        className={`py-2.5 px-4 rounded-sm ${pill.active ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
+                      >
+                        <Text className={`${pill.active ? "text-white" : "text-neutral-900"} font-bold`}>
+                          {pill.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                ) : null}
+              </View>
+
+              {!isLoadingProducts && visibleProducts.length === 0 ? (
+                <View className="items-center py-10 mt-4">
+                  <Text className="text-neutral-900 font-bold text-lg mb-1.5">No products found</Text>
+                  <Text className="text-gray-500">Try adjusting filters or search.</Text>
+                </View>
+              ) : (
+                <View className="h-4" />
+              )}
+            </>
+          }
+          renderItem={({ item, index }: any) => {
+            const col = index % view
+            const isLastRow = Math.floor(index / view) === Math.floor((listData.length - 1) / view)
+            const marginBottom = isLastRow ? 0 : GRID_GAP
+            const marginLeft = col === 0 ? gridInset : 0
+            const marginRight = col < view - 1 ? GRID_GAP : gridInset
+            if (!item) {
+              return (
+                <View
+                  style={{
+                    width: tileWidth,
+                    marginLeft,
+                    marginRight,
+                    marginBottom,
+                  }}
+                />
+              )
+            }
+            const productId = String(item?.id ?? "")
+            const isWishlisted = wishlistItems.some((entry) => entry.productId === productId)
+            return (
+              <View
+                style={{
+                  width: tileWidth,
+                  marginLeft,
+                  marginRight,
+                  marginBottom,
+                }}
+              >
+                {item?.__skeleton ? (
+                  <ProductTileSkeleton width={tileWidth} imageRatio={3 / 4} padding={view === 2 ? "sm" : "md"} />
+                ) : (
+                  <ProductTile
+                    imageOverlayPositionClassName="right-0 top-3"
+                    imageOverlay={
+                      <WishlistRibbonButton
+                        active={isWishlisted}
+                        accessibilityLabel={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+                        onPress={() => handleToggleWishlist(item)}
+                      />
+                    }
+                    image={item?.featuredImage?.url ?? ""}
+                    images={(item?.images?.nodes ?? []).map((node: any) => node?.url).filter(Boolean)}
+                    brand={item?.vendor ?? ""}
+                    title={item?.title ?? ""}
+                    price={Number(item?.priceRange?.minVariantPrice?.amount ?? 0)}
+                    compareAt={(() => {
+                      const cmp = Number(item?.compareAtPriceRange?.minVariantPrice?.amount ?? 0)
+                      const amt = Number(item?.priceRange?.minVariantPrice?.amount ?? 0)
+                      return cmp > amt ? cmp : undefined
+                    })()}
+                    currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
+                    width={tileWidth}
+                    imageRatio={3 / 4}
+                    padding={view === 2 ? "sm" : "md"}
+                    onPress={() => {
+                      const productHandle = item?.handle
+                      if (productHandle) {
+                        router.push(`/products/${productHandle}` as any)
+                      }
+                    }}
+                  />
+                )}
+              </View>
+            )
+          }}
+          onEndReachedThreshold={0.5}
+          onEndReached={() => {
+            if (activeHasNextPage && !reachedCap && !activeIsFetchingNextPage) {
               activeFetchNextPage()
             }
           }}
-        >
-          {/* Hero */}
-          <View className="w-full overflow-hidden" style={{ height: heroH }}>
-            {heroState === "image" ? (
-              <ImageBackground source={{ uri: heroImage }} resizeMode="cover" className="flex-1">
-                {LinearGradient ? (
-                  <LinearGradient
-                    colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0.55)"]}
-                    start={{ x: 0.5, y: 0.1 }}
-                    end={{ x: 0.5, y: 1 }}
-                    className="absolute inset-0"
-                  />
-                ) : null}
-                <View className="flex-1 items-center justify-end pb-6">
-                  <Text
-                    className="text-white font-extrabold px-4 text-center"
-                    style={{
-                      fontSize: titleSize,
-                      textShadowColor: "rgba(0,0,0,0.2)",
-                      textShadowOffset: { width: 0, height: 1 },
-                      textShadowRadius: 2,
-                    }}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.6}
-                  >
-                    {title}
-                  </Text>
+          ListFooterComponent={
+            <>
+              {visibleProducts.length > 0 && reachedCap && !activeIsFetchingNextPage ? (
+                <View className="py-6 items-center">
+                  <Text className="text-gray-500">You’ve reached the end</Text>
                 </View>
-              </ImageBackground>
-            ) : heroState === "skeleton" ? (
-              <View className="flex-1 bg-[#f1f5f9] px-4 pb-6 justify-end gap-3">
-                <View className="flex-row justify-center">
-                  <Skeleton className="h-5 w-24 rounded-sm bg-[#dbe4ee]" />
-                </View>
-                <Skeleton className="h-12 w-3/4 self-center rounded-md bg-[#d5deea]" />
-              </View>
-            ) : (
-              <View className="flex-1 px-4 pb-6 items-center justify-end" style={{ backgroundColor: "#0f172a" }}>
-                <Text
-                  className="text-white font-extrabold text-center"
-                  style={{
-                    fontSize: titleSize,
-                    textShadowColor: "rgba(0,0,0,0.2)",
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 2,
-                  }}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.6}
-                >
-                  {title}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Controls container */}
-          <View className="px-4 -mt-8">
-            <View className="flex-row items-center gap-2">
-              {/* search box */}
-              <View className="flex-1">
-                <View className="bg-white rounded-md border border-black/10 px-3 py-1.5 flex-row items-center justify-between">
-                  <TextInput
-                    value={searchTerm}
-                    onChangeText={setSearchTerm}
-                    placeholder="Search in collection"
-                    placeholderTextColor="#6B7280"
-                    className="flex-1 py-1 px-2"
-                    style={{ textAlignVertical: "center" }}
-                  />
-                </View>
-              </View>
-
-              {/* grid/list toggle */}
-              <View className="flex-row rounded-sm bg-white border border-neutral-200 overflow-hidden p-0.5 relative">
-                <View
-                  className={`absolute top-1 bottom-1 w-1/2 bg-[#8E1A26] rounded-sm ${view === 1 ? "left-1" : "right-1"}`}
-                />
-                <Pressable onPress={() => selectView(1)} className="p-2 z-10">
-                  <Square size={18} color={view === 1 ? "#FFF" : "#0B0B0B"} />
-                </Pressable>
-                <Pressable onPress={() => selectView(2)} className="p-2 z-10">
-                  <LayoutGrid size={18} color={view === 2 ? "#FFF" : "#0B0B0B"} />
-                </Pressable>
-              </View>
-            </View>
-
-            {pillFilters.length > 0 ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                className="mt-3"
-                contentContainerClassName="gap-2.5"
-              >
-                {pillFilters.map((pill) => (
-                  <Pressable
-                    key={pill.key}
-                    onPress={pill.onPress}
-                    className={`py-2.5 px-4 rounded-sm ${pill.active ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
-                  >
-                    <Text className={`${pill.active ? "text-white" : "text-neutral-900"} font-bold`}>{pill.label}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            ) : null}
-          </View>
-
-          {/* Products */}
-          <View className="mt-4 mb-8">
-            {isLoadingProducts ? (
-              <StaticProductGrid
-                data={Array.from({ length: view === 2 ? 6 : 4 }, (_, idx) => idx)}
-                columns={view}
-                gap={GRID_GAP}
-                renderItem={(_, itemW: number) => (
-                  <ProductTileSkeleton width={itemW} imageRatio={3 / 4} padding={view === 2 ? "sm" : "md"} />
-                )}
-              />
-            ) : (
-              <>
-                {visibleProducts.length === 0 ? (
-                  <View className="items-center py-10">
-                    <Text className="text-neutral-900 font-bold text-lg mb-1.5">No products found</Text>
-                    <Text className="text-gray-500">Try adjusting filters or search.</Text>
-                  </View>
-                ) : null}
-                <StaticProductGrid
-                  data={gridItems}
-                  columns={view}
-                  gap={GRID_GAP}
-                  renderItem={(item: any, itemW: number) => {
-                    if (item?.__skeleton) {
-                      return <ProductTileSkeleton width={itemW} imageRatio={3 / 4} padding={view === 2 ? "sm" : "md"} />
-                    }
-                    const productId = typeof item?.id === "string" ? item.id : ""
-                    const isWishlisted = wishlistItems.some((entry) => entry.productId === productId)
-                    return (
-                      <ProductTile
-                        imageOverlayPositionClassName="right-0 top-3"
-                        imageOverlay={
-                          <WishlistRibbonButton
-                            active={isWishlisted}
-                            accessibilityLabel={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
-                            onPress={() => handleToggleWishlist(item)}
-                          />
-                        }
-                        image={item?.featuredImage?.url ?? ""}
-                        images={(item?.images?.nodes ?? []).map((node: any) => node?.url).filter(Boolean)}
-                        brand={item?.vendor ?? ""}
-                        title={item?.title ?? ""}
-                        price={Number(item?.priceRange?.minVariantPrice?.amount ?? 0)}
-                        compareAt={(() => {
-                          const cmp = Number(item?.compareAtPriceRange?.minVariantPrice?.amount ?? 0)
-                          const amt = Number(item?.priceRange?.minVariantPrice?.amount ?? 0)
-                          return cmp > amt ? cmp : undefined
-                        })()}
-                        currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
-                        width={itemW}
-                        imageRatio={3 / 4}
-                        padding={view === 2 ? "sm" : "md"}
-                        onPress={() => {
-                          const h = item?.handle
-                          if (h) {
-                            router.push(`/products/${h}` as any)
-                          }
-                        }}
-                      />
-                    )
-                  }}
-                />
-
-                {visibleProducts.length > 0 && reachedCap && !activeIsFetchingNextPage ? (
-                  <View className="py-6 items-center">
-                    <Text className="text-gray-500">You’ve reached the end</Text>
-                  </View>
-                ) : null}
-              </>
-            )}
-          </View>
-        </PageScrollView>
+              ) : null}
+              <AppFooter />
+            </>
+          }
+          showsVerticalScrollIndicator={false}
+        />
       </View>
     </Screen>
   )

@@ -15,10 +15,7 @@ export function ProductTileSkeleton({ width, padding = "md", imageRatio = 3 / 4,
   const cardChrome = variant === "card" ? "bg-surface" : ""
 
   return (
-    <View
-      className={cn("rounded-sm overflow-hidden border border-gray-200 w-full", className)}
-      style={width ? { width } : undefined}
-    >
+    <View className={cn("rounded-sm overflow-hidden w-full", className)} style={width ? { width } : undefined}>
       <View className={cn(cardChrome, "overflow-hidden")}>
         <View style={{ aspectRatio: imageRatio, backgroundColor: "#F5F5F7" }}>
           <Skeleton className="w-full h-full" style={{ flex: 1 }} />

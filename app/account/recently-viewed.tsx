@@ -15,10 +15,11 @@ import { ProductTileSkeleton } from "@/ui/product/ProductTileSkeleton"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { WishlistRibbonButton } from "@/ui/product/WishlistRibbonButton"
 import { Card } from "@/ui/surfaces/Card"
+import { FlashList } from "@shopify/flash-list"
 import { useRouter } from "expo-router"
 import { Trash2 } from "lucide-react-native"
 import { useCallback, useMemo } from "react"
-import { ScrollView, Text, View } from "react-native"
+import { Platform, ScrollView, Text, useWindowDimensions, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function RecentlyViewedScreen() {
@@ -42,12 +43,17 @@ function RecentlyViewedContent() {
   const { show } = useToast()
   const { data: products, isLoading } = useRecentlyViewedProducts(48)
   const clearRecentlyViewedOnly = usePersonalizationEvents((state) => state.clearRecentlyViewedOnly)
+  const { width } = useWindowDimensions()
 
   const wishlistItems = useWishlist((state) => state.items)
   const toggleWishlist = useWishlist((state) => state.toggle)
 
   const bottomPadding = insets.bottom + DOCK_HEIGHT + 24
   const gridData = useMemo(() => padToFullRow(products, 2), [products])
+  const columns = 2
+  const gap = 8
+  const listPadding = 20
+  const tileWidth = (width - listPadding * 2 - gap * (columns - 1)) / columns
 
   const handleOpen = useCallback(
     (handle?: string | null) => {
@@ -135,52 +141,57 @@ function RecentlyViewedContent() {
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding }}
+    <FlashList
+      bounces={Platform.OS === "ios" ? false : undefined}
+      alwaysBounceVertical={Platform.OS === "ios" ? false : undefined}
+      overScrollMode={Platform.OS === "android" ? "never" : undefined}
+      data={gridData}
+      numColumns={columns}
+      keyExtractor={(item: any, index) => (item ? String(item.productId ?? item.handle ?? index) : `spacer-${index}`)}
+      contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding, paddingHorizontal: listPadding }}
       scrollIndicatorInsets={{ top: 52, bottom: bottomPadding }}
-      className="bg-white"
-    >
-      <View className="px-5 pt-6 gap-4">
-        <View className="flex-row items-start justify-between gap-3">
-          <View className="flex-1 gap-1">
-            <Text className="text-[#0f172a] font-geist-semibold text-[20px]">Recently viewed</Text>
-            <Text className="text-[#64748b] text-[13px]">Products you viewed recently.</Text>
+      extraData={wishlistItems}
+      ListHeaderComponent={
+        <View className="pt-6 gap-4">
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="flex-1 gap-1">
+              <Text className="text-[#0f172a] font-geist-semibold text-[20px]">Recently viewed</Text>
+              <Text className="text-[#64748b] text-[13px]">Products you viewed recently.</Text>
+            </View>
+            <Button variant="outline" size="sm" onPress={handleClear} leftIcon={<Trash2 size={14} color="#111827" />}>
+              Clear
+            </Button>
           </View>
-          <Button variant="outline" size="sm" onPress={handleClear} leftIcon={<Trash2 size={14} color="#111827" />}>
-            Clear
-          </Button>
         </View>
-        <StaticProductGrid
-          data={gridData}
-          gap={8}
-          horizontalInset={0}
-          renderItem={(item, itemWidth) => {
-            if (!item) return <View style={{ width: itemWidth }} />
-
-            const isWishlisted = wishlistItems.some((entry) => entry.productId === item.productId)
-
-            return (
-              <ProductTile
-                width={itemWidth}
-                image={item.imageUrl || "https://images.unsplash.com/photo-1542291026-7eec264c27ff"}
-                brand={item.vendor ?? ""}
-                title={item.title}
-                price={item.price}
-                currency={item.currencyCode}
-                onPress={() => handleOpen(item.handle)}
-                imageOverlayPositionClassName="right-0 top-3"
-                imageOverlay={
-                  <WishlistRibbonButton
-                    active={isWishlisted}
-                    accessibilityLabel={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
-                    onPress={() => handleToggleWishlist(item)}
-                  />
-                }
-              />
-            )
-          }}
-        />
-      </View>
-    </ScrollView>
+      }
+      renderItem={({ item, index }) => {
+        const col = index % columns
+        const marginRight = col < columns - 1 ? gap : 0
+        if (!item) return <View style={{ width: tileWidth, marginRight, marginBottom: gap }} />
+        const isWishlisted = wishlistItems.some((entry) => entry.productId === item.productId)
+        return (
+          <View style={{ width: tileWidth, marginRight, marginBottom: gap }}>
+            <ProductTile
+              width={tileWidth}
+              image={item.imageUrl || "https://images.unsplash.com/photo-1542291026-7eec264c27ff"}
+              brand={item.vendor ?? ""}
+              title={item.title}
+              price={item.price}
+              currency={item.currencyCode}
+              onPress={() => handleOpen(item.handle)}
+              imageOverlayPositionClassName="right-0 top-3"
+              imageOverlay={
+                <WishlistRibbonButton
+                  active={isWishlisted}
+                  accessibilityLabel={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+                  onPress={() => handleToggleWishlist(item)}
+                />
+              }
+            />
+          </View>
+        )
+      }}
+      showsVerticalScrollIndicator={false}
+    />
   )
 }

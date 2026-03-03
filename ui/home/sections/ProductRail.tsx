@@ -61,7 +61,6 @@ export function ProductRail({ collectionHandle, size }: Props) {
       <FlashList
         horizontal
         data={tiles}
-        estimatedItemSize={cardWidth}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <ProductTile

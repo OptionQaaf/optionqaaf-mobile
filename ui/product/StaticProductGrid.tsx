@@ -8,6 +8,7 @@ export function StaticProductGrid<T>({
   columns = 2,
   gap = 0,
   horizontalInset = 16,
+  disableVirtualization = false,
   onLayoutWidth, // optional callback if you want to inspect width
   keyExtractor,
   renderItem,
@@ -16,6 +17,7 @@ export function StaticProductGrid<T>({
   columns?: 1 | 2
   gap?: number
   horizontalInset?: number
+  disableVirtualization?: boolean
   onLayoutWidth?: (w: number) => void
   keyExtractor?: (item: T, index: number) => string
   renderItem: (item: T, itemWidth: number, index: number) => React.ReactElement
@@ -29,16 +31,14 @@ export function StaticProductGrid<T>({
 
   const rows = Math.ceil(data.length / columns)
   const itemWidth = w == null ? 0 : Math.floor((w - gap * (columns - 1)) / columns)
-  const estimatedRowHeight = itemWidth > 0 ? Math.round(itemWidth * 1.9) : 280
 
-  if (Platform.OS !== "web") {
+  if (Platform.OS !== "web" && !disableVirtualization) {
     return (
       <View onLayout={onLayout} style={{ marginHorizontal: horizontalInset }}>
         {w != null ? (
           <FlashList
             data={data}
             numColumns={columns}
-            estimatedItemSize={estimatedRowHeight}
             showsVerticalScrollIndicator={false}
             keyExtractor={(item, index) =>
               item

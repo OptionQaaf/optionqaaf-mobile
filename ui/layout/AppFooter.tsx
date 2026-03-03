@@ -69,7 +69,7 @@ export function AppFooter({ className, contentClassName, style, heading }: AppFo
                 <PressableOverlay
                   key={link.url}
                   onPress={() => openLink(link.url)}
-                  className="h-11 w-11 items-center justify-center rounded-sm border border-border"
+                  className="h-11 w-11 items-center justify-center rounded-sm"
                   accessibilityLabel={`Open ${link.label}`}
                 >
                   {path ? (

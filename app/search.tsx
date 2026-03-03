@@ -2,7 +2,7 @@ import { useSearch } from "@/features/search/api"
 import { optimizeImageUrl } from "@/lib/images/optimize"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { Screen } from "@/ui/layout/Screen"
-import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
+import { defaultKeyboardShouldPersistTaps } from "@/ui/layout/scrollDefaults"
 import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { padToFullRow } from "@/ui/layout/gridUtils"
@@ -11,7 +11,7 @@ import { Image as ExpoImage } from "expo-image"
 import { router } from "expo-router"
 import { ChevronLeft, X } from "lucide-react-native"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { PixelRatio, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native"
+import { PixelRatio, Platform, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native"
 
 export default function SearchScreen() {
   const [input, setInput] = useState("")
@@ -122,11 +122,12 @@ export default function SearchScreen() {
       </View>
 
       <FlashList
-        {...verticalScrollProps}
+        bounces={Platform.OS === "ios" ? false : undefined}
+        alwaysBounceVertical={Platform.OS === "ios" ? false : undefined}
+        overScrollMode={Platform.OS === "android" ? "never" : undefined}
         onLayout={onListLayout}
         onContentSizeChange={onListContentSize}
         data={gridNodes}
-        estimatedItemSize={Math.round(itemW * 1.9)}
         keyExtractor={(item: any, i) => (item ? (item?.id ?? item?.handle ?? String(i)) : `placeholder-${i}`)}
         numColumns={2}
         contentContainerStyle={{ paddingHorizontal: padH, paddingTop: 24, paddingBottom: 24 }}
