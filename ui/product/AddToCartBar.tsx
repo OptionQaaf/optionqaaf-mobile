@@ -33,7 +33,7 @@ export const AddToCartBar = forwardRef<View, Props>(function AddToCartBar({
           <Button
             onPress={onAdd}
             size="lg"
-            className={`px-6 rounded-full ${!available || loading ? "bg-neutral-300" : ""}`}
+            className={`px-6 rounded-sm ${!available || loading ? "bg-neutral-300" : ""}`}
             textClassName="font-bold"
             disabled={!available || loading}
           >

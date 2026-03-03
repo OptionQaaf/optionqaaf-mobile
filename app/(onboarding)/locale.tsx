@@ -135,7 +135,7 @@ export default function LocaleOnboarding() {
       </View>
 
       {/* SHEET that fills remaining height */}
-      <View className="flex-1 -mt-4 overflow-hidden rounded-t-[28px] bg-white">
+      <View className="flex-1 -mt-4 overflow-hidden rounded-t-sm bg-white">
         <PageScrollView isFooterHidden>
           <SafeAreaView className="flex-1 justify-between px-4 pt-6" edges={["bottom"]}>
             {/* FORM GROUP */}
@@ -159,7 +159,7 @@ export default function LocaleOnboarding() {
                         onPress={() => setGender(option.id)}
                         pressableClassName="flex-1"
                         className={cn(
-                          "items-center justify-center rounded-2xl border px-3 py-3",
+                          "items-center justify-center rounded-sm border px-3 py-3",
                           active ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
                         )}
                       >
@@ -188,7 +188,7 @@ export default function LocaleOnboarding() {
                         key={c.id}
                         onPress={() => applyCountry(c.id)}
                         className={cn(
-                          "justify-center rounded-2xl border px-3 py-2.5",
+                          "justify-center rounded-sm border px-3 py-2.5",
                           active ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
                         )}
                       >
@@ -233,9 +233,9 @@ export default function LocaleOnboarding() {
         <View className="flex-1 justify-end bg-black/30">
           <Pressable className="flex-1" onPress={handleSkipPush} accessibilityLabel="Dismiss push prompt" />
 
-          <View className="gap-4 rounded-t-[24px] bg-white px-5 pb-5 pt-5">
+          <View className="gap-4 rounded-t-sm bg-white px-5 pb-5 pt-5">
             <View className="items-center gap-3">
-              <View className="h-10 w-10 items-center justify-center rounded-full border border-[#cbd5f5] bg-[#e2e8f0]">
+              <View className="h-10 w-10 items-center justify-center rounded-sm border border-[#cbd5f5] bg-[#e2e8f0]">
                 <Bell color="#0f172a" size={20} strokeWidth={2.2} />
               </View>
               <RNText className="text-center font-geist-semibold text-[16px] text-[#0f172a]">

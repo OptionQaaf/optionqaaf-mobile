@@ -5,7 +5,7 @@ import { Eye, EyeOff } from "lucide-react-native"
 import { useState } from "react"
 import { TextInput, TextInputProps, View } from "react-native"
 
-const wrapper = cva("w-full rounded-xl bg-surface border flex-row items-center px-3", {
+const wrapper = cva("w-full rounded-sm bg-surface border flex-row items-center px-3", {
   variants: {
     size: { sm: "h-10", md: "h-12", lg: "h-14" },
     state: {

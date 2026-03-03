@@ -275,7 +275,7 @@ function PersonalizationContent() {
                     haptic="light"
                     pressableClassName="flex-1"
                     className={cn(
-                      "items-center justify-center rounded-2xl border px-3 py-3",
+                      "items-center justify-center rounded-sm border px-3 py-3",
                       active ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
                     )}
                     onPress={() => setSelectedGender(option.id)}
@@ -310,7 +310,7 @@ function PersonalizationContent() {
             <View className="w-full gap-2">
               <PressableOverlay
                 haptic="light"
-                className="w-full rounded-xl border border-border bg-surface px-4 py-4"
+                className="w-full rounded-sm border border-border bg-surface px-4 py-4"
                 onPress={() => setShowBirthDatePicker(true)}
               >
                 <Text className="text-[14px] text-[#0f172a]">{birthDateLabel}</Text>
@@ -351,7 +351,7 @@ function PersonalizationContent() {
       >
         <View className="flex-1 justify-end bg-transparent">
           <Pressable className="flex-1" onPress={() => setShowBirthDatePicker(false)} />
-          <View className="gap-3 rounded-t-3xl bg-white px-5 py-4">
+          <View className="gap-3 rounded-t-md bg-white px-5 py-4">
             <View className="flex-row items-center justify-between">
               <Text className="text-[16px] font-geist-semibold text-[#0f172a]">Select birth date</Text>
               <Button variant="ghost" size="sm" onPress={() => setShowBirthDatePicker(false)}>

@@ -367,7 +367,7 @@ export default function ProductScreen() {
     return (
       <Screen bleedTop bleedBottom>
         <View className="px-4 py-6">
-          <View className="w-full h-[420px] bg-neutral-200 rounded-2xl" />
+          <View className="w-full h-[420px] bg-neutral-200 rounded-sm" />
           <View className="h-4" />
           <View className="h-8 w-2/3 bg-neutral-200 rounded-md" />
         </View>
@@ -399,7 +399,7 @@ export default function ProductScreen() {
                     accessibilityLabel="Download product image"
                     onPress={handleDownloadImage}
                     disabled={isSavingImage}
-                    className="rounded-full bg-black/70 p-2 shadow-lg"
+                    className="rounded-sm bg-black/70 p-2 shadow-lg"
                   >
                     {isSavingImage ? (
                       <ActivityIndicator size="small" color="#fff" />
@@ -418,7 +418,7 @@ export default function ProductScreen() {
                 {variantCode ? (
                   <PressableOverlay
                     onPress={copyVariantCode}
-                    className="self-start flex-row items-center gap-1 rounded-full bg-[#f1f5f9] px-2.5 py-1"
+                    className="self-start flex-row items-center gap-1 rounded-sm bg-[#f1f5f9] px-2.5 py-1"
                   >
                     <Copy size={14} color="#0f172a" strokeWidth={1.5} />
                     <Text className="text-[12px] font-semibold text-[#0f172a]">{variantCode}</Text>
@@ -430,7 +430,7 @@ export default function ProductScreen() {
                 <PressableOverlay
                   accessibilityLabel={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
                   onPress={handleWishlistPress}
-                  className="h-10 w-10 rounded-3xl bg-[#f1f5f9] items-center justify-center"
+                  className="h-10 w-10 rounded-md bg-[#f1f5f9] items-center justify-center"
                 >
                   <Heart
                     size={22}

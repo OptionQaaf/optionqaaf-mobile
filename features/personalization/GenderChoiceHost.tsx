@@ -23,7 +23,7 @@ export function GenderChoiceHost({ enabled }: GenderChoiceHostProps) {
     <Modal transparent visible animationType="fade" onRequestClose={() => {}}>
       <View className="flex-1 justify-end bg-black/40">
         <View
-          className="gap-4 rounded-t-[24px] bg-white px-5 pt-5"
+          className="gap-4 rounded-t-sm bg-white px-5 pt-5"
           style={{ paddingBottom: Math.max(20, insets.bottom + 8) }}
         >
           <View className="gap-2">

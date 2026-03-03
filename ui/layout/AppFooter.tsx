@@ -51,7 +51,7 @@ export function AppFooter({ className, contentClassName, style, heading }: AppFo
               <PressableOverlay
                 key={link.url}
                 onPress={() => openLink(link.url)}
-                className="rounded-full border border-border bg-elev px-3 py-2"
+                className="rounded-sm border border-border bg-elev px-3 py-2"
               >
                 <Text className="text-primary text-sm font-geist-medium">{link.label}</Text>
               </PressableOverlay>
@@ -69,7 +69,7 @@ export function AppFooter({ className, contentClassName, style, heading }: AppFo
                 <PressableOverlay
                   key={link.url}
                   onPress={() => openLink(link.url)}
-                  className="h-11 w-11 items-center justify-center rounded-full border border-border"
+                  className="h-11 w-11 items-center justify-center rounded-sm border border-border"
                   accessibilityLabel={`Open ${link.label}`}
                 >
                   {path ? (

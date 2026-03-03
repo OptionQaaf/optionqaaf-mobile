@@ -62,7 +62,7 @@ export const BrandCard = memo(function BrandCard({ name, productCount, images, p
 
   return (
     <PressableOverlay
-      className="flex-row items-center justify-between rounded-3xl border border-neutral-200 bg-neutral-50 px-4 py-4"
+      className="flex-row items-center justify-between rounded-md border border-neutral-200 bg-neutral-50 px-4 py-4"
       onPress={onPress}
       disabled={!onPress}
       accessibilityLabel={`View brand ${name}`}

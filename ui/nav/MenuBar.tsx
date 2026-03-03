@@ -90,7 +90,7 @@ export function Icon({
     <PressableOverlay
       onPress={onPress}
       accessibilityLabel={accessibilityLabel}
-      className="h-10 w-10 items-center justify-center rounded-2xl"
+      className="h-10 w-10 items-center justify-center rounded-sm"
       style={style}
     >
       {children}

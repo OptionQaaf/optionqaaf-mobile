@@ -95,7 +95,7 @@ function OrdersContent() {
                 {linePreview.map((line) => (
                   <View
                     key={line.id}
-                    className="h-14 w-14 rounded-xl bg-[#e2e8f0] overflow-hidden items-center justify-center"
+                    className="h-14 w-14 rounded-sm bg-[#e2e8f0] overflow-hidden items-center justify-center"
                   >
                     {line.imageUrl ? (
                       <Image
@@ -180,7 +180,7 @@ function OrdersContent() {
 
 function Badge({ label, bg, color }: { label: string; bg: string; color: string }) {
   return (
-    <View className="px-2 py-[2px] rounded-full" style={{ backgroundColor: bg }}>
+    <View className="px-2 py-[2px] rounded-sm" style={{ backgroundColor: bg }}>
       <Text className="text-[11px] font-geist-medium" style={{ color }}>
         {label}
       </Text>

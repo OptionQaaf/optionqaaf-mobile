@@ -22,7 +22,7 @@ export function HeadlinePromo({ title, onPress, theme = "light", size }: Props) 
   return (
     <Pressable
       onPress={onPress}
-      className={`w-full rounded-3xl ${light ? "bg-white" : "bg-black"}`}
+      className={`w-full rounded-md ${light ? "bg-white" : "bg-black"}`}
       style={{ padding, width: "100%" }}
     >
       <RNText

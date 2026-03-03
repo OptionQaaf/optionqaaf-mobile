@@ -547,7 +547,7 @@ export default function CartScreen() {
                     placeholder={DEFAULT_PLACEHOLDER}
                   />
                 ) : (
-                  <View className="h-16 w-16 items-center justify-center rounded-[12px] bg-neutral-100">
+                  <View className="h-16 w-16 items-center justify-center rounded-sm bg-neutral-100">
                     <Text className="text-muted text-[12px]">—</Text>
                   </View>
                 )}
@@ -569,7 +569,7 @@ export default function CartScreen() {
                   <PressableOverlay
                     accessibilityLabel="Remove from cart"
                     onPress={() => onDelete(item.id)}
-                    className="w-7 h-7 rounded-full items-center justify-center"
+                    className="w-7 h-7 rounded-sm items-center justify-center"
                   >
                     <Trash2 size={14} color="#8a8a8a" />
                   </PressableOverlay>
@@ -580,7 +580,7 @@ export default function CartScreen() {
                   <View className="flex-1 min-w-0 pr-2">
                     <Price amount={unitPrice} currency={String(variant?.price?.currencyCode ?? currency)} size="xs" />
                   </View>
-                  <View className="px-1 py-0.5 rounded-full bg-surface border border-border">
+                  <View className="px-1 py-0.5 rounded-sm bg-surface border border-border">
                     <QuantityStepper size="sm" value={qty} onChange={(q) => onChangeQty(item.id, q)} />
                   </View>
                 </View>
@@ -704,14 +704,14 @@ export default function CartScreen() {
                     className="px-3 py-2 border-t border-border"
                     style={{ backgroundColor: "#fff" }}
                   >
-                    <View className="p-2.5 border border-border rounded-xl bg-surface gap-1.5">
+                    <View className="p-2.5 border border-border rounded-sm bg-surface gap-1.5">
                       <View className="gap-1.5">
                         {discountCodes.length > 0 ? (
                           <View className="gap-1.5">
                             {discountCodes.map((code) => (
                               <View
                                 key={code.code}
-                                className="flex-row items-center justify-between rounded-lg border border-border bg-[#f8fafc] px-2.5 py-1.5"
+                                className="flex-row items-center justify-between rounded-sm border border-border bg-[#f8fafc] px-2.5 py-1.5"
                               >
                                 <View className="flex-1 pr-3 gap-[2px]">
                                   <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{code.code}</Text>
@@ -722,7 +722,7 @@ export default function CartScreen() {
                                 <PressableOverlay
                                   onPress={() => handleRemoveDiscount(code.code)}
                                   disabled={updatingDiscounts}
-                                  className="h-7 w-7 items-center justify-center rounded-full"
+                                  className="h-7 w-7 items-center justify-center rounded-sm"
                                   accessibilityLabel={`Remove discount ${code.code}`}
                                 >
                                   <X size={14} color="#475569" />
@@ -738,7 +738,7 @@ export default function CartScreen() {
                               {savedDiscountCodes.map((code) => (
                                 <View
                                   key={code.code}
-                                  className="flex-row items-center justify-between rounded-lg border border-dashed border-border bg-[#fdf2fa] px-2.5 py-1.5"
+                                  className="flex-row items-center justify-between rounded-sm border border-dashed border-border bg-[#fdf2fa] px-2.5 py-1.5"
                                 >
                                   <View className="flex-1 pr-3">
                                     <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{code.code}</Text>
@@ -747,7 +747,7 @@ export default function CartScreen() {
                                   <PressableOverlay
                                     onPress={() => handleRemoveDiscount(code.code)}
                                     disabled={updatingDiscounts}
-                                    className="h-7 w-7 items-center justify-center rounded-full"
+                                    className="h-7 w-7 items-center justify-center rounded-sm"
                                     accessibilityLabel={`Remove saved coupon ${code.code}`}
                                   >
                                     <X size={14} color="#475569" />
@@ -946,7 +946,7 @@ function EmptyCart() {
     <View className="px-5 py-16 items-center gap-2">
       <Text className="text-primary text-[18px] font-geist-semibold">Your cart is empty</Text>
       <Text className="text-secondary mb-3">Find something you love.</Text>
-      <PressableOverlay onPress={() => router.push("/home" as any)} className="px-4 py-2 rounded-full bg-brand">
+      <PressableOverlay onPress={() => router.push("/home" as any)} className="px-4 py-2 rounded-sm bg-brand">
         <Text className="text-white font-geist-semibold">Continue shopping</Text>
       </PressableOverlay>
     </View>
@@ -969,7 +969,7 @@ function CenteredState({
       <Text className="text-primary text-[18px] font-geist-semibold">{title}</Text>
       {body ? <Text className="text-secondary mt-1 text-center">{body}</Text> : null}
       {actionLabel && onAction ? (
-        <PressableOverlay onPress={onAction} className="mt-4 px-4 py-2 rounded-full bg-neutral-900">
+        <PressableOverlay onPress={onAction} className="mt-4 px-4 py-2 rounded-sm bg-neutral-900">
           <Text className="text-white font-geist-semibold">{actionLabel}</Text>
         </PressableOverlay>
       ) : null}
@@ -981,12 +981,12 @@ function SkeletonList() {
   return (
     <View className="px-4 pt-4">
       {Array.from({ length: 5 }).map((_, i) => (
-        <View key={i} className="flex-row gap-3 p-3 mb-3 rounded-2xl bg-surface border border-border">
-          <View className="w-[84px] h-[84px] rounded-2xl bg-[#e2e8f0] animate-pulse" />
+        <View key={i} className="flex-row gap-3 p-3 mb-3 rounded-sm bg-surface border border-border">
+          <View className="w-[84px] h-[84px] rounded-sm bg-[#e2e8f0] animate-pulse" />
           <View className="flex-1 gap-2">
             <View className="h-4 w-2/3 rounded bg-[#e2e8f0] animate-pulse" />
             <View className="h-3 w-1/2 rounded bg-[#e2e8f0] animate-pulse" />
-            <View className="h-8 w-full rounded-full bg-[#e2e8f0] mt-2 animate-pulse" />
+            <View className="h-8 w-full rounded-sm bg-[#e2e8f0] mt-2 animate-pulse" />
           </View>
         </View>
       ))}

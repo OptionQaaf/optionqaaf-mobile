@@ -4,7 +4,7 @@ import { cn, cva, type VariantProps } from "@/ui/utils/cva"
 import { ReactNode } from "react"
 import { ActivityIndicator, Text as RNText } from "react-native"
 
-const buttonStyles = cva("flex-row items-center justify-center rounded-xl gap-2", {
+const buttonStyles = cva("flex-row items-center justify-center rounded-sm gap-2", {
   variants: {
     variant: {
       solid: "bg-brand",

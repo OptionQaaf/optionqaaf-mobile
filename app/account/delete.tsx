@@ -115,7 +115,7 @@ function AccountDeletionContent() {
         <View className="gap-5">
           <Card padding="sm" className="bg-[#fff7ed] border border-[#fed7aa]">
             <View className="flex-row items-start gap-3">
-              <View className="h-10 w-10 rounded-2xl bg-[#ffedd5] items-center justify-center">
+              <View className="h-10 w-10 rounded-sm bg-[#ffedd5] items-center justify-center">
                 <AlertTriangle color="#9a3412" size={18} strokeWidth={2} />
               </View>
               <View className="flex-1 gap-1">
@@ -159,7 +159,7 @@ function AccountDeletionContent() {
 
           <PressableOverlay
             onPress={() => setConfirmed((prev) => !prev)}
-            className="flex-row items-start gap-3 rounded-2xl bg-white p-4 border border-[#e2e8f0]"
+            className="flex-row items-start gap-3 rounded-sm bg-white p-4 border border-[#e2e8f0]"
           >
             <View
               className="h-6 w-6 rounded-md border items-center justify-center"

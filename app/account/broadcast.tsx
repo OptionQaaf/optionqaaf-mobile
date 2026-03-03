@@ -319,7 +319,7 @@ function BroadcastContent() {
               Pick from gallery
             </Button>
             {imageUrl.trim() ? (
-              <View className="rounded-xl overflow-hidden border border-[#e2e8f0]">
+              <View className="rounded-sm overflow-hidden border border-[#e2e8f0]">
                 <Image source={{ uri: imageUrl.trim() }} style={{ width: "100%", height: 180 }} contentFit="cover" />
               </View>
             ) : null}
@@ -382,7 +382,7 @@ function BroadcastContent() {
               </View>
             </View>
 
-            <View className="flex-row items-center justify-between gap-4 rounded-xl border border-[#e2e8f0] bg-white p-3">
+            <View className="flex-row items-center justify-between gap-4 rounded-sm border border-[#e2e8f0] bg-white p-3">
               <View className="flex-1 gap-1">
                 <Text className="text-[#0f172a] font-geist-medium text-[13px]">Send to admins only</Text>
                 <Text className="text-[#475569] text-[12px] leading-[16px]">
@@ -437,7 +437,7 @@ function BroadcastContent() {
               </Text>
             ) : (
               stats.map((entry) => (
-                <View key={entry.id} className="border border-[#e2e8f0] rounded-xl p-3 bg-white gap-2">
+                <View key={entry.id} className="border border-[#e2e8f0] rounded-sm p-3 bg-white gap-2">
                   <Text className="text-[#0f172a] font-geist-medium text-[14px]" numberOfLines={1}>
                     {entry.title || "Untitled"}
                   </Text>

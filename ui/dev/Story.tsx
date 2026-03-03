@@ -3,7 +3,7 @@ import { Text, View, ViewProps } from "react-native"
 
 export function Story({ title, children, className }: ViewProps & { title: string; className?: string }) {
   return (
-    <View className={cn("bg-surface border border-border rounded-xl p-4", className)}>
+    <View className={cn("bg-surface border border-border rounded-sm p-4", className)}>
       <Text className="text-primary font-geist-semibold mb-3">{title}</Text>
       {children}
     </View>

@@ -24,7 +24,7 @@ export function QuantityStepper({ value, min = 1, max = 99, onChange, className,
     <View className={`flex-row items-center ${compact ? "gap-2" : "gap-3"} ${className ?? ""}`}>
       <PressableOverlay
         onPress={dec}
-        className="rounded-full bg-surface border border-border items-center justify-center"
+        className="rounded-sm bg-surface border border-border items-center justify-center"
         style={{ width: buttonSize, height: buttonSize }}
       >
         <Minus size={iconSize} />
@@ -40,7 +40,7 @@ export function QuantityStepper({ value, min = 1, max = 99, onChange, className,
 
       <PressableOverlay
         onPress={inc}
-        className="rounded-full bg-surface border border-border items-center justify-center"
+        className="rounded-sm bg-surface border border-border items-center justify-center"
         style={{ width: buttonSize, height: buttonSize }}
       >
         <Plus size={iconSize} />

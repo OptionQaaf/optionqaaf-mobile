@@ -1,7 +1,7 @@
 import { cn, cva, type VariantProps } from "@/ui/utils/cva"
 import { Text as RNText, View } from "react-native"
 
-const badge = cva("px-2.5 h-7 rounded-full items-center justify-center border", {
+const badge = cva("px-2.5 h-7 rounded-sm items-center justify-center border", {
   variants: {
     variant: {
       neutral: "bg-surface border-border",

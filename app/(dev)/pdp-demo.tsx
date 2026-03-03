@@ -128,13 +128,13 @@ export default function PDPFlat() {
             {/* Inline CTA slot (cross-fades in) */}
             <Animated.View
               style={inlineStyle}
-              className="mx-4 mt-4 rounded-3xl bg-surface border border-border px-4 py-3"
+              className="mx-4 mt-4 rounded-md bg-surface border border-border px-4 py-3"
             >
               <View className="flex-row items-center gap-3">
                 <View className="flex-1">
                   <Price amount={48} compareAt={88} currency="USD" size="lg" />
                 </View>
-                <Button size="lg" className="px-6 rounded-full">
+                <Button size="lg" className="px-6 rounded-sm">
                   Add to Cart
                 </Button>
               </View>

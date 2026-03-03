@@ -25,10 +25,10 @@ export function ProductTileSkeleton({ width, padding = "md", imageRatio = 3 / 4,
         </View>
 
         <View className={cn(pad, "gap-2")}>
-          <Skeleton className="h-3 rounded-full w-2/5" />
+          <Skeleton className="h-3 rounded-sm w-2/5" />
           <View className="gap-1.5">
-            <Skeleton className="h-3.5 rounded-full w-4/5" />
-            <Skeleton className="h-3.5 rounded-full w-3/5" />
+            <Skeleton className="h-3.5 rounded-sm w-4/5" />
+            <Skeleton className="h-3.5 rounded-sm w-3/5" />
           </View>
         </View>
       </View>

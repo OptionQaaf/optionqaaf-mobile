@@ -132,7 +132,7 @@ export function Price({
 
         {isOnSale ? (
           <View
-            className="rounded-full bg-brand/10"
+            className="rounded-sm bg-brand/10"
             style={{
               paddingHorizontal: preset.discountPadH,
               paddingVertical: preset.discountPadV,

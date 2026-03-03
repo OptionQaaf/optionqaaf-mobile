@@ -6,11 +6,12 @@ import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layo
 import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { padToFullRow } from "@/ui/layout/gridUtils"
+import { FlashList } from "@shopify/flash-list"
 import { Image as ExpoImage } from "expo-image"
 import { router } from "expo-router"
 import { ChevronLeft, X } from "lucide-react-native"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { FlatList, PixelRatio, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native"
+import { PixelRatio, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native"
 
 export default function SearchScreen() {
   const [input, setInput] = useState("")
@@ -79,8 +80,8 @@ export default function SearchScreen() {
         {isFetchingNextPage ? (
           <View className="mb-6">
             <View className="flex-row gap-3">
-              <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
-              <Skeleton className="flex-1 rounded-3xl" style={{ aspectRatio: 3 / 4 }} />
+              <Skeleton className="flex-1 rounded-md" style={{ aspectRatio: 3 / 4 }} />
+              <Skeleton className="flex-1 rounded-md" style={{ aspectRatio: 3 / 4 }} />
             </View>
           </View>
         ) : null}
@@ -93,10 +94,10 @@ export default function SearchScreen() {
       {/* Minimal header: back + search input */}
       <View className="px-4 py-2">
         <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-2xl">
+          <Pressable onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-sm">
             <ChevronLeft size={22} color="#0B0B0B" />
           </Pressable>
-          <View className="flex-1 bg-white rounded-3xl border border-black/10 h-11 px-3 flex-row items-center gap-2">
+          <View className="flex-1 bg-white rounded-md border border-black/10 h-11 px-3 flex-row items-center gap-2">
             <TextInput
               value={input}
               onChangeText={setInput}
@@ -112,7 +113,7 @@ export default function SearchScreen() {
               autoCapitalize="none"
             />
             {input ? (
-              <Pressable onPress={() => setInput("")} className="h-9 w-9 items-center justify-center rounded-2xl">
+              <Pressable onPress={() => setInput("")} className="h-9 w-9 items-center justify-center rounded-sm">
                 <X size={18} color="#0B0B0B" />
               </Pressable>
             ) : null}
@@ -120,24 +121,24 @@ export default function SearchScreen() {
         </View>
       </View>
 
-      <FlatList
+      <FlashList
         {...verticalScrollProps}
         onLayout={onListLayout}
         onContentSizeChange={onListContentSize}
         data={gridNodes}
+        estimatedItemSize={Math.round(itemW * 1.9)}
         keyExtractor={(item: any, i) => (item ? (item?.id ?? item?.handle ?? String(i)) : `placeholder-${i}`)}
         numColumns={2}
-        columnWrapperStyle={{ gap }}
-        contentContainerStyle={{ paddingHorizontal: padH, paddingVertical: 24, rowGap: gap }}
+        contentContainerStyle={{ paddingHorizontal: padH, paddingTop: 24, paddingBottom: 24 }}
         ListHeaderComponent={
           <View className="px-0">
             {showLoadingGrid && nodes.length === 0 ? (
               <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: gap, rowGap: gap }}>
                 {Array.from({ length: 6 }).map((_, idx) => (
                   <View key={idx} style={{ width: itemW }}>
-                    <Skeleton className="rounded-3xl" style={{ aspectRatio: 3 / 4, width: "100%" }} />
-                    <Skeleton className="rounded-full mt-2" style={{ height: 12, width: "70%" }} />
-                    <Skeleton className="rounded-full mt-1.5" style={{ height: 12, width: "50%" }} />
+                    <Skeleton className="rounded-md" style={{ aspectRatio: 3 / 4, width: "100%" }} />
+                    <Skeleton className="rounded-sm mt-2" style={{ height: 12, width: "70%" }} />
+                    <Skeleton className="rounded-sm mt-1.5" style={{ height: 12, width: "50%" }} />
                   </View>
                 ))}
               </View>
@@ -156,11 +157,12 @@ export default function SearchScreen() {
           </View>
         }
         renderItem={({ item, index }: any) => {
+          const col = index % 2
           if (!item) {
-            return <View style={{ width: itemW }} />
+            return <View style={{ width: itemW, marginLeft: col === 1 ? gap : 0, marginBottom: gap }} />
           }
           return (
-            <View style={{ width: itemW }}>
+            <View style={{ width: itemW, marginLeft: col === 1 ? gap : 0, marginBottom: gap }}>
               <ProductTile
                 image={item?.featuredImage?.url ?? ""}
                 brand={item?.vendor ?? ""}
@@ -208,9 +210,6 @@ export default function SearchScreen() {
             revealFooter()
           }
         }}
-        initialNumToRender={8}
-        maxToRenderPerBatch={8}
-        windowSize={7}
         removeClippedSubviews
         keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
         scrollIndicatorInsets={{ bottom: 24 }}

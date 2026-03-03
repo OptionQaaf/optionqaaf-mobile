@@ -26,7 +26,7 @@ export const AddToCart = forwardRef<View, Props>(function AddToCart({
   loading = false,
 }, ref) {
   return (
-    <View ref={ref} className={["rounded-3xl bg-surface border border-border px-4 py-3", className].filter(Boolean).join(" ")}>
+    <View ref={ref} className={["rounded-md bg-surface border border-border px-4 py-3", className].filter(Boolean).join(" ")}>
       <View className="flex-row items-center gap-3">
         <View className="flex-1">
           <Price amount={price} compareAt={compareAt} currency={currency} size="lg" />
@@ -34,7 +34,7 @@ export const AddToCart = forwardRef<View, Props>(function AddToCart({
         <Button
           onPress={onAdd}
           size="lg"
-          className={`px-6 rounded-full ${!available || loading ? "bg-neutral-300" : ""}`}
+          className={`px-6 rounded-sm ${!available || loading ? "bg-neutral-300" : ""}`}
           textClassName="font-bold"
           disabled={!available || loading}
         >

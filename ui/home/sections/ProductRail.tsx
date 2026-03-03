@@ -1,7 +1,8 @@
 import { useCollectionProducts } from "@/features/plp/api"
 import { ProductTile } from "@/ui/product/ProductTile"
+import { FlashList } from "@shopify/flash-list"
 import { router } from "expo-router"
-import { FlatList, View, useWindowDimensions } from "react-native"
+import { View, useWindowDimensions } from "react-native"
 import { useMemo, useRef } from "react"
 import type { SectionSize } from "@/lib/shopify/services/home"
 import { sizeScale } from "./sectionSize"
@@ -57,9 +58,10 @@ export function ProductRail({ collectionHandle, size }: Props) {
 
   return (
     <View className="w-full">
-      <FlatList
+      <FlashList
         horizontal
         data={tiles}
+        estimatedItemSize={cardWidth}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <ProductTile

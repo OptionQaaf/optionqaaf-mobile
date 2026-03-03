@@ -504,7 +504,7 @@ function DiagnosticsModal({
     <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
       <View className="flex-1 bg-black/20 justify-end">
         <Pressable className="flex-1" onPress={onClose} />
-        <View className="bg-white rounded-t-3xl px-5 py-4" style={{ maxHeight: "85%" }}>
+        <View className="bg-white rounded-t-md px-5 py-4" style={{ maxHeight: "85%" }}>
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-[#0f172a] font-geist-semibold text-[18px]">Diagnostics</Text>
             <Button variant="ghost" size="sm" onPress={onClose}>
@@ -529,7 +529,7 @@ function DiagnosticSection({ title, rows }: { title: string; rows: DiagnosticRow
   return (
     <View className="gap-2">
       <Text className="text-[#0f172a] font-geist-semibold text-[15px]">{title}</Text>
-      <View className="rounded-2xl border border-[#e2e8f0] bg-white p-3 gap-1">
+      <View className="rounded-sm border border-[#e2e8f0] bg-white p-3 gap-1">
         {rows.map((row) => (
           <DiagnosticRow key={row.label} {...row} />
         ))}

@@ -181,7 +181,7 @@ export function FloatingDock() {
               <View
                 ref={isCart ? cartRef : null}
                 onLayout={isCart ? emitCartTarget : undefined}
-                className={`h-[44px] w-[56px] items-center justify-center rounded-[48px] ${
+                className={`h-[44px] w-[56px] items-center justify-center rounded-full ${
                   isActive ? "bg-white/70" : ""
                 }`}
                 style={

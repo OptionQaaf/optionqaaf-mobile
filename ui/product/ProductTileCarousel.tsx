@@ -65,11 +65,11 @@ export const ProductTileCarousel = memo(function ProductTileCarousel({ images, w
 
       {showDots ? (
         <View className="absolute bottom-1.5 left-0 right-0 items-center justify-center">
-          <View className="flex-row items-center gap-1 px-1.5 py-0.5 bg-black/15 rounded-full">
+          <View className="flex-row items-center gap-1 px-1.5 py-0.5 bg-black/15 rounded-sm">
             {images.map((_, idx) => (
               <View
                 key={`dot-${idx}`}
-                className={`h-1 w-1 rounded-full ${idx === imageIndex ? "bg-white/60" : "bg-white/25"}`}
+                className={`h-1 w-1 rounded-sm ${idx === imageIndex ? "bg-white/60" : "bg-white/25"}`}
               />
             ))}
           </View>

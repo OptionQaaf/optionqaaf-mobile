@@ -107,7 +107,7 @@ export default function Playground() {
             <Badge variant="danger">Error</Badge>
           </View>
           <View className="flex-row gap-3">
-            <Skeleton className="w-16 h-16 rounded-xl" />
+            <Skeleton className="w-16 h-16 rounded-sm" />
             <View className="flex-1 gap-2">
               <Skeleton className="h-4" />
               <Skeleton className="h-4 w-3/4" />

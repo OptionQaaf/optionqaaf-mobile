@@ -1,6 +1,7 @@
 // ui/product/StaticProductGrid.tsx
 import React from "react"
-import { LayoutChangeEvent, View } from "react-native"
+import { FlashList } from "@shopify/flash-list"
+import { LayoutChangeEvent, Platform, View } from "react-native"
 
 export function StaticProductGrid<T>({
   data,
@@ -28,6 +29,57 @@ export function StaticProductGrid<T>({
 
   const rows = Math.ceil(data.length / columns)
   const itemWidth = w == null ? 0 : Math.floor((w - gap * (columns - 1)) / columns)
+  const estimatedRowHeight = itemWidth > 0 ? Math.round(itemWidth * 1.9) : 280
+
+  if (Platform.OS !== "web") {
+    return (
+      <View onLayout={onLayout} style={{ marginHorizontal: horizontalInset }}>
+        {w != null ? (
+          <FlashList
+            data={data}
+            numColumns={columns}
+            estimatedItemSize={estimatedRowHeight}
+            showsVerticalScrollIndicator={false}
+            keyExtractor={(item, index) =>
+              item
+                ? (keyExtractor?.(item, index) ??
+                  String((item as any)?.id ?? (item as any)?.handle ?? (item as any)?._key ?? index))
+                : `spacer-${index}`
+            }
+            scrollEnabled={false}
+            renderItem={({ item, index }) => {
+              const col = index % columns
+              const isLastRow = Math.floor(index / columns) === Math.floor((data.length - 1) / columns)
+              const marginBottom = isLastRow ? 0 : gap
+              if (!item) {
+                return (
+                  <View
+                    style={{
+                      width: itemWidth,
+                      marginRight: col < columns - 1 ? gap : 0,
+                      marginBottom,
+                    }}
+                  />
+                )
+              }
+              return (
+                <View
+                  style={{
+                    width: itemWidth,
+                    marginRight: col < columns - 1 ? gap : 0,
+                    marginBottom,
+                    alignSelf: "stretch",
+                  }}
+                >
+                  {renderItem(item, itemWidth, index)}
+                </View>
+              )
+            }}
+          />
+        ) : null}
+      </View>
+    )
+  }
 
   return (
     <View onLayout={onLayout} style={{ marginHorizontal: horizontalInset }}>

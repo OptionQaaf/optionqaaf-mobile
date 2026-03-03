@@ -57,7 +57,7 @@ export function ToastHost() {
               <View
                 {...a11yAlert()}
                 className={[
-                  "rounded-2xl px-4 py-3 border shadow-lg",
+                  "rounded-sm px-4 py-3 border shadow-lg",
                   t.type === "success"
                     ? "bg-success border-success"
                     : t.type === "danger"

@@ -107,8 +107,8 @@ export function AccordionItem({
     appearance === "inline"
       ? ""
       : appearance === "field"
-        ? "rounded-xl border border-border bg-surface overflow-hidden"
-        : "border border-border rounded-2xl bg-surface overflow-hidden"
+        ? "rounded-sm border border-border bg-surface overflow-hidden"
+        : "border border-border rounded-sm bg-surface overflow-hidden"
   const headerBaseClass =
     appearance === "inline"
       ? "px-0 flex-row items-center justify-between"

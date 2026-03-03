@@ -89,7 +89,7 @@ export const ImageCarouselSection = memo(function ImageCarouselSection({
             return (
               <View
                 key={`dot-${i}`}
-                className={["h-2 rounded-full", isActive ? "w-5 bg-brandAccent" : "w-2 bg-brandAccent/40"].join(" ")}
+                className={["h-2 rounded-sm", isActive ? "w-5 bg-brandAccent" : "w-2 bg-brandAccent/40"].join(" ")}
               />
             )
           })}

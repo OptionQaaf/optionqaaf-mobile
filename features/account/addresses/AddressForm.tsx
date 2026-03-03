@@ -463,7 +463,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
           <View className="gap-3">
             <View className="gap-3">
               <Text className="text-[#0f172a] font-geist-semibold text-[15px]">Pin the address</Text>
-              <View className="h-64 w-full overflow-hidden rounded-2xl bg-[#e2e8f0]">
+              <View className="h-64 w-full overflow-hidden rounded-sm bg-[#e2e8f0]">
                 {MapViewComponent ? (
                   <MapViewComponent
                     style={{ flex: 1 }}
@@ -559,7 +559,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
                   <PressableOverlay
                     haptic="light"
                     onPress={togglePhoneInfo}
-                    className="h-6 w-6 items-center justify-center rounded-full border border-[#e2e8f0] bg-white"
+                    className="h-6 w-6 items-center justify-center rounded-sm border border-[#e2e8f0] bg-white"
                     accessibilityLabel="Show WhatsApp contact info"
                   >
                     <Info size={14} color="#64748b" />
@@ -609,7 +609,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
             {values.countryCode === "KSA" ? (
               <PressableOverlay
                 pressableClassName="self-start w-full"
-                className="px-3 py-2 w-full rounded-xl border border-[#e2e8f0] bg-[#f8fafc]"
+                className="px-3 py-2 w-full rounded-sm border border-[#e2e8f0] bg-[#f8fafc]"
                 hitSlop={8}
                 haptic="light"
                 onPress={() => router.push("/policies/national-address" as const)}

@@ -2,7 +2,10 @@ import { useMobileHome } from "@/features/home/api"
 import { useCollectionMeta, useCollectionProductsWithImages } from "@/features/plp/api"
 import { useSearch } from "@/features/search/api"
 import { type ProductCollectionSortKeys, type ProductSortKeys } from "@/lib/shopify/gql/graphql"
+import type { WishlistItem } from "@/store/wishlist"
+import { useWishlist } from "@/store/wishlist"
 import { Skeleton } from "@/ui/feedback/Skeleton"
+import { useToast } from "@/ui/feedback/Toast"
 import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
 import { padToFullRow } from "@/ui/layout/gridUtils"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
@@ -10,9 +13,10 @@ import { Screen } from "@/ui/layout/Screen"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { ProductTileSkeleton } from "@/ui/product/ProductTileSkeleton"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
+import { WishlistRibbonButton } from "@/ui/product/WishlistRibbonButton"
 import { router, useLocalSearchParams } from "expo-router"
 import { LayoutGrid, Square } from "lucide-react-native"
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ImageBackground,
   LayoutAnimation,
@@ -38,6 +42,9 @@ try {
 } catch {}
 
 export default function CollectionScreen() {
+  const { show } = useToast()
+  const wishlistItems = useWishlist((state) => state.items)
+  const toggleWishlist = useWishlist((state) => state.toggle)
   const { handle, q } = useLocalSearchParams<{ handle: string; q?: string }>()
   const h = typeof handle === "string" ? handle : ""
   const vendorName = typeof q === "string" ? q.trim() : ""
@@ -196,6 +203,38 @@ export default function CollectionScreen() {
     return padToFullRow(next, view)
   }, [visibleProducts, activeIsFetchingNextPage, view])
 
+  const handleToggleWishlist = useCallback(
+    (product: any) => {
+      const productId = typeof product?.id === "string" ? product.id : ""
+      const productHandle = typeof product?.handle === "string" ? product.handle : ""
+      if (!productId || !productHandle) {
+        show({ title: "Product unavailable", type: "info" })
+        return
+      }
+
+      const payload: WishlistItem = {
+        productId,
+        handle: productHandle,
+        title: product?.title ?? "",
+        vendor: product?.vendor ?? null,
+        imageUrl: product?.featuredImage?.url ?? null,
+        price: {
+          amount: Number(product?.priceRange?.minVariantPrice?.amount ?? 0),
+          currencyCode: String(product?.priceRange?.minVariantPrice?.currencyCode ?? "USD"),
+        },
+        variantTitle: null,
+      }
+
+      const currentlyWishlisted = wishlistItems.some((item) => item.productId === productId)
+      toggleWishlist(payload)
+      show({
+        title: currentlyWishlisted ? "Removed from wishlist" : "Added to wishlist",
+        type: currentlyWishlisted ? "info" : "success",
+      })
+    },
+    [show, toggleWishlist, wishlistItems],
+  )
+
   // Auto-load more pages while searching and no results found yet
   useEffect(() => {
     const q = searchTerm.trim()
@@ -293,9 +332,9 @@ export default function CollectionScreen() {
             ) : heroState === "skeleton" ? (
               <View className="flex-1 bg-[#f1f5f9] px-4 pb-6 justify-end gap-3">
                 <View className="flex-row justify-center">
-                  <Skeleton className="h-5 w-24 rounded-full bg-[#dbe4ee]" />
+                  <Skeleton className="h-5 w-24 rounded-sm bg-[#dbe4ee]" />
                 </View>
-                <Skeleton className="h-12 w-3/4 self-center rounded-3xl bg-[#d5deea]" />
+                <Skeleton className="h-12 w-3/4 self-center rounded-md bg-[#d5deea]" />
               </View>
             ) : (
               <View className="flex-1 px-4 pb-6 items-center justify-end" style={{ backgroundColor: "#0f172a" }}>
@@ -319,10 +358,10 @@ export default function CollectionScreen() {
 
           {/* Controls container */}
           <View className="px-4 -mt-8">
-            <View className="flex-row items-center gap-4">
+            <View className="flex-row items-center gap-2">
               {/* search box */}
               <View className="flex-1">
-                <View className="bg-white rounded-3xl border border-black/10 px-3 py-1.5 flex-row items-center justify-between">
+                <View className="bg-white rounded-md border border-black/10 px-3 py-1.5 flex-row items-center justify-between">
                   <TextInput
                     value={searchTerm}
                     onChangeText={setSearchTerm}
@@ -335,14 +374,14 @@ export default function CollectionScreen() {
               </View>
 
               {/* grid/list toggle */}
-              <View className="flex-row rounded-full bg-white border border-neutral-200 overflow-hidden p-0.5 relative">
+              <View className="flex-row rounded-sm bg-white border border-neutral-200 overflow-hidden p-0.5 relative">
                 <View
-                  className={`absolute top-0.5 bottom-0.5 w-1/2 bg-[#8E1A26] rounded-full ${view === 1 ? "left-0.5" : "right-0.5"}`}
+                  className={`absolute top-1 bottom-1 w-1/2 bg-[#8E1A26] rounded-sm ${view === 1 ? "left-1" : "right-1"}`}
                 />
-                <Pressable onPress={() => selectView(1)} className="py-2.5 px-3 z-10">
+                <Pressable onPress={() => selectView(1)} className="p-2 z-10">
                   <Square size={18} color={view === 1 ? "#FFF" : "#0B0B0B"} />
                 </Pressable>
-                <Pressable onPress={() => selectView(2)} className="py-2.5 px-3 z-10">
+                <Pressable onPress={() => selectView(2)} className="p-2 z-10">
                   <LayoutGrid size={18} color={view === 2 ? "#FFF" : "#0B0B0B"} />
                 </Pressable>
               </View>
@@ -391,11 +430,22 @@ export default function CollectionScreen() {
                   data={gridItems}
                   columns={view}
                   gap={GRID_GAP}
-                  renderItem={(item: any, itemW: number) =>
-                    item?.__skeleton ? (
-                      <ProductTileSkeleton width={itemW} imageRatio={3 / 4} padding={view === 2 ? "sm" : "md"} />
-                    ) : (
+                  renderItem={(item: any, itemW: number) => {
+                    if (item?.__skeleton) {
+                      return <ProductTileSkeleton width={itemW} imageRatio={3 / 4} padding={view === 2 ? "sm" : "md"} />
+                    }
+                    const productId = typeof item?.id === "string" ? item.id : ""
+                    const isWishlisted = wishlistItems.some((entry) => entry.productId === productId)
+                    return (
                       <ProductTile
+                        imageOverlayPositionClassName="right-0 top-3"
+                        imageOverlay={
+                          <WishlistRibbonButton
+                            active={isWishlisted}
+                            accessibilityLabel={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+                            onPress={() => handleToggleWishlist(item)}
+                          />
+                        }
                         image={item?.featuredImage?.url ?? ""}
                         images={(item?.images?.nodes ?? []).map((node: any) => node?.url).filter(Boolean)}
                         brand={item?.vendor ?? ""}
@@ -418,7 +468,7 @@ export default function CollectionScreen() {
                         }}
                       />
                     )
-                  }
+                  }}
                 />
 
                 {visibleProducts.length > 0 && reachedCap && !activeIsFetchingNextPage ? (

@@ -99,7 +99,7 @@ function EditProfileContent() {
       <View className="px-5 pt-6 gap-8">
         <View className="items-center gap-4">
           <View
-            className="h-24 w-24 rounded-full items-center justify-center"
+            className="h-24 w-24 rounded-sm items-center justify-center"
             style={{ backgroundColor: avatar.color }}
           >
             <Text className="text-white font-geist-semibold text-[28px]">{avatar.initials}</Text>

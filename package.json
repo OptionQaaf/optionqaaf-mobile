@@ -23,7 +23,7 @@
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/material-top-tabs": "^7.0.9",
     "@react-navigation/native": "^7.1.6",
-    "@shopify/flash-list": "^2.1.0",
+    "@shopify/flash-list": "^2.0.2",
     "@shopify/shopify-api": "^11.14.1",
     "@shopify/storefront-api-client": "^1.0.9",
     "@supabase/supabase-js": "^2.57.4",

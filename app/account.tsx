@@ -13,8 +13,8 @@ import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { padToFullRow } from "@/ui/layout/gridUtils"
 import { Screen } from "@/ui/layout/Screen"
 import { Button } from "@/ui/primitives/Button"
-import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { ProductTileSkeleton } from "@/ui/product/ProductTileSkeleton"
+import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { Card } from "@/ui/surfaces/Card"
 import { useQueryClient } from "@tanstack/react-query"
 import { Image } from "expo-image"
@@ -205,7 +205,7 @@ function AccountContent() {
           ) : (
             <View className="flex-row items-center gap-4">
               <View
-                className="h-14 w-14 rounded-full items-center justify-center"
+                className="h-14 w-14 rounded-sm items-center justify-center"
                 style={{ backgroundColor: avatar.color }}
               >
                 <Text className="text-white font-geist-semibold text-[18px]">{avatar.initials}</Text>
@@ -224,13 +224,13 @@ function AccountContent() {
                   <View className="flex-row items-center gap-2">
                     <PressableOverlay
                       onPress={() => router.push("/account/edit" as const)}
-                      className="h-10 w-10 rounded-2xl bg-[#e2e8f0] items-center justify-center"
+                      className="h-10 w-10 rounded-sm bg-[#e2e8f0] items-center justify-center"
                     >
                       <Pencil size={18} color="#0f172a" />
                     </PressableOverlay>
                     <PressableOverlay
                       onPress={() => router.push("/account/settings" as const)}
-                      className="h-10 w-10 rounded-2xl bg-[#e2e8f0] items-center justify-center"
+                      className="h-10 w-10 rounded-sm bg-[#e2e8f0] items-center justify-center"
                     >
                       <Settings2 size={18} color="#0f172a" />
                     </PressableOverlay>
@@ -289,10 +289,11 @@ function AccountContent() {
               horizontalInset={0}
               renderItem={(item, itemWidth) => {
                 if (!item) return <View style={{ width: itemWidth }} />
+                const previewHeight = Math.round((itemWidth * 4) / 3)
                 const optimized =
                   optimizeImageUrl(item.imageUrl || "", {
                     width: Math.round(itemWidth),
-                    height: Math.round(itemWidth),
+                    height: previewHeight,
                     format: "webp",
                     dpr: 2,
                   }) || item.imageUrl
@@ -304,7 +305,7 @@ function AccountContent() {
                   >
                     <Image
                       source={{ uri: optimized || "https://images.unsplash.com/photo-1542291026-7eec264c27ff" }}
-                      style={{ width: itemWidth, height: itemWidth }}
+                      style={{ width: itemWidth, height: previewHeight }}
                       contentFit="cover"
                       transition={120}
                       cachePolicy="disk"
@@ -317,7 +318,7 @@ function AccountContent() {
           </Section>
         ) : null}
 
-        <View className="pt-8 pb-16 gap-2" style={{ marginTop: "auto" }}>
+        <View className="pb-16 gap-2" style={{ marginTop: "auto" }}>
           {isAccountBatchLoading ? (
             <Skeleton className="h-12 w-full rounded-sm" />
           ) : (
@@ -382,7 +383,7 @@ function AccountHeaderSkeleton() {
         <Skeleton className="h-4 w-1/2 rounded-md" />
         <Skeleton className="h-3 w-1/3 rounded-md" />
       </View>
-      <Skeleton className="h-10 w-10 rounded-2xl" />
+      <Skeleton className="h-10 w-10 rounded-sm" />
     </View>
   )
 }
@@ -390,7 +391,7 @@ function AccountHeaderSkeleton() {
 function AccountLinkSkeleton() {
   return (
     <Card padding="sm" className="flex-row items-center gap-4 px-0">
-      <Skeleton className="h-12 w-12 rounded-2xl" />
+      <Skeleton className="h-12 w-12 rounded-sm" />
       <View className="flex-1 gap-2">
         <Skeleton className="h-4 w-3/5 rounded-md" />
         <Skeleton className="h-3 w-1/2 rounded-md" />

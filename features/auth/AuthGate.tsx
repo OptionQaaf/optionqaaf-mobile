@@ -94,7 +94,7 @@ export function SignInPrompt({
           <View className="gap-6">
             <Card padding="lg" className="gap-4">
               <View className="flex-row items-center gap-3">
-                <View className="h-12 w-12 rounded-full bg-[#0b101a] items-center justify-center">
+                <View className="h-12 w-12 rounded-sm bg-[#0b101a] items-center justify-center">
                   <UserRound color="#f8fafc" size={22} strokeWidth={2} />
                 </View>
                 <View className="flex-1 gap-1">
@@ -102,7 +102,7 @@ export function SignInPrompt({
                   <Text className="text-[#475569] text-[14px] leading-[20px]">{description}</Text>
                 </View>
               </View>
-              <View className="flex-row items-center gap-2 rounded-2xl bg-[#f1f5f9] px-4 py-3">
+              <View className="flex-row items-center gap-2 rounded-sm bg-[#f1f5f9] px-4 py-3">
                 <Lock color="#1f2937" size={16} strokeWidth={2} />
                 <Text className="text-[#1f2937] text-[13px]">You’re browsing as a guest</Text>
               </View>
@@ -113,7 +113,7 @@ export function SignInPrompt({
               <View className="gap-3">
                 {PERKS.map((perk) => (
                   <View key={perk.title} className="flex-row items-start gap-3">
-                    <View className="h-10 w-10 rounded-2xl bg-[#e2e8f0] items-center justify-center">
+                    <View className="h-10 w-10 rounded-sm bg-[#e2e8f0] items-center justify-center">
                       <perk.Icon color="#1f2937" size={18} strokeWidth={2} />
                     </View>
                     <View className="flex-1 gap-[2px]">

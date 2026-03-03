@@ -97,7 +97,7 @@ export function ImageCarousel({ images, height = 420, width, className, onIndexC
           {validImages.map((_, i) => (
             <View
               key={i}
-              className={["h-2 rounded-full", i === index ? "w-5 bg-brand" : "w-2 bg-black/30"].join(" ")}
+              className={["h-2 rounded-sm", i === index ? "w-5 bg-brand" : "w-2 bg-black/30"].join(" ")}
             />
           ))}
         </View>

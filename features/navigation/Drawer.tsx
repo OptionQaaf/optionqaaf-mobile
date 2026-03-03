@@ -176,7 +176,7 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
   const MenuSkeleton = () => (
     <View className="px-4 gap-3">
       {[...Array(6)].map((_, i) => (
-        <Skeleton key={i} className="h-9 rounded-2xl" />
+        <Skeleton key={i} className="h-9 rounded-sm" />
       ))}
     </View>
   )
@@ -184,7 +184,7 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
   const EmptyState = ({ onRetry }: { onRetry: () => void }) => (
     <View className="px-4 py-6 items-center gap-3">
       <Text className="text-[16px] text-secondary text-center">We couldn’t load the menu right now.</Text>
-      <PressableOverlay haptic="light" onPress={onRetry} className="rounded-2xl bg-black px-4 py-3">
+      <PressableOverlay haptic="light" onPress={onRetry} className="rounded-sm bg-black px-4 py-3">
         <View className="flex-row items-center gap-2">
           <RefreshCcw size={18} color="#fff" />
           <Text className="text-white text-[16px] font-semibold">Retry</Text>
@@ -252,7 +252,7 @@ function DrawerContent({ onNavigate }: { onNavigate: () => void }) {
                           }
                           closeAndReset()
                         }}
-                        className="rounded-2xl px-1 py-1"
+                        className="rounded-sm px-1 py-1"
                       >
                         <Text className="text-[32px] leading-[38px] font-extrabold text-primary">{item.title}</Text>
                       </PressableOverlay>
@@ -300,7 +300,7 @@ function DrawerFooter({ onNavigate }: { onNavigate?: () => void }) {
           <PressableOverlay
             key={link.path}
             onPress={() => handlePolicyPress(link.path)}
-            className="rounded-2xl px-1 py-1"
+            className="rounded-sm px-1 py-1"
             accessibilityLabel={`Open ${link.label}`}
           >
             <Text className="text-[18px] text-secondary font-geist-medium">{link.label}</Text>
@@ -312,7 +312,7 @@ function DrawerFooter({ onNavigate }: { onNavigate?: () => void }) {
         <PressableOverlay
           haptic="light"
           onPress={() => setOpen((v) => !v)}
-          className="flex-row items-center justify-between rounded-2xl border border-[#E6E6E6] bg-white px-3 py-3"
+          className="flex-row items-center justify-between rounded-sm border border-[#E6E6E6] bg-white px-3 py-3"
         >
           <View className="flex-row items-center gap-2">
             <Text className="text-[20px]">{item.flag}</Text>
@@ -322,7 +322,7 @@ function DrawerFooter({ onNavigate }: { onNavigate?: () => void }) {
 
         {open ? (
           <View
-            className="absolute left-0 right-0 -top-2 translate-y-[-100%] rounded-2xl border border-[#E6E6E6] bg-white"
+            className="absolute left-0 right-0 -top-2 translate-y-[-100%] rounded-sm border border-[#E6E6E6] bg-white"
             style={{ zIndex: 10, elevation: 10 }}
           >
             {CURRENCIES.map((c) => (

@@ -13,14 +13,14 @@ export function Segment({
   className?: string
 }) {
   return (
-    <View className={cn("flex-row bg-surface rounded-full border border-border p-1", className)}>
+    <View className={cn("flex-row bg-surface rounded-sm border border-border p-1", className)}>
       {options.map((opt) => {
         const on = opt === value
         return (
           <Pressable
             key={opt}
             onPress={() => onChange(opt)}
-            className={cn("px-3 h-8 rounded-full items-center justify-center", on ? "bg-brand" : "")}
+            className={cn("px-3 h-8 rounded-sm items-center justify-center", on ? "bg-brand" : "")}
           >
             <Text className={cn(on ? "text-white" : "text-primary")}>{opt}</Text>
           </Pressable>
@@ -33,8 +33,8 @@ export function Segment({
 export function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
     <Pressable onPress={() => onChange(!value)} className="flex-row items-center gap-2">
-      <View className={cn("w-10 h-6 rounded-full px-1 justify-center", value ? "bg-brand" : "bg-border")}>
-        <View className={cn("w-4 h-4 rounded-full bg-white", value ? "self-end" : "self-start")} />
+      <View className={cn("w-10 h-6 rounded-sm px-1 justify-center", value ? "bg-brand" : "bg-border")}>
+        <View className={cn("w-4 h-4 rounded-sm bg-white", value ? "self-end" : "self-start")} />
       </View>
       <Text className="text-primary">{label}</Text>
     </Pressable>
@@ -61,14 +61,14 @@ export function NumberKnob({
       <Text className="text-secondary">{label}</Text>
       <Pressable
         onPress={() => onChange(Math.max(min, value - step))}
-        className="w-7 h-7 rounded-full border border-border items-center justify-center"
+        className="w-7 h-7 rounded-sm border border-border items-center justify-center"
       >
         <Text className="text-primary">-</Text>
       </Pressable>
       <Text className="text-primary w-6 text-center">{value}</Text>
       <Pressable
         onPress={() => onChange(Math.min(max, value + step))}
-        className="w-7 h-7 rounded-full border border-border items-center justify-center"
+        className="w-7 h-7 rounded-sm border border-border items-center justify-center"
       >
         <Text className="text-primary">+</Text>
       </Pressable>

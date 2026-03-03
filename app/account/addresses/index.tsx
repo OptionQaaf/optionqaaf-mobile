@@ -111,7 +111,7 @@ function AddressesContent() {
               ))}
             </View>
             {isDefault ? (
-              <View className="rounded-full bg-[#e0f2fe] px-3 py-1">
+              <View className="rounded-sm bg-[#e0f2fe] px-3 py-1">
                 <Text className="text-[#0369a1] text-[12px] font-geist-medium">Default</Text>
               </View>
             ) : null}

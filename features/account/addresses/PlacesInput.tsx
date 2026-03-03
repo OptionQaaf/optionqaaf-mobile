@@ -62,7 +62,7 @@ export function PlacesInput({
       {shouldShowDropdown ? (
         <View
           style={{ position: "absolute", left: 0, right: 0, top: INPUT_HEIGHT }}
-          className="z-10 max-h-72 overflow-hidden rounded-xl border border-[#CBD5E1] bg-white shadow-lg"
+          className="z-10 max-h-72 overflow-hidden rounded-sm border border-[#CBD5E1] bg-white shadow-lg"
         >
           {isLoading ? (
             <View className="flex-row items-center gap-2 px-4 py-3">

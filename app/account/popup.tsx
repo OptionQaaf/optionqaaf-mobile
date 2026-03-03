@@ -159,17 +159,17 @@ function IconPicker({ label, value, onChange, disabled = false }: IconPickerProp
     <>
       <PressableOverlay
         onPress={handleOpen}
-        className={`w-full rounded-xl border border-border bg-surface p-2 ${disabled ? "opacity-60" : ""}`}
+        className={`w-full rounded-sm border border-border bg-surface p-2 ${disabled ? "opacity-60" : ""}`}
         disabled={disabled}
         accessibilityLabel={`Select ${label}`}
       >
         <View className="flex-row items-center gap-3">
           {selected ? (
-            <View className="h-8 w-8 items-center justify-center rounded-lg bg-[#e2e8f0]">
+            <View className="h-8 w-8 items-center justify-center rounded-sm bg-[#e2e8f0]">
               <selected.Icon size={16} color="#475569" />
             </View>
           ) : (
-            <View className="h-8 w-8 bg-[#e2e8f0] rounded-full" />
+            <View className="h-8 w-8 bg-[#e2e8f0] rounded-sm" />
           )}
           <Text className={selected ? "text-[#0f172a]" : "text-[#94a3b8]"}>{selected ? selected.label : label}</Text>
         </View>
@@ -201,10 +201,10 @@ function IconPicker({ label, value, onChange, disabled = false }: IconPickerProp
                   onChange("")
                   setOpen(false)
                 }}
-                className="flex-row items-center gap-3 rounded-xl border border-border px-3 py-2"
+                className="flex-row items-center gap-3 rounded-sm border border-border px-3 py-2"
                 style={{ backgroundColor: value === "" ? "#f1f5f9" : "#ffffff" }}
               >
-                <View className="h-6 w-6 items-center justify-center rounded-lg bg-[#e2e8f0]">
+                <View className="h-6 w-6 items-center justify-center rounded-sm bg-[#e2e8f0]">
                   <View className="h-4 w-4" />
                 </View>
                 <Text className="text-[#0f172a] font-geist-semibold">None</Text>
@@ -216,7 +216,7 @@ function IconPicker({ label, value, onChange, disabled = false }: IconPickerProp
                     onChange(item.id)
                     setOpen(false)
                   }}
-                  className="flex-row items-center gap-3 rounded-xl border border-border px-3 py-2"
+                  className="flex-row items-center gap-3 rounded-sm border border-border px-3 py-2"
                   style={{ backgroundColor: value === item.id ? "#f1f5f9" : "#ffffff" }}
                 >
                   <item.Icon size={24} color="#0f172a" />
@@ -330,7 +330,7 @@ function PopupViewMode({ popup, onEdit }: PopupViewModeProps) {
         <Text className="text-[#475569] text-[13px]">Icon</Text>
         {iconItem ? (
           <View className="flex-row items-center gap-3">
-            <View className="h-8 w-8 items-center justify-center rounded-lg bg-[#e2e8f0]">
+            <View className="h-8 w-8 items-center justify-center rounded-sm bg-[#e2e8f0]">
               <iconItem.Icon size={16} color="#475569" />
             </View>
             <Text className="text-[#0f172a] text-[14px]">{iconItem.label}</Text>
@@ -343,7 +343,7 @@ function PopupViewMode({ popup, onEdit }: PopupViewModeProps) {
       <View className="gap-1">
         <Text className="text-[#475569] text-[13px]">CTA</Text>
         {popup.cta ? (
-          <View className="rounded-xl border border-border bg-[#eef2ff] p-3">
+          <View className="rounded-sm border border-border bg-[#eef2ff] p-3">
             <Text className="font-geist-semibold text-[#0f172a] text-[14px]">{ctaLabel}</Text>
             <Text className="text-[#475569] text-[12px]">{ctaActionLabel}</Text>
             <Text className="text-[#475569] text-[12px]">{popup.cta.value}</Text>

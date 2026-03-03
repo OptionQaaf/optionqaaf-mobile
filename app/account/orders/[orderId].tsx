@@ -177,7 +177,7 @@ function OrderDetailContent() {
               {trackingNumbers.map((trackingNumber) => (
                 <PressableOverlay
                   key={trackingNumber}
-                  className="flex-row items-center gap-2 rounded-xl px-3 py-2 bg-[#f1f5f9]"
+                  className="flex-row items-center gap-2 rounded-sm px-3 py-2 bg-[#f1f5f9]"
                   onPress={() => handleTrackingPress(trackingNumber)}
                 >
                   <Truck size={16} color="#0f172a" />
@@ -188,7 +188,7 @@ function OrderDetailContent() {
           </View>
         ) : null}
         {orderNote ? (
-          <View className="bg-white rounded-xl px-3 py-2 mt-2">
+          <View className="bg-white rounded-sm px-3 py-2 mt-2">
             <Text className="text-[#0f172a] font-geist-medium text-[13px]">Order note</Text>
             <Text className="text-[#475569] text-[13px] mt-[2px]">{orderNote}</Text>
           </View>
@@ -202,11 +202,11 @@ function OrderDetailContent() {
             {segmentedLineItems.map(({ item, quantity }) => (
               <View key={`${item.id}-${quantity}`} className="flex-row w-full gap-4">
                 <PressableOverlay
-                  className="flex-row w-full items-center gap-4 rounded-2xl px-3 py-2 bg-[#f1f5f9]"
+                  className="flex-row w-full items-center gap-4 rounded-sm px-3 py-2 bg-[#f1f5f9]"
                   pressableClassName="flex-1"
                   onPress={() => handleLinePress(item)}
                 >
-                  <View className="h-14 w-14 rounded-xl bg-white overflow-hidden items-center justify-center">
+                  <View className="h-14 w-14 rounded-sm bg-white overflow-hidden items-center justify-center">
                     {item.imageUrl ? (
                       <Image
                         source={{ uri: item.imageUrl }}
@@ -357,7 +357,7 @@ function formatDate(value: string): string {
 
 function Badge({ label, bg, color }: { label: string; bg: string; color: string }) {
   return (
-    <View className="px-2 py-1 rounded-full" style={{ backgroundColor: bg }}>
+    <View className="px-2 py-1 rounded-sm" style={{ backgroundColor: bg }}>
       <Text className="text-[11px] font-geist-medium" style={{ color }}>
         {label}
       </Text>
