@@ -102,7 +102,7 @@ function AccountDeletionContent() {
     <ScrollView
       contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding }}
       scrollIndicatorInsets={{ top: 52, bottom: bottomPadding }}
-      className="flex-1 bg-[#f8fafc]"
+      className="flex-1 bg-white"
     >
       <View className="px-5 pt-6 gap-6">
         <View className="gap-2">
@@ -113,7 +113,7 @@ function AccountDeletionContent() {
         </View>
 
         <View className="gap-5">
-          <Card padding="lg" className="bg-[#fff7ed] border border-[#fed7aa]">
+          <Card padding="sm" className="bg-[#fff7ed] border border-[#fed7aa]">
             <View className="flex-row items-start gap-3">
               <View className="h-10 w-10 rounded-2xl bg-[#ffedd5] items-center justify-center">
                 <AlertTriangle color="#9a3412" size={18} strokeWidth={2} />
@@ -127,7 +127,7 @@ function AccountDeletionContent() {
             </View>
           </Card>
 
-          <Card padding="lg" className="bg-white border border-[#e2e8f0]">
+          <Card padding="sm" className="bg-white border border-[#e2e8f0]">
             <Text className="text-[#0f172a] font-geist-semibold text-[16px] mb-3">Consequences</Text>
             <View className="gap-3">
               <Text className="text-[#475569] text-[14px] leading-[20px]">
@@ -142,7 +142,7 @@ function AccountDeletionContent() {
             </View>
           </Card>
 
-          <Card padding="lg" className="bg-white border border-[#e2e8f0]">
+          <Card padding="sm" className="bg-white border border-[#e2e8f0]">
             <Text className="text-[#0f172a] font-geist-semibold text-[16px] mb-3 text-right">النتائج</Text>
             <View className="gap-3">
               <Text className="text-[#475569] text-[14px] leading-[20px] text-right">

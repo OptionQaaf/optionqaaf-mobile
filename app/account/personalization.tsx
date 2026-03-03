@@ -12,6 +12,7 @@ import {
   setCustomerBirthDate,
   setCustomerGender,
 } from "@/lib/shopify/customer/personalization"
+import { useAdminView } from "@/store/adminView"
 import { usePersonalization } from "@/store/personalization"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -60,6 +61,7 @@ function PersonalizationContent() {
   const { data: profile } = useCustomerProfile({ enabled: isAuthenticated })
   const localGender = usePersonalization((state) => state.gender)
   const localBirthDate = usePersonalization((state) => state.birthDate)
+  const viewAsNonAdmin = useAdminView((state) => state.viewAsNonAdmin)
   const setLocalGender = usePersonalization((state) => state.setGender)
   const setLocalBirthDate = usePersonalization((state) => state.setBirthDate)
   const { show } = useToast()
@@ -81,7 +83,7 @@ function PersonalizationContent() {
     : birthDateManuallyChosen
       ? birthDateDraft.toDateString()
       : "Not set yet"
-  const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
+  const isAdmin = useMemo(() => isPushAdmin(profile?.email) && !viewAsNonAdmin, [profile?.email, viewAsNonAdmin])
 
   useEffect(() => {
     setSelectedGender(localGender)
@@ -246,7 +248,7 @@ function PersonalizationContent() {
       <ScrollView
         contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding }}
         scrollIndicatorInsets={{ top: 52, bottom: bottomPadding }}
-        className="flex-1 bg-[#f8fafc]"
+        className="flex-1 bg-white"
       >
         <View className="px-5 pt-6 gap-6">
           <View className="gap-2">
@@ -256,7 +258,7 @@ function PersonalizationContent() {
             </Text>
           </View>
 
-          <Card padding="lg" className="gap-4">
+          <Card padding="sm" className="gap-4">
             <View className="gap-1">
               <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Gender</Text>
               <Text className="text-[#475569] text-[13px] leading-[18px]">
@@ -297,7 +299,7 @@ function PersonalizationContent() {
             </Button>
           </Card>
 
-          <Card padding="lg" className="gap-4">
+          <Card padding="sm" className="gap-4">
             <View className="gap-1">
               <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Birth date</Text>
               <Text className="text-[#475569] text-[13px] leading-[18px]">
@@ -327,7 +329,7 @@ function PersonalizationContent() {
           </Card>
 
           {__DEV__ && isAdmin ? (
-            <Card padding="lg" className="gap-3">
+            <Card padding="sm" className="gap-3">
               <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Admin dev tools</Text>
               <Button size="md" variant="outline" fullWidth onPress={() => void handleResetBirthDateDev()}>
                 Reset birth date (dev)

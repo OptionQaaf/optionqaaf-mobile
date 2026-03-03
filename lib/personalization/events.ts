@@ -445,6 +445,23 @@ export function getRecentlyViewedOnlyHandles(
     .slice(0, Math.max(1, limit))
 }
 
+export function getRecentlyViewedHandles(
+  profileInput: PersonalizationProfileV1,
+  limit = PERSONALIZATION_RECENT_CAP,
+): string[] {
+  const profile = normalizePersonalizationProfile(profileInput)
+  return Object.values(profile.products)
+    .filter((facts) => facts.counts.viewed > 0)
+    .sort((a, b) => {
+      const at = a.last.viewedAt ? new Date(a.last.viewedAt).getTime() : 0
+      const bt = b.last.viewedAt ? new Date(b.last.viewedAt).getTime() : 0
+      return bt - at
+    })
+    .map((facts) => facts.handle)
+    .filter((handle) => Boolean(handle))
+    .slice(0, Math.max(1, limit))
+}
+
 export function clearRecentlyViewedOnlyFromProfile(profileInput: PersonalizationProfileV1): PersonalizationProfileV1 {
   const profile = normalizePersonalizationProfile(profileInput)
   const targets = new Set(
@@ -462,5 +479,11 @@ export function clearRecentlyViewedOnlyFromProfile(profileInput: Personalization
     return event.type !== "product_viewed"
   })
 
+  return rebuildProfileFromEvents(nextEvents, profile.rulesVersion)
+}
+
+export function clearRecentlyViewedFromProfile(profileInput: PersonalizationProfileV1): PersonalizationProfileV1 {
+  const profile = normalizePersonalizationProfile(profileInput)
+  const nextEvents = profile.eventLog.filter((event) => event.type !== "product_viewed")
   return rebuildProfileFromEvents(nextEvents, profile.rulesVersion)
 }

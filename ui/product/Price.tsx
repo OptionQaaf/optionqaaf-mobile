@@ -107,14 +107,8 @@ export function Price({
 
   return (
     <View className={className}>
-      <View
-        className="flex-row items-center"
-        style={{ columnGap: preset.horizontalGap, gap: preset.horizontalGap }}
-      >
-        <View
-          className="flex-1 min-w-0"
-          style={{ rowGap: preset.stackGap, gap: preset.stackGap }}
-        >
+      <View className="flex-row items-center" style={{ columnGap: preset.horizontalGap, gap: preset.horizontalGap }}>
+        <View className="flex-1 min-w-0" style={{ rowGap: preset.stackGap, gap: preset.stackGap }}>
           {isOnSale ? (
             <Text
               numberOfLines={1}
@@ -130,7 +124,7 @@ export function Price({
             adjustsFontSizeToFit
             minimumFontScale={0.9}
             style={{ minWidth: 0 }}
-            className={cn("text-primary font-geist-semibold", preset.amount, amountClassName)}
+            className={cn("text-primary font-geist", preset.amount, amountClassName)}
           >
             {formatCurrency(displayAmount, targetCurrency, fmtLocale)}
           </Text>

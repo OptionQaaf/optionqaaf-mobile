@@ -26,8 +26,8 @@ module.exports = {
       },
       colors: {
         // LIGHT THEME (default)
-        base: "#F4F4F5", // off‑white app background
-        elev: "#EEEEEF", // slightly darker section bg (optional)
+        base: "#FFFFFF", // app background
+        elev: "#FFFFFF", // section bg
         surface: "#FFFFFF", // cards
         border: "#E5E7EB", // card borders / dividers
 

@@ -96,10 +96,12 @@ export function usePersonalizationSyncService({ enabled }: UsePersonalizationSyn
           now - lastPullAtRef.current >= PULL_MIN_INTERVAL_MS
 
         let snapshot = getPersonalizationEventsState()
+        let remoteWasEmptyAfterPull = false
 
         if (shouldPull) {
           const remote = await fetchCustomerPersonalizationProfile()
           if (cancelled) return
+          remoteWasEmptyAfterPull = !remote || remote.eventLog.length === 0
 
           const merged = mergeLocalAndRemoteProfiles(snapshot.profile, remote)
           snapshot.replaceProfile(merged, { markUnsynced: snapshot.hasUnsyncedChanges })
@@ -109,16 +111,18 @@ export function usePersonalizationSyncService({ enabled }: UsePersonalizationSyn
 
         const unsyncedCount = snapshot.getUnsyncedEventCount()
         const hasUnsynced = snapshot.hasUnsyncedChanges && unsyncedCount > 0
+        const hasLocalEvents = snapshot.events.length > 0
         const lastSyncedAtMs = snapshot.lastSyncedAt ? new Date(snapshot.lastSyncedAt).getTime() : 0
         const staleForPush = !Number.isFinite(lastSyncedAtMs) || now - lastSyncedAtMs >= PUSH_MAX_DELAY_MS
 
         const shouldPush =
-          hasUnsynced &&
-          (intent.forcePush ||
-            intent.reason === "login" ||
-            intent.reason === "background" ||
-            unsyncedCount >= UNSYNCED_PUSH_THRESHOLD ||
-            staleForPush)
+          (hasUnsynced &&
+            (intent.forcePush ||
+              intent.reason === "login" ||
+              intent.reason === "background" ||
+              unsyncedCount >= UNSYNCED_PUSH_THRESHOLD ||
+              staleForPush)) ||
+          (shouldPull && remoteWasEmptyAfterPull && hasLocalEvents)
 
         if (shouldPush) {
           await setCustomerPersonalizationProfile(snapshot.profile, profile.id)

@@ -193,7 +193,7 @@ function NotificationsContent() {
     <ScrollView
       contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding }}
       scrollIndicatorInsets={{ top: 52, bottom: bottomPadding }}
-      className="flex-1 bg-[#f8fafc]"
+      className="flex-1 bg-white"
     >
       <View className="px-5 pt-6 gap-6">
         <View className="gap-2">
@@ -212,7 +212,7 @@ function NotificationsContent() {
             disabled={pushBlockedBySystem || isChecking}
           />
           {pushBlockedBySystem ? (
-            <Card padding="lg" className="bg-[#f1f5f9]">
+            <Card padding="sm" className="bg-[#f1f5f9]">
               <Text className="text-[#0f172a] font-geist-semibold text-[14px]">Push notifications blocked</Text>
               <Text className="text-[#475569] text-[13px] leading-[19px]">
                 Notifications are turned off from your device settings. Enable them in system settings to receive push
@@ -246,7 +246,7 @@ type PreferenceToggleProps = {
 
 function PreferenceToggle({ title, description, value, onValueChange, disabled }: PreferenceToggleProps) {
   return (
-    <Card padding="lg" className="flex-row items-center gap-4">
+    <Card padding="sm" className="flex-row items-center gap-4">
       <View className="flex-1 gap-1">
         <Text className="text-[#0f172a] font-geist-semibold text-[15px]">{title}</Text>
         <Text className="text-[#475569] text-[13px] leading-[18px]">{description}</Text>

@@ -3,6 +3,7 @@ import { useCustomerProfile } from "@/features/account/api"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { isPushAdmin } from "@/features/notifications/admin"
+import { useAdminView } from "@/store/adminView"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
 import { DOCK_HEIGHT } from "@/ui/nav/dockConstants"
@@ -88,8 +89,9 @@ function BroadcastContent() {
   const [stats, setStats] = useState<NotificationStats[]>([])
   const [statsError, setStatsError] = useState<string | null>(null)
   const [isLoadingStats, setIsLoadingStats] = useState(false)
+  const viewAsNonAdmin = useAdminView((state) => state.viewAsNonAdmin)
 
-  const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
+  const isAdmin = useMemo(() => isPushAdmin(profile?.email) && !viewAsNonAdmin, [profile?.email, viewAsNonAdmin])
   const trimmedTitle = title.trim()
   const trimmedMessage = message.trim()
   const missingConfig = !WORKER_URL || !ADMIN_SECRET
@@ -255,8 +257,8 @@ function BroadcastContent() {
 
   if (!isAdmin) {
     return (
-      <View className="flex-1 bg-[#f8fafc] px-5 pt-8">
-        <Card padding="lg" className="gap-3">
+      <View className="flex-1 bg-white px-5 pt-8">
+        <Card padding="sm" className="gap-3">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Admin access required</Text>
           <Text className="text-[#475569] text-[13px] leading-[19px]">
             This tool is limited to approved admin accounts. Switch accounts or contact the team if you should have
@@ -290,7 +292,7 @@ function BroadcastContent() {
             </Text>
           </View>
 
-          <Card padding="lg" className="gap-4">
+          <Card padding="sm" className="gap-4">
             <Input
               label="Title"
               placeholder="Optional headline"
@@ -416,7 +418,7 @@ function BroadcastContent() {
               Send broadcast
             </Button>
           </Card>
-          <Card padding="lg" className="gap-3">
+          <Card padding="sm" className="gap-3">
             <View className="flex-row items-center justify-between">
               <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Notification stats</Text>
               <Button variant="ghost" size="sm" onPress={loadStats} disabled={isLoadingStats || missingConfig}>

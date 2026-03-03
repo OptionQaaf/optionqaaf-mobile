@@ -1,11 +1,11 @@
 // ui/product/ProductTile.tsx
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
-import { ProductTileCarousel } from "@/ui/product/ProductTileCarousel"
 import { Price, type PriceSize } from "@/ui/product/Price"
+import { ProductTileCarousel } from "@/ui/product/ProductTileCarousel"
 import { useTapOrSwipe } from "@/ui/product/useTapOrSwipe"
 import { cn } from "@/ui/utils/cva"
 import { Image } from "expo-image"
-import { useMemo } from "react"
+import { type ReactNode, useMemo } from "react"
 import { PixelRatio, Text, View } from "react-native"
 import { GestureDetector } from "react-native-gesture-handler"
 
@@ -28,6 +28,8 @@ type Props = {
   variant?: "card" | "plain"
   priority?: "low" | "normal" | "high"
   edgeToEdge?: boolean
+  imageOverlay?: ReactNode
+  imageOverlayPositionClassName?: string
 }
 
 const TILE_PRICE_SIZE_OVERRIDES: Record<
@@ -78,10 +80,12 @@ export function ProductTile({
   className,
   width,
   padding = "md",
-  imageRatio = 1,
+  imageRatio = 3 / 4,
   variant = "card",
   priority,
   edgeToEdge = false,
+  imageOverlay,
+  imageOverlayPositionClassName,
 }: Props) {
   const resolvedPadding: PaddingSize = (() => {
     if (edgeToEdge && padding === "md") return "sm"
@@ -117,7 +121,24 @@ export function ProductTile({
   const shouldRenderCarousel = Boolean(targetW && targetH && optimizedImages.length > 1)
   const carouselWidth = targetW ?? 0
   const carouselHeight = targetH ?? 0
-  const tapGesture = useTapOrSwipe({ onPress, maxDistance: 12 })
+  const overlayExclusionBounds = useMemo(() => {
+    if (!imageOverlay || !targetW || !targetH) return null
+    const overlayWidth = 78
+    const overlayHeight = 52
+    const rightInset = 0
+    const topInset = 8
+    return {
+      left: targetW - rightInset - overlayWidth,
+      right: targetW - rightInset,
+      top: topInset,
+      bottom: topInset + overlayHeight,
+    }
+  }, [imageOverlay, targetH, targetW])
+  const tapGesture = useTapOrSwipe({
+    onPress,
+    maxDistance: 12,
+    excludeRect: overlayExclusionBounds,
+  })
   const titleLineHeight = 20
   const priceSize: PriceSize = (() => {
     if (typeof targetW !== "number") {
@@ -131,11 +152,12 @@ export function ProductTile({
     return "xs"
   })()
   const priceOverride = TILE_PRICE_SIZE_OVERRIDES[priceSize]
+  const resolvedOverlayPositionClassName = imageOverlayPositionClassName ?? "right-2 top-2"
 
   return (
     <GestureDetector gesture={tapGesture}>
       <View
-        className={cn("overflow-hidden", edgeToEdge ? undefined : "rounded-sm border-gray-200 border", className)}
+        className={cn("overflow-hidden", edgeToEdge ? undefined : "rounded-[4px] ", className)}
         style={width ? { width } : undefined}
       >
         <View className={cn(cardChrome, "overflow-hidden")}>
@@ -158,6 +180,9 @@ export function ProductTile({
                 placeholder={DEFAULT_PLACEHOLDER}
               />
             )}
+            {imageOverlay ? (
+              <View className={cn("absolute z-10", resolvedOverlayPositionClassName)}>{imageOverlay}</View>
+            ) : null}
           </View>
 
           <View className={cn(pad, "gap-2")}>

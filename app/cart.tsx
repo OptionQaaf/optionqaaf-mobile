@@ -982,11 +982,11 @@ function SkeletonList() {
     <View className="px-4 pt-4">
       {Array.from({ length: 5 }).map((_, i) => (
         <View key={i} className="flex-row gap-3 p-3 mb-3 rounded-2xl bg-surface border border-border">
-          <View className="w-[84px] h-[84px] rounded-2xl bg-elev animate-pulse" />
+          <View className="w-[84px] h-[84px] rounded-2xl bg-[#e2e8f0] animate-pulse" />
           <View className="flex-1 gap-2">
-            <View className="h-4 w-2/3 rounded bg-elev animate-pulse" />
-            <View className="h-3 w-1/2 rounded bg-elev animate-pulse" />
-            <View className="h-8 w-full rounded-full bg-elev mt-2 animate-pulse" />
+            <View className="h-4 w-2/3 rounded bg-[#e2e8f0] animate-pulse" />
+            <View className="h-3 w-1/2 rounded bg-[#e2e8f0] animate-pulse" />
+            <View className="h-8 w-full rounded-full bg-[#e2e8f0] mt-2 animate-pulse" />
           </View>
         </View>
       ))}

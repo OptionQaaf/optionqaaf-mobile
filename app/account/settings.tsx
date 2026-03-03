@@ -11,6 +11,7 @@ import { resetBirthDatePromptStateForDev } from "@/lib/personalization/birthDate
 import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
 import { clearOnboardingFlag } from "@/lib/storage/flags"
 import { kv } from "@/lib/storage/mmkv"
+import { useAdminView } from "@/store/adminView"
 import { useNotificationSettings, type NotificationPermissionState } from "@/store/notifications"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -22,7 +23,7 @@ import { useRouter, type RelativePathString } from "expo-router"
 import * as Updates from "expo-updates"
 import { Clock, Megaphone, RefreshCcw, Settings2, Sparkles, Trash2, UserRound } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Modal, Pressable, ScrollView, Text, View } from "react-native"
+import { Modal, Platform, Pressable, ScrollView, Switch, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function AccountSettingsScreen() {
@@ -54,8 +55,11 @@ function AccountSettingsContent() {
   const [diagnosticsUnlocked, setDiagnosticsUnlocked] = useState(false)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
   const bottomPadding = insets.bottom + DOCK_HEIGHT + 24
+  const viewAsNonAdmin = useAdminView((state) => state.viewAsNonAdmin)
+  const setViewAsNonAdmin = useAdminView((state) => state.setViewAsNonAdmin)
 
-  const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
+  const rawIsAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
+  const isAdmin = rawIsAdmin && !viewAsNonAdmin
 
   useEffect(() => {
     if (!isAdmin) {
@@ -76,18 +80,29 @@ function AccountSettingsContent() {
   }, [isAdmin, diagnosticsUnlocked])
 
   const handleCloseDiagnostics = useCallback(() => setShowDiagnostics(false), [])
+  const handleToggleAdminView = useCallback(
+    (next: boolean) => {
+      setViewAsNonAdmin(next)
+      if (next) {
+        show({ title: "Viewing app as production non-admin", type: "info" })
+      } else {
+        show({ title: "Admin view restored", type: "success" })
+      }
+    },
+    [setViewAsNonAdmin, show],
+  )
 
   const personalizationLinks = useMemo(
     () => [
       {
         title: "Personalization",
-        body: "Manage profile preferences like gender and upcoming personalization settings.",
+        body: "Manage preferences and settings.",
         Icon: UserRound,
         path: "/account/personalization" as RelativePathString,
       },
       {
         title: "Recently viewed",
-        body: "Products you viewed but haven’t saved to cart or wishlist.",
+        body: "Products you viewed but haven’t saved.",
         Icon: Clock,
         path: "/account/recently-viewed" as RelativePathString,
       },
@@ -189,7 +204,7 @@ function AccountSettingsContent() {
       <ScrollView
         contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding }}
         scrollIndicatorInsets={{ bottom: bottomPadding }}
-        className="bg-[#f8fafc]"
+        className="bg-white"
       >
         <View className="px-5 pt-6 pb-4 gap-7">
           <View className="gap-2">
@@ -200,7 +215,7 @@ function AccountSettingsContent() {
           </View>
 
           {!deletionPendingLoaded ? null : deletionPending ? (
-            <Card padding="lg" className="border border-[#fecaca] bg-[#fef2f2] gap-2">
+            <Card padding="sm" className="border border-[#fecaca] bg-[#fef2f2] gap-2 px-0">
               <Text className="text-[#991b1b] font-geist-semibold text-[15px]">
                 This account is going through deletion.
               </Text>
@@ -257,30 +272,51 @@ function AccountSettingsContent() {
           {__DEV__ ? (
             <Section title="Developer">
               <View className="gap-2">
-                <Button
-                  variant="outline"
-                  size="lg"
-                  fullWidth
-                  onPress={handleResetOnboarding}
-                  leftIcon={<RefreshCcw color="#111827" size={18} strokeWidth={2} />}
-                >
-                  Reset onboarding/cache (dev)
-                </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  fullWidth
-                  onPress={handleDebugExpireToken}
-                  leftIcon={<Clock color="#111827" size={18} strokeWidth={2} />}
-                >
-                  Expire token (debug)
-                </Button>
+                {rawIsAdmin ? (
+                  <Card padding="sm" className="flex-row items-center gap-4 px-0">
+                    <View className="flex-1 gap-1">
+                      <Text className="text-[#0f172a] font-geist-semibold text-[15px]">View as production user</Text>
+                      <Text className="text-[#475569] text-[13px] leading-[18px]">
+                        Hide admin-only tools to test the regular customer experience.
+                      </Text>
+                    </View>
+                    <Switch
+                      value={viewAsNonAdmin}
+                      onValueChange={handleToggleAdminView}
+                      trackColor={{ false: "#cbd5f5", true: "#0f172a" }}
+                      thumbColor={Platform.OS === "android" ? (viewAsNonAdmin ? "#ffffff" : "#f8fafc") : undefined}
+                      ios_backgroundColor="#cbd5f5"
+                    />
+                  </Card>
+                ) : null}
+                {!viewAsNonAdmin ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      fullWidth
+                      onPress={handleResetOnboarding}
+                      leftIcon={<RefreshCcw color="#111827" size={18} strokeWidth={2} />}
+                    >
+                      Reset onboarding/cache (dev)
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      fullWidth
+                      onPress={handleDebugExpireToken}
+                      leftIcon={<Clock color="#111827" size={18} strokeWidth={2} />}
+                    >
+                      Expire token (debug)
+                    </Button>
+                  </>
+                ) : null}
               </View>
             </Section>
           ) : null}
 
           <Section title="App info">
-            <Card padding="lg" className="gap-3">
+            <Card padding="sm" className="gap-3 px-0">
               <View className="gap-1">
                 <Pressable
                   onLongPress={handleVersionLongPress}
@@ -358,7 +394,7 @@ function AccountLink({
 }) {
   return (
     <PressableOverlay onPress={onPress} className="rounded-sm">
-      <Card padding="lg" className="flex-row items-center gap-4">
+      <Card padding="sm" className="flex-row items-center gap-4 px-0">
         <View className="h-12 w-12 rounded-sm bg-[#f1f5f9] items-center justify-center">{icon}</View>
         <View className="flex-1 gap-1">
           <Text className="text-[#0f172a] font-geist-semibold text-[15px]">{title}</Text>
@@ -493,7 +529,7 @@ function DiagnosticSection({ title, rows }: { title: string; rows: DiagnosticRow
   return (
     <View className="gap-2">
       <Text className="text-[#0f172a] font-geist-semibold text-[15px]">{title}</Text>
-      <View className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-3 gap-1">
+      <View className="rounded-2xl border border-[#e2e8f0] bg-white p-3 gap-1">
         {rows.map((row) => (
           <DiagnosticRow key={row.label} {...row} />
         ))}

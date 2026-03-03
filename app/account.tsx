@@ -5,6 +5,7 @@ import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { useRecentlyViewedProducts } from "@/features/personalization/recentlyViewed"
+import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import { qk } from "@/lib/shopify/queryKeys"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { useToast } from "@/ui/feedback/Toast"
@@ -12,10 +13,11 @@ import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { padToFullRow } from "@/ui/layout/gridUtils"
 import { Screen } from "@/ui/layout/Screen"
 import { Button } from "@/ui/primitives/Button"
-import { ProductTile } from "@/ui/product/ProductTile"
 import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
+import { ProductTileSkeleton } from "@/ui/product/ProductTileSkeleton"
 import { Card } from "@/ui/surfaces/Card"
 import { useQueryClient } from "@tanstack/react-query"
+import { Image } from "expo-image"
 import { RelativePathString, useRouter } from "expo-router"
 import { Clock, Heart, LogOut, MapPin, Package, Pencil, Settings2 } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
@@ -54,8 +56,9 @@ function AccountContent() {
   const avatar = useMemo(() => avatarFromProfile(profile), [profile])
   const showProfileSkeleton = (isLoading && !profile) || !deletionPendingLoaded
   const deletionCacheRef = useRef(new Map<string, boolean>())
-  const { data: recentlyViewed } = useRecentlyViewedProducts(4)
+  const { data: recentlyViewed, isLoading: recentlyViewedLoading } = useRecentlyViewedProducts(4)
   const recentlyViewedGrid = useMemo(() => padToFullRow(recentlyViewed.slice(0, 4), 2), [recentlyViewed])
+  const isAccountBatchLoading = showProfileSkeleton || recentlyViewedLoading
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -182,12 +185,12 @@ function AccountContent() {
   return (
     <ScrollView
       contentContainerStyle={{ paddingVertical: 40, flexGrow: 1 }}
-      className="bg-[#f8fafc]"
+      className="bg-white"
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} tintColor="#111827" />}
     >
       <View className="px-5 pt-6 pb-4 gap-7 flex-1">
         {deletionPending ? (
-          <Card padding="lg" className="border border-[#fecaca] bg-[#fef2f2] gap-2">
+          <Card padding="sm" className="border border-[#fecaca] bg-[#fef2f2] gap-2 px-0">
             <Text className="text-[#991b1b] font-geist-semibold text-[15px]">
               This account is going through deletion.
             </Text>
@@ -196,8 +199,8 @@ function AccountContent() {
             </Text>
           </Card>
         ) : null}
-        <Card padding="lg" className="gap-5">
-          {showProfileSkeleton ? (
+        <Card padding="sm" className="gap-5 px-0">
+          {isAccountBatchLoading ? (
             <AccountHeaderSkeleton />
           ) : (
             <View className="flex-row items-center gap-4">
@@ -240,7 +243,7 @@ function AccountContent() {
 
         <Section title="Quick access">
           <View className="gap-3">
-            {showProfileSkeleton
+            {isAccountBatchLoading
               ? Array.from({ length: Math.max(quickLinks.length, 3) }).map((_, idx) => (
                   <AccountLinkSkeleton key={`quick-link-skel-${idx}`} />
                 ))
@@ -256,10 +259,20 @@ function AccountContent() {
           </View>
         </Section>
 
-        {recentlyViewed.length > 0 ? (
+        {isAccountBatchLoading ? (
           <Section title="Recently viewed">
-            <View className="flex-row items-center justify-between">
-              {/* TODO: To be moved to be on the right side, next to the title in the section instead of a button just like this, so we need to expand the section component to take props of actions/buttons to put next to the title spaced between, the button can have an icon or a text or both, never neither.  */}
+            <StaticProductGrid
+              data={Array.from({ length: 4 }, (_, idx) => ({ _key: `recently-viewed-skeleton-${idx}` }))}
+              gap={12}
+              horizontalInset={0}
+              keyExtractor={(item) => item._key}
+              renderItem={(item, itemWidth) => <ProductTileSkeleton width={itemWidth} imageRatio={1} padding="sm" />}
+            />
+          </Section>
+        ) : recentlyViewed.length > 0 ? (
+          <Section
+            title="Recently viewed"
+            action={
               <Button
                 variant="outline"
                 size="sm"
@@ -268,23 +281,36 @@ function AccountContent() {
               >
                 See all
               </Button>
-            </View>
-            {/* TODO: Change them from being product tiles and instead just the products' images with a bigger gap between them, and ensure they have a very small rounded border, so something like rounded-sm or if there is smaller. */}
+            }
+          >
             <StaticProductGrid
               data={recentlyViewedGrid}
-              gap={8}
+              gap={12}
+              horizontalInset={0}
               renderItem={(item, itemWidth) => {
                 if (!item) return <View style={{ width: itemWidth }} />
+                const optimized =
+                  optimizeImageUrl(item.imageUrl || "", {
+                    width: Math.round(itemWidth),
+                    height: Math.round(itemWidth),
+                    format: "webp",
+                    dpr: 2,
+                  }) || item.imageUrl
                 return (
-                  <ProductTile
-                    width={itemWidth}
-                    image={item.imageUrl || "https://images.unsplash.com/photo-1542291026-7eec264c27ff"}
-                    brand={item.vendor ?? ""}
-                    title={item.title}
-                    price={item.price}
-                    currency={item.currencyCode}
+                  <PressableOverlay
                     onPress={() => router.push(`/products/${item.handle}` as const)}
-                  />
+                    className="overflow-hidden rounded-[4px] border border-[#e5e7eb] bg-white"
+                    haptic="light"
+                  >
+                    <Image
+                      source={{ uri: optimized || "https://images.unsplash.com/photo-1542291026-7eec264c27ff" }}
+                      style={{ width: itemWidth, height: itemWidth }}
+                      contentFit="cover"
+                      transition={120}
+                      cachePolicy="disk"
+                      placeholder={DEFAULT_PLACEHOLDER}
+                    />
+                  </PressableOverlay>
                 )
               }}
             />
@@ -292,25 +318,32 @@ function AccountContent() {
         ) : null}
 
         <View className="pt-8 pb-16 gap-2" style={{ marginTop: "auto" }}>
-          <Button
-            variant="outline"
-            size="lg"
-            fullWidth
-            onPress={handleLogout}
-            leftIcon={<LogOut color="#111827" size={18} strokeWidth={2} />}
-          >
-            Sign out
-          </Button>
+          {isAccountBatchLoading ? (
+            <Skeleton className="h-12 w-full rounded-sm" />
+          ) : (
+            <Button
+              variant="outline"
+              size="lg"
+              fullWidth
+              onPress={handleLogout}
+              leftIcon={<LogOut color="#111827" size={18} strokeWidth={2} />}
+            >
+              Sign out
+            </Button>
+          )}
         </View>
       </View>
     </ScrollView>
   )
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
     <View className="gap-3">
-      <Text className="text-[#0f172a] font-geist-semibold text-[16px]">{title}</Text>
+      <View className="flex-row items-center justify-between gap-3">
+        <Text className="text-[#0f172a] font-geist-semibold text-[16px]">{title}</Text>
+        {action}
+      </View>
       {children}
     </View>
   )
@@ -329,7 +362,7 @@ function AccountLink({
 }) {
   return (
     <PressableOverlay onPress={onPress} className="rounded-sm">
-      <Card padding="lg" className="flex-row items-center gap-4">
+      <Card padding="sm" className="flex-row items-center gap-4 px-0">
         <View className="h-12 w-12 rounded-sm bg-[#f1f5f9] items-center justify-center">{icon}</View>
         <View className="flex-1 gap-1">
           <Text className="text-[#0f172a] font-geist-semibold text-[15px]">{title}</Text>
@@ -356,7 +389,7 @@ function AccountHeaderSkeleton() {
 
 function AccountLinkSkeleton() {
   return (
-    <Card padding="lg" className="flex-row items-center gap-4">
+    <Card padding="sm" className="flex-row items-center gap-4 px-0">
       <Skeleton className="h-12 w-12 rounded-2xl" />
       <View className="flex-1 gap-2">
         <Skeleton className="h-4 w-3/5 rounded-md" />

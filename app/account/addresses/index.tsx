@@ -98,7 +98,7 @@ function AddressesContent() {
         .filter((line): line is string => Boolean(line && line.trim().length))
 
       return (
-        <Card key={address.id} padding="lg" className={`gap-3 ${isDefault ? "bg-[#e0f2fe] border-[#0284c7]" : ""}`}>
+        <Card key={address.id} padding="sm" className={`gap-3 ${isDefault ? "bg-[#e0f2fe] border-[#0284c7]" : ""}`}>
           <View className="flex-row items-start justify-between">
             <View className="flex-1 gap-1">
               <Text className="text-[#0f172a] font-geist-semibold text-[15px]">
@@ -158,7 +158,7 @@ function AddressesContent() {
 
   return (
     <ScrollView
-      className="bg-[#f8fafc]"
+      className="bg-white"
       contentContainerStyle={{ paddingTop: 52, paddingBottom: 48 }}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} tintColor="#111827" />}
     >
@@ -177,7 +177,7 @@ function AddressesContent() {
         ) : addresses.length ? (
           <View className="gap-4">{addresses.map(renderAddress)}</View>
         ) : (
-          <Card padding="lg" className="gap-3">
+          <Card padding="sm" className="gap-3">
             <Text className="text-[#0f172a] font-geist-semibold text-[15px]">No addresses yet</Text>
             <Text className="text-[#475569] text-[13px]">Save a shipping or pickup location to speed up checkout.</Text>
             <Button variant="outline" onPress={handleAddNew}>

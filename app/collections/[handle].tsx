@@ -293,9 +293,9 @@ export default function CollectionScreen() {
             ) : heroState === "skeleton" ? (
               <View className="flex-1 bg-[#f1f5f9] px-4 pb-6 justify-end gap-3">
                 <View className="flex-row justify-center">
-                  <Skeleton className="h-5 w-24 rounded-full bg-white/70" />
+                  <Skeleton className="h-5 w-24 rounded-full bg-[#dbe4ee]" />
                 </View>
-                <Skeleton className="h-12 w-3/4 self-center rounded-3xl bg-white/80" />
+                <Skeleton className="h-12 w-3/4 self-center rounded-3xl bg-[#d5deea]" />
               </View>
             ) : (
               <View className="flex-1 px-4 pb-6 items-center justify-end" style={{ backgroundColor: "#0f172a" }}>

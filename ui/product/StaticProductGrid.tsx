@@ -6,6 +6,7 @@ export function StaticProductGrid<T>({
   data,
   columns = 2,
   gap = 0,
+  horizontalInset = 16,
   onLayoutWidth, // optional callback if you want to inspect width
   keyExtractor,
   renderItem,
@@ -13,6 +14,7 @@ export function StaticProductGrid<T>({
   data: T[]
   columns?: 1 | 2
   gap?: number
+  horizontalInset?: number
   onLayoutWidth?: (w: number) => void
   keyExtractor?: (item: T, index: number) => string
   renderItem: (item: T, itemWidth: number, index: number) => React.ReactElement
@@ -28,7 +30,7 @@ export function StaticProductGrid<T>({
   const itemWidth = w == null ? 0 : Math.floor((w - gap * (columns - 1)) / columns)
 
   return (
-    <View onLayout={onLayout} className="mx-4">
+    <View onLayout={onLayout} style={{ marginHorizontal: horizontalInset }}>
       {w != null &&
         Array.from({ length: rows }).map((_, r) => (
           <View
@@ -43,8 +45,8 @@ export function StaticProductGrid<T>({
               const i = r * columns + c
               const item = data[i]
               const resolvedKey = item
-                ? keyExtractor?.(item, i) ??
-                  String((item as any)?.id ?? (item as any)?.handle ?? (item as any)?._key ?? i)
+                ? (keyExtractor?.(item, i) ??
+                  String((item as any)?.id ?? (item as any)?.handle ?? (item as any)?._key ?? i))
                 : null
               return item ? (
                 <View

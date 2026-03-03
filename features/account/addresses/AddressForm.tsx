@@ -429,7 +429,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
       className="bg-[#f8fafc]"
     >
       <View className="gap-6 px-5 pt-6 pb-10">
-        <Card padding="lg" className="gap-4">
+        <Card padding="sm" className="gap-4">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Contact</Text>
           <View className="gap-3">
             <Input
@@ -458,7 +458,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
           </View>
         </Card>
 
-        <Card padding="lg" className="gap-4">
+        <Card padding="sm" className="gap-4">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Address</Text>
           <View className="gap-3">
             <View className="gap-3">
@@ -623,7 +623,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
           </View>
         </Card>
 
-        <Card padding="lg" className="gap-4">
+        <Card padding="sm" className="gap-4">
           <View className="flex-row items-center justify-between">
             <View className="flex-1 pr-3">
               <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Set as default</Text>
@@ -675,10 +675,7 @@ export function AddressForm({ initialValues, isSubmitting, submitLabel, onSubmit
               <Text className="text-[#64748b] text-[12px] leading-[16px] mt-1">
                 We may contact you via WhatsApp if needed, so make sure this number works on WhatsApp.
               </Text>
-              <Text
-                className="text-[#64748b] text-[12px] leading-[16px] mt-1"
-                style={{ writingDirection: "rtl" }}
-              >
+              <Text className="text-[#64748b] text-[12px] leading-[16px] mt-1" style={{ writingDirection: "rtl" }}>
                 قد نتواصل معك عبر واتساب عند الحاجة، لذلك تأكد أن هذا الرقم يعمل على واتساب.
               </Text>
             </View>

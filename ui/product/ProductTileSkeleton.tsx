@@ -10,18 +10,15 @@ type Props = {
   className?: string
 }
 
-export function ProductTileSkeleton({
-  width,
-  padding = "md",
-  imageRatio = 1,
-  variant = "card",
-  className,
-}: Props) {
+export function ProductTileSkeleton({ width, padding = "md", imageRatio = 3 / 4, variant = "card", className }: Props) {
   const pad = padding === "lg" ? "p-4" : padding === "sm" ? "p-2.5" : "p-3"
   const cardChrome = variant === "card" ? "bg-surface" : ""
 
   return (
-    <View className={cn("rounded-sm overflow-hidden border border-gray-200 w-full", className)} style={width ? { width } : undefined}>
+    <View
+      className={cn("rounded-sm overflow-hidden border border-gray-200 w-full", className)}
+      style={width ? { width } : undefined}
+    >
       <View className={cn(cardChrome, "overflow-hidden")}>
         <View style={{ aspectRatio: imageRatio, backgroundColor: "#F5F5F7" }}>
           <Skeleton className="w-full h-full" style={{ flex: 1 }} />

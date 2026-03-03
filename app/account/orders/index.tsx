@@ -77,7 +77,7 @@ function OrdersContent() {
 
       return (
         <PressableOverlay onPress={() => handlePress(item.id)} className="mb-4">
-          <Card padding="lg" className="gap-4">
+          <Card padding="sm" className="gap-4">
             <View className="flex-row items-start justify-between gap-3">
               <View className="flex-1">
                 <Text className="text-[#0f172a] font-geist-semibold text-[16px]">{item.name}</Text>

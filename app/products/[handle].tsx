@@ -6,6 +6,7 @@ import { useProduct } from "@/features/pdp/api"
 import { useRecommendedProducts } from "@/features/recommendations/api"
 import { useSearch } from "@/features/search/api"
 import { shareRemoteImage } from "@/src/lib/media/shareRemoteImage"
+import { useAdminView } from "@/store/adminView"
 import type { WishlistItem } from "@/store/wishlist"
 import { usePersonalizationEvents } from "@/store/personalizationEvents"
 import { useWishlist } from "@/store/wishlist"
@@ -28,7 +29,7 @@ import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { VariantDropdown } from "@/ui/product/VariantDropdown"
 import * as Clipboard from "expo-clipboard"
 import { router, useLocalSearchParams } from "expo-router"
-import { Copy, Download, Star } from "lucide-react-native"
+import { Copy, Download, Heart } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, View, useWindowDimensions } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -63,8 +64,9 @@ export default function ProductScreen() {
   const { data: product, isLoading } = useProduct(h)
   const { isAuthenticated, login } = useShopifyAuth()
   const { data: profile } = useCustomerProfile({ enabled: isAuthenticated })
+  const viewAsNonAdmin = useAdminView((state) => state.viewAsNonAdmin)
   const vendor = ((product as any)?.vendor ?? "") as string
-  const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
+  const isAdmin = useMemo(() => isPushAdmin(profile?.email) && !viewAsNonAdmin, [profile?.email, viewAsNonAdmin])
   const { data: vendorSearchData, isLoading: isVendorLoading } = useSearch(vendor, 12)
   const vendorProducts = useMemo(() => vendorSearchData?.pages?.flatMap((p) => p.nodes) ?? [], [vendorSearchData])
   const insets = useSafeAreaInsets()
@@ -430,10 +432,10 @@ export default function ProductScreen() {
                   onPress={handleWishlistPress}
                   className="h-10 w-10 rounded-3xl bg-[#f1f5f9] items-center justify-center"
                 >
-                  <Star
+                  <Heart
                     size={22}
-                    color={isWishlisted ? "#f59e0b" : "#1f2937"}
-                    fill={isWishlisted ? "#f59e0b" : "transparent"}
+                    color={isWishlisted ? "#ef4444" : "#1f2937"}
+                    fill={isWishlisted ? "#ef4444" : "transparent"}
                     strokeWidth={1.5}
                   />
                 </PressableOverlay>

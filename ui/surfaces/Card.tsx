@@ -1,7 +1,7 @@
 import { cn, cva, type VariantProps } from "@/ui/utils/cva"
 import { View, ViewProps } from "react-native"
 
-const cardInner = cva("bg-surface border border-border rounded-md", {
+const cardInner = cva("bg-surface rounded-md", {
   variants: { padding: { none: "", sm: "p-3", md: "p-4", lg: "p-6" }, clip: { true: "overflow-hidden", false: "" } },
   defaultVariants: { padding: "md", clip: false },
 })

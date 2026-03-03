@@ -4,12 +4,14 @@ import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
+import { DOCK_HEIGHT } from "@/ui/nav/dockConstants"
 import { Button } from "@/ui/primitives/Button"
 import { Input } from "@/ui/primitives/Input"
 import { useRouter } from "expo-router"
 import { RotateCcw } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ActivityIndicator, ScrollView, Text, View } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function AccountEditScreen() {
   const router = useRouter()
@@ -28,6 +30,7 @@ function EditProfileContent() {
   const { mutateAsync, isPending } = useUpdateCustomerProfile()
   const { show } = useToast()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
 
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
@@ -56,6 +59,7 @@ function EditProfileContent() {
     })()
     return avatarFromNames(profile?.firstName ?? null, profile?.lastName ?? null, fallbackName)
   }, [profile])
+  const bottomPadding = insets.bottom + DOCK_HEIGHT + 24
 
   const handleSave = useCallback(async () => {
     try {
@@ -87,7 +91,11 @@ function EditProfileContent() {
   }
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 40 }} className="flex-1 bg-[#f8fafc]">
+    <ScrollView
+      contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding }}
+      scrollIndicatorInsets={{ top: 52, bottom: bottomPadding }}
+      className="flex-1 bg-white"
+    >
       <View className="px-5 pt-6 gap-8">
         <View className="items-center gap-4">
           <View

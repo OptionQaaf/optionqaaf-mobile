@@ -11,6 +11,11 @@ expo-env.d.ts
 
 # Native
 .kotlin/
+ios/build/
+android/.gradle/
+android/app/build/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
 *.orig.*
 *.jks
 *.p8

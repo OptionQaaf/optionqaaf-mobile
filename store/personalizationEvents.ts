@@ -1,5 +1,5 @@
 import {
-  clearRecentlyViewedOnlyFromProfile,
+  clearRecentlyViewedFromProfile,
   PERSONALIZATION_EVENTS_CAP,
   applyPersonalizationEvent,
   buildPersonalizationEvent,
@@ -11,6 +11,7 @@ import {
   type PersonalizationEventType,
   type PersonalizationProfileV1,
 } from "@/lib/personalization/events"
+import { kv as asyncKv } from "@/lib/storage/storage"
 import { kv } from "@/lib/storage/mmkv"
 import { create } from "zustand"
 
@@ -46,7 +47,13 @@ type PersistedState = {
 const KEY = "personalization-events-v1"
 
 function persist(payload: PersistedState) {
-  kv.set(KEY, JSON.stringify(payload))
+  const raw = JSON.stringify(payload)
+  kv.set(KEY, raw)
+  void asyncKv.set(KEY, raw).catch((error: unknown) => {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn("[personalization-events] failed async mirror persist", error)
+    }
+  })
 }
 
 function sanitizeEvents(input: unknown): PersonalizationEvent[] {
@@ -70,17 +77,17 @@ function sanitizeEvents(input: unknown): PersonalizationEvent[] {
   return out
 }
 
-function loadInitial(): PersistedState {
-  const raw = kv.get(KEY)
-  if (!raw) {
-    return {
-      profile: createEmptyPersonalizationProfile(),
-      events: [],
-      hasUnsyncedChanges: false,
-      lastSyncedAt: null,
-    }
+function emptyState(): PersistedState {
+  return {
+    profile: createEmptyPersonalizationProfile(),
+    events: [],
+    hasUnsyncedChanges: false,
+    lastSyncedAt: null,
   }
+}
 
+function parsePersisted(raw: string | null | undefined): PersistedState | null {
+  if (!raw) return null
   try {
     const parsed = JSON.parse(raw) as Partial<PersistedState>
     const normalizedProfile = prunePersonalizationProfile(normalizePersonalizationProfile(parsed.profile ?? null))
@@ -96,13 +103,13 @@ function loadInitial(): PersistedState {
       lastSyncedAt: typeof parsed.lastSyncedAt === "string" ? parsed.lastSyncedAt : null,
     }
   } catch {
-    return {
-      profile: createEmptyPersonalizationProfile(),
-      events: [],
-      hasUnsyncedChanges: false,
-      lastSyncedAt: null,
-    }
+    return null
   }
+}
+
+function loadInitial(): PersistedState {
+  const fromSync = parsePersisted(kv.get(KEY))
+  return fromSync ?? emptyState()
 }
 
 const initial = loadInitial()
@@ -208,7 +215,7 @@ export const usePersonalizationEvents = create<PersonalizationEventsState>((set,
 
   clearRecentlyViewedOnly: () => {
     const current = get()
-    const cleared = prunePersonalizationProfile(clearRecentlyViewedOnlyFromProfile(current.profile))
+    const cleared = prunePersonalizationProfile(clearRecentlyViewedFromProfile(current.profile))
     const next = {
       profile: cleared,
       events: cleared.eventLog.slice(0, PERSONALIZATION_EVENTS_CAP),
@@ -223,3 +230,31 @@ export const usePersonalizationEvents = create<PersonalizationEventsState>((set,
 export function getPersonalizationEventsState() {
   return usePersonalizationEvents.getState()
 }
+
+async function hydratePersonalizationEventsFromAsyncStorage() {
+  try {
+    const raw = await asyncKv.get(KEY)
+    const parsed = parsePersisted(raw)
+    if (!parsed) return
+
+    const current = usePersonalizationEvents.getState()
+    const hasLocalData =
+      current.events.length > 0 ||
+      current.hasUnsyncedChanges ||
+      Object.keys(current.profile.products).length > 0 ||
+      current.profile.recent.viewedHandles.length > 0 ||
+      current.profile.recent.addedToCartHandles.length > 0 ||
+      current.profile.recent.wishlistedHandles.length > 0
+
+    if (hasLocalData) return
+
+    usePersonalizationEvents.setState(parsed)
+    kv.set(KEY, JSON.stringify(parsed))
+  } catch (error) {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      console.warn("[personalization-events] failed async hydration", error)
+    }
+  }
+}
+
+void hydratePersonalizationEventsFromAsyncStorage()

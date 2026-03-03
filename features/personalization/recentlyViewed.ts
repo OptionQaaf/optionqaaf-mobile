@@ -1,4 +1,4 @@
-import { getRecentlyViewedOnlyHandles } from "@/lib/personalization/events"
+import { getRecentlyViewedHandles } from "@/lib/personalization/events"
 import { qk } from "@/lib/shopify/queryKeys"
 import { getProductsByHandles } from "@/lib/shopify/services/products"
 import { usePersonalizationEvents } from "@/store/personalizationEvents"
@@ -39,7 +39,7 @@ export function useRecentlyViewedProducts(limit = 24) {
   const locale = currentLocale()
   const profile = usePersonalizationEvents((state) => state.profile)
 
-  const handles = useMemo(() => getRecentlyViewedOnlyHandles(profile, limit), [limit, profile])
+  const handles = useMemo(() => getRecentlyViewedHandles(profile, limit), [limit, profile])
 
   const query = useQuery({
     enabled: handles.length > 0,

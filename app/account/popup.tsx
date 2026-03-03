@@ -4,6 +4,7 @@ import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { clearAdminCurrentPopup, fetchAdminCurrentPopup, setAdminCurrentPopup } from "@/features/popup/adminApi"
+import { useAdminView } from "@/store/adminView"
 import { PopupAudience, PopupCTA, PopupPayload, StoredPopup } from "@/types/popup"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -369,7 +370,8 @@ function PopupViewMode({ popup, onEdit }: PopupViewModeProps) {
 function PopupAdminContent() {
   const { isAuthenticated } = useShopifyAuth()
   const { data: profile } = useCustomerProfile({ enabled: isAuthenticated })
-  const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
+  const viewAsNonAdmin = useAdminView((state) => state.viewAsNonAdmin)
+  const isAdmin = useMemo(() => isPushAdmin(profile?.email) && !viewAsNonAdmin, [profile?.email, viewAsNonAdmin])
   const { show } = useToast()
   const insets = useSafeAreaInsets()
   const bottomPadding = insets.bottom + DOCK_HEIGHT + 24
@@ -607,7 +609,7 @@ function PopupAdminContent() {
   if (!isAdmin) {
     return (
       <View className="flex-1 justify-center px-5">
-        <Card padding="lg" className="gap-3">
+        <Card padding="sm" className="gap-3">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Admin access required</Text>
           <Text className="text-[#475569] text-[14px]">
             This tool is reserved for administrators. Contact the team if you believe you should have access.
@@ -628,10 +630,10 @@ function PopupAdminContent() {
           contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding }}
           scrollIndicatorInsets={{ bottom: bottomPadding }}
           contentContainerClassName="gap-4"
-          className="px-5 bg-[#f8fafc]"
+          className="px-5 bg-white"
           keyboardShouldPersistTaps="handled"
         >
-          <Card padding="lg" className="gap-2">
+          <Card padding="sm" className="gap-2">
             <View className="gap-2 justify-between">
               <Text className="text-[#0f172a] font-geist-semibold text-[17px]">Popup manager</Text>
               <Text className="text-[#0f172a] text-[12px]">{campaignStatus}</Text>
@@ -641,7 +643,7 @@ function PopupAdminContent() {
             </Text>
           </Card>
 
-          <Card padding="lg" className="gap-4">
+          <Card padding="sm" className="gap-4">
             <Text className="text-[#0f172a] font-geist-semibold text-[15px]">Popup configuration</Text>
 
             {isViewMode && currentPopup ? (
@@ -783,7 +785,7 @@ function PopupAdminContent() {
           </Card>
 
           {missingConfig ? (
-            <Card padding="lg" className="gap-2 bg-[#fef2f2] border border-[#fecaca]">
+            <Card padding="sm" className="gap-2 bg-[#fef2f2] border border-[#fecaca]">
               <Text className="text-[#991b1b] font-geist-semibold text-[15px]">Configuration missing</Text>
               <Text className="text-[#b91c1c] text-[13px]">
                 Set EXPO_PUBLIC_PUSH_WORKER_URL and EXPO_PUBLIC_PUSH_ADMIN_SECRET to manage popups.
@@ -792,7 +794,7 @@ function PopupAdminContent() {
           ) : null}
 
           {isLoading ? (
-            <Card padding="lg" className="items-center gap-2">
+            <Card padding="sm" className="items-center gap-2">
               <ActivityIndicator size="small" color="#0f172a" />
               <Text className="text-[#475569] text-[13px]">Loading current popup…</Text>
             </Card>

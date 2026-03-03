@@ -1,7 +1,13 @@
 import { useEffect } from "react"
 import { cn } from "@/ui/utils/cva"
 import { ViewProps } from "react-native"
-import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated"
+import Animated, {
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated"
 
 type Props = ViewProps & { className?: string }
 export function Skeleton({ className, style, ...p }: Props) {
@@ -15,5 +21,5 @@ export function Skeleton({ className, style, ...p }: Props) {
     }
   }, [t])
 
-  return <Animated.View {...p} style={[a, style]} className={cn("bg-elev rounded-md", className)} />
+  return <Animated.View {...p} style={[a, style]} className={cn("bg-[#e2e8f0] rounded-md", className)} />
 }

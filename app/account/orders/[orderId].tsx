@@ -156,11 +156,11 @@ function OrderDetailContent() {
 
   return (
     <ScrollView
-      className="flex-1 bg-[#f8fafc]"
+      className="flex-1 bg-white"
       contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 24, paddingBottom: 32, gap: 16 }}
       refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} tintColor="#111827" />}
     >
-      <Card padding="lg" className="gap-3">
+      <Card padding="sm" className="gap-3">
         <Text className="text-[#0f172a] font-geist-semibold text-[18px]">{data.name}</Text>
         <Text className="text-[#64748b] text-[13px]">Placed {formatDate(data.createdAt)}</Text>
         <Badge label={orderStatusStyle.label} bg={orderStatusStyle.bg} color={orderStatusStyle.color} />
@@ -188,14 +188,14 @@ function OrderDetailContent() {
           </View>
         ) : null}
         {orderNote ? (
-          <View className="bg-[#f8fafc] rounded-xl px-3 py-2 mt-2">
+          <View className="bg-white rounded-xl px-3 py-2 mt-2">
             <Text className="text-[#0f172a] font-geist-medium text-[13px]">Order note</Text>
             <Text className="text-[#475569] text-[13px] mt-[2px]">{orderNote}</Text>
           </View>
         ) : null}
       </Card>
 
-      <Card padding="lg" className="gap-4">
+      <Card padding="sm" className="gap-4">
         <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Items</Text>
         {segmentedLineItems.length ? (
           <View className="gap-3">
@@ -236,7 +236,7 @@ function OrderDetailContent() {
         )}
       </Card>
 
-      <Card padding="lg" className="gap-3">
+      <Card padding="sm" className="gap-3">
         <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Summary</Text>
         <SummaryRow label="Subtotal" value={subtotal} />
         <SummaryRow label="Shipping" value={shipping} />
@@ -248,11 +248,11 @@ function OrderDetailContent() {
       </Card>
 
       <View className="gap-4">
-        <Card padding="lg" className="gap-3">
+        <Card padding="sm" className="gap-3">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Shipping address</Text>
           <AddressLines address={data.shippingAddress} fallback="No shipping address" />
         </Card>
-        <Card padding="lg" className="gap-3">
+        <Card padding="sm" className="gap-3">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Billing address</Text>
           <AddressLines address={data.billingAddress} fallback="No billing address" />
         </Card>

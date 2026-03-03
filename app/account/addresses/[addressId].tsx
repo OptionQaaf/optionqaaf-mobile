@@ -93,7 +93,7 @@ function EditAddressContent() {
   if (!address) {
     return (
       <View className="flex-1 items-center justify-center px-8">
-        <Card padding="lg" className="gap-3 items-center">
+        <Card padding="sm" className="gap-3 items-center">
           <Text className="text-[#0f172a] font-geist-semibold text-[16px] text-center">
             We couldn’t find that address
           </Text>
