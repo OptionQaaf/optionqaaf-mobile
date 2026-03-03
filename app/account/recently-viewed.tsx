@@ -124,7 +124,7 @@ function RecentlyViewedContent() {
             Clear
           </Button>
         </View>
-
+        {/* TODO: The static product grid has too much padding on it horizontally, so lets try to find a fix for that. Also the product tiles are a little too rounded, and i would like to change that for the entire app and decrease its roundedness. */}
         <StaticProductGrid
           data={gridData}
           gap={8}

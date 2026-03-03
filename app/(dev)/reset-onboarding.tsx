@@ -1,3 +1,4 @@
+import { resetBirthDatePromptStateForDev } from "@/lib/personalization/birthDatePrompt"
 import { clearOnboardingFlag } from "@/lib/storage/flags"
 import { kv } from "@/lib/storage/mmkv"
 import { Screen } from "@/ui/layout/Screen"
@@ -15,6 +16,7 @@ export default function ResetOnboarding() {
 async function handleResetOnboarding() {
   kv.del("personalization-settings")
   kv.del("personalization-events-v1")
+  resetBirthDatePromptStateForDev()
   await clearOnboardingFlag()
   router.replace("/(onboarding)/locale")
 }

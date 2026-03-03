@@ -7,6 +7,7 @@ import { isPushAdmin } from "@/features/notifications/admin"
 import { getPushPermissionsStatus } from "@/features/notifications/permissions"
 import { useAppMetadata, type AppMetadata } from "@/lib/diagnostics/appMetadata"
 import { useNetworkStatus, type NetworkStatus } from "@/lib/network/useNetworkStatus"
+import { resetBirthDatePromptStateForDev } from "@/lib/personalization/birthDatePrompt"
 import { fastForwardAccessTokenExpiry } from "@/lib/shopify/customer/auth"
 import { clearOnboardingFlag } from "@/lib/storage/flags"
 import { kv } from "@/lib/storage/mmkv"
@@ -173,6 +174,7 @@ function AccountSettingsContent() {
       kv.del("prefs")
       kv.del("personalization-settings")
       kv.del("personalization-events-v1")
+      resetBirthDatePromptStateForDev()
       await clearOnboardingFlag()
       show({ title: "Cache cleared. Restarting onboarding…", type: "success" })
       router.replace("/(onboarding)/locale" as const)

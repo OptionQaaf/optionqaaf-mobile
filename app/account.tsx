@@ -258,39 +258,36 @@ function AccountContent() {
 
         {recentlyViewed.length > 0 ? (
           <Section title="Recently viewed">
-            <View className="gap-3">
-              <Card padding="lg" className="gap-3">
-                <View className="flex-row items-center justify-between">
-                  <Text className="text-[#0f172a] font-geist-semibold text-[15px]">Viewed but not saved</Text>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onPress={() => router.push("/account/recently-viewed" as RelativePathString)}
-                    leftIcon={<Clock color="#1f2937" size={14} strokeWidth={2} />}
-                  >
-                    See all
-                  </Button>
-                </View>
-                <StaticProductGrid
-                  data={recentlyViewedGrid}
-                  gap={8}
-                  renderItem={(item, itemWidth) => {
-                    if (!item) return <View style={{ width: itemWidth }} />
-                    return (
-                      <ProductTile
-                        width={itemWidth}
-                        image={item.imageUrl || "https://images.unsplash.com/photo-1542291026-7eec264c27ff"}
-                        brand={item.vendor ?? ""}
-                        title={item.title}
-                        price={item.price}
-                        currency={item.currencyCode}
-                        onPress={() => router.push(`/products/${item.handle}` as const)}
-                      />
-                    )
-                  }}
-                />
-              </Card>
+            <View className="flex-row items-center justify-between">
+              {/* TODO: To be moved to be on the right side, next to the title in the section instead of a button just like this, so we need to expand the section component to take props of actions/buttons to put next to the title spaced between, the button can have an icon or a text or both, never neither.  */}
+              <Button
+                variant="outline"
+                size="sm"
+                onPress={() => router.push("/account/recently-viewed" as RelativePathString)}
+                leftIcon={<Clock color="#1f2937" size={14} strokeWidth={2} />}
+              >
+                See all
+              </Button>
             </View>
+            {/* TODO: Change them from being product tiles and instead just the products' images with a bigger gap between them, and ensure they have a very small rounded border, so something like rounded-sm or if there is smaller. */}
+            <StaticProductGrid
+              data={recentlyViewedGrid}
+              gap={8}
+              renderItem={(item, itemWidth) => {
+                if (!item) return <View style={{ width: itemWidth }} />
+                return (
+                  <ProductTile
+                    width={itemWidth}
+                    image={item.imageUrl || "https://images.unsplash.com/photo-1542291026-7eec264c27ff"}
+                    brand={item.vendor ?? ""}
+                    title={item.title}
+                    price={item.price}
+                    currency={item.currencyCode}
+                    onPress={() => router.push(`/products/${item.handle}` as const)}
+                  />
+                )
+              }}
+            />
           </Section>
         ) : null}
 
