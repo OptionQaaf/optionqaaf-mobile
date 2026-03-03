@@ -524,7 +524,7 @@ export default function CartScreen() {
               entering={MOTION.enter.fadeDown}
               exiting={MOTION.exit.fadeUp}
               layout={MOTION.spring()}
-              className="flex-row items-center gap-2 p-2 rounded-md bg-surface border border-border"
+              className="flex-row items-center gap-2 rounded-md bg-surface"
               accessibilityRole="summary"
             >
               <View className="rounded-md overflow-hidden">
@@ -580,7 +580,7 @@ export default function CartScreen() {
                   <View className="flex-1 min-w-0 pr-2">
                     <Price amount={unitPrice} currency={String(variant?.price?.currencyCode ?? currency)} size="xs" />
                   </View>
-                  <View className="px-1 py-0.5 rounded-sm bg-surface border border-border">
+                  <View className="px-1 py-0.5 rounded-sm bg-surface">
                     <QuantityStepper size="sm" value={qty} onChange={(q) => onChangeQty(item.id, q)} />
                   </View>
                 </View>
@@ -673,6 +673,7 @@ export default function CartScreen() {
               windowSize={7}
               updateCellsBatchingPeriod={50}
               maxToRenderPerBatch={10}
+              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
             />
 
             {/* Floating sync pill */}
@@ -704,7 +705,7 @@ export default function CartScreen() {
                     className="px-3 py-2 border-t border-border"
                     style={{ backgroundColor: "#fff" }}
                   >
-                    <View className="p-2.5 border border-border rounded-sm bg-surface gap-1.5">
+                    <View className="p-2.5 rounded-sm bg-surface gap-1.5">
                       <View className="gap-1.5">
                         {discountCodes.length > 0 ? (
                           <View className="gap-1.5">
@@ -758,14 +759,14 @@ export default function CartScreen() {
                           </View>
                         ) : null}
 
-                        <View className="flex-row items-center gap-2">
+                        <View className="flex-row items-center gap-2 mb-2">
                           <Input
                             value={codeInput}
                             onChangeText={setCodeInput}
                             placeholder="ادخل كود الخصم او رمز الكوبون"
                             autoCapitalize="characters"
                             autoCorrect={false}
-                            size="md"
+                            size="sm"
                             className="flex-1"
                             returnKeyType="done"
                           />

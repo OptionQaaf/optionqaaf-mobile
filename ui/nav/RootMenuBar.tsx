@@ -59,7 +59,7 @@ export function RootMenuBar() {
                 <ShoppingBag size={22} color="#1e1e1e" strokeWidth={1.8} />
               </Icon>
               {qty > 0 ? (
-                <View className="absolute right-[1px] top-[1px] min-w-4 rounded-sm bg-brand px-1 items-center justify-center">
+                <View className="absolute right-[1px] top-[1px] min-w-4 rounded-full bg-brand px-1 items-center justify-center">
                   <Text className="text-[10px] text-white font-geist-semibold" numberOfLines={1}>
                     {qty}
                     {qty === 99 ? "+" : ""}
