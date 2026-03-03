@@ -14,13 +14,15 @@ import { useNotificationSettings, type NotificationPermissionState } from "@/sto
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
+import { DOCK_HEIGHT } from "@/ui/nav/dockConstants"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { useRouter, type RelativePathString } from "expo-router"
 import * as Updates from "expo-updates"
-import { Clock, Megaphone, RefreshCcw, Settings2, Sparkles, Trash2 } from "lucide-react-native"
+import { Clock, Megaphone, RefreshCcw, Settings2, Sparkles, Trash2, UserRound } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Modal, Pressable, ScrollView, Text, View } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 export default function AccountSettingsScreen() {
   const router = useRouter()
@@ -36,6 +38,7 @@ export default function AccountSettingsScreen() {
 
 function AccountSettingsContent() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { show } = useToast()
   const { isAuthenticated } = useShopifyAuth()
   const { data: profile } = useCustomerProfile({ enabled: isAuthenticated })
@@ -49,6 +52,7 @@ function AccountSettingsContent() {
   const deletionCacheRef = useRef(new Map<string, boolean>())
   const [diagnosticsUnlocked, setDiagnosticsUnlocked] = useState(false)
   const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const bottomPadding = insets.bottom + DOCK_HEIGHT + 24
 
   const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
 
@@ -71,6 +75,18 @@ function AccountSettingsContent() {
   }, [isAdmin, diagnosticsUnlocked])
 
   const handleCloseDiagnostics = useCallback(() => setShowDiagnostics(false), [])
+
+  const personalizationLinks = useMemo(
+    () => [
+      {
+        title: "Personalization",
+        body: "Manage profile preferences like gender and upcoming personalization settings.",
+        Icon: UserRound,
+        path: "/account/personalization" as RelativePathString,
+      },
+    ],
+    [],
+  )
 
   const settingsLinks = useMemo(
     () => [
@@ -149,6 +165,7 @@ function AccountSettingsContent() {
     try {
       kv.del("notification-settings")
       kv.del("prefs")
+      kv.del("personalization-settings")
       await clearOnboardingFlag()
       show({ title: "Cache cleared. Restarting onboarding…", type: "success" })
       router.replace("/(onboarding)/locale" as const)
@@ -160,12 +177,16 @@ function AccountSettingsContent() {
 
   return (
     <>
-      <ScrollView contentContainerStyle={{ paddingTop: 42, paddingBottom: 32 }} className="bg-[#f8fafc]">
+      <ScrollView
+        contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding }}
+        scrollIndicatorInsets={{ bottom: bottomPadding }}
+        className="bg-[#f8fafc]"
+      >
         <View className="px-5 pt-6 pb-4 gap-7">
           <View className="gap-2">
             <Text className="text-[#0f172a] font-geist-semibold text-[20px]">Account settings</Text>
             <Text className="text-[#475569] text-[14px] leading-[20px]">
-              Manage notifications, admin tools, and account controls.
+              Manage personalization, notifications, admin tools, and account controls.
             </Text>
           </View>
 
@@ -181,6 +202,20 @@ function AccountSettingsContent() {
           ) : null}
 
           <Section title="Personalization">
+            <View className="gap-3">
+              {personalizationLinks.map((link) => (
+                <AccountLink
+                  key={link.title}
+                  title={link.title}
+                  description={link.body}
+                  icon={<link.Icon color="#1f2937" size={20} strokeWidth={2} />}
+                  onPress={() => router.push(link.path)}
+                />
+              ))}
+            </View>
+          </Section>
+
+          <Section title="Notifications">
             <View className="gap-3">
               {settingsLinks.map((link) => (
                 <AccountLink

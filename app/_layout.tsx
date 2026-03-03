@@ -3,6 +3,7 @@ import { ShopifyAuthProvider } from "@/features/auth/useShopifyAuth"
 import { DrawerProvider } from "@/features/navigation/Drawer"
 import { useNotificationsService } from "@/features/notifications/notificationService"
 import { usePushToken } from "@/features/notifications/usePushToken"
+import { GenderChoiceHost } from "@/features/personalization/GenderChoiceHost"
 import { usePopupService } from "@/features/popup/usePopupService"
 import { requestTrackingAuthorizationIfNeeded } from "@/lib/TrackingAuthorizationManager"
 import { useAppMetadata } from "@/lib/diagnostics/appMetadata"
@@ -131,6 +132,7 @@ export default function RootLayout() {
               </FontProvider>
             </AuthGate>
             <InAppPopupHost />
+            <GenderChoiceHost enabled={fontsReady && splashReady} />
           </GestureHandlerRootView>
         </QueryClientProvider>
       </ShopifyAuthProvider>

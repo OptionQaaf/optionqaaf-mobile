@@ -678,6 +678,19 @@ export default function CartScreen() {
             {/* Floating sync pill */}
             {sync.isPending ? <SyncPill /> : null}
 
+            {/* Mask the dock gap area so cart items don't show under the sticky summary. */}
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: SUMMARY_BOTTOM_OFFSET,
+                backgroundColor: "#fff",
+              }}
+            />
+
             {/* Sticky summary */}
             <KeyboardAvoidingView
               behavior={Platform.select({ ios: "padding", android: "height" })}

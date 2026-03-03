@@ -8,6 +8,7 @@ import { PopupAudience, PopupCTA, PopupPayload, StoredPopup } from "@/types/popu
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
+import { DOCK_HEIGHT } from "@/ui/nav/dockConstants"
 import { InAppPopupModal } from "@/ui/popup/InAppPopupModal"
 import { SYSTEM_ICON_MAP, type SystemIconName } from "@/ui/popup/systemIcons"
 import { Button } from "@/ui/primitives/Button"
@@ -371,6 +372,7 @@ function PopupAdminContent() {
   const isAdmin = useMemo(() => isPushAdmin(profile?.email), [profile?.email])
   const { show } = useToast()
   const insets = useSafeAreaInsets()
+  const bottomPadding = insets.bottom + DOCK_HEIGHT + 24
 
   const [form, setForm] = useState<FormState>(() => createFreshFormState())
   const [isLoading, setIsLoading] = useState(false)
@@ -623,9 +625,10 @@ function PopupAdminContent() {
         keyboardVerticalOffset={Platform.select({ ios: 64, android: 0 })}
       >
         <ScrollView
-          contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
+          contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding }}
+          scrollIndicatorInsets={{ bottom: bottomPadding }}
           contentContainerClassName="gap-4"
-          className="px-5 pt-6 bg-[#f8fafc]"
+          className="px-5 bg-[#f8fafc]"
           keyboardShouldPersistTaps="handled"
         >
           <Card padding="lg" className="gap-2">

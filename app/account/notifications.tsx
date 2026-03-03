@@ -8,11 +8,13 @@ import {
 import { useNotificationSettings } from "@/store/notifications"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
+import { DOCK_HEIGHT } from "@/ui/nav/dockConstants"
 import { Card } from "@/ui/surfaces/Card"
 import { Button } from "@/ui/primitives/Button"
 import { useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AppState, Linking, Platform, ScrollView, Switch, Text, View } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const WORKER_URL = (process.env.EXPO_PUBLIC_PUSH_WORKER_URL || "").replace(/\/+$/, "")
 const ADMIN_SECRET = process.env.EXPO_PUBLIC_PUSH_ADMIN_SECRET
@@ -32,11 +34,13 @@ export default function NotificationsScreen() {
 type PermissionsStatus = PushPermissionsStatus
 
 function NotificationsContent() {
+  const insets = useSafeAreaInsets()
   const { pushEnabled, emailEnabled, setPreferences, setPushPreference, expoPushToken } = useNotificationSettings()
   const { show } = useToast()
   const [permissions, setPermissions] = useState<PermissionsStatus | null>(null)
   const [isChecking, setIsChecking] = useState(false)
   const autoEnabledRef = useRef(false)
+  const bottomPadding = insets.bottom + DOCK_HEIGHT + 24
 
   const refreshPermissions = useCallback(async () => {
     try {
@@ -186,7 +190,11 @@ function NotificationsContent() {
   )
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 40 }} className="flex-1 bg-[#f8fafc]">
+    <ScrollView
+      contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding }}
+      scrollIndicatorInsets={{ top: 52, bottom: bottomPadding }}
+      className="flex-1 bg-[#f8fafc]"
+    >
       <View className="px-5 pt-6 gap-6">
         <View className="gap-2">
           <Text className="text-[#0f172a] font-geist-semibold text-[22px]">Notifications</Text>

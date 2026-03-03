@@ -2,8 +2,10 @@ import type { CurrencyCode } from "@/features/currency/config"
 import type { CountryCode } from "@/features/locale/countries"
 import { COUNTRIES } from "@/features/locale/countries"
 import { getPushPermissionsStatus, requestPushPermissionsAndToken } from "@/features/notifications/permissions"
+import { type GenderChoice } from "@/lib/personalization/gender"
 import { markOnboardingDone } from "@/lib/storage/flags"
 import { useNotificationSettings } from "@/store/notifications"
+import { usePersonalization } from "@/store/personalization"
 import { usePrefs, type LanguageCode } from "@/store/prefs"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -23,9 +25,12 @@ export default function LocaleOnboarding() {
   const insets = useSafeAreaInsets()
   const { setPrefs } = usePrefs()
   const { setPushPreference, pushEnabled } = useNotificationSettings()
+  const storedGender = usePersonalization((state) => state.gender)
+  const setStoredGender = usePersonalization((state) => state.setGender)
   const { show } = useToast()
 
   const [language] = useState<LanguageCode>("EN")
+  const [gender, setGender] = useState<GenderChoice>(storedGender ?? "male")
   const [country, setCountry] = useState<CountryCode>("SA")
   const [currency, setCurrency] = useState<CurrencyCode>("SAR")
   const [showPushModal, setShowPushModal] = useState(false)
@@ -77,7 +82,13 @@ export default function LocaleOnboarding() {
   }, [finishOnboarding, setPushPreference])
 
   const handleContinue = useCallback(async () => {
+    if (!gender) {
+      show({ title: "Please choose your gender to continue.", type: "info" })
+      return
+    }
+
     setPrefs({ language, country, currency })
+    setStoredGender(gender)
     if (pushEnabled) {
       finishOnboarding().catch(() => {})
       return
@@ -94,7 +105,18 @@ export default function LocaleOnboarding() {
       // fall through to showing modal
     }
     setShowPushModal(true)
-  }, [country, currency, finishOnboarding, handlePushSetup, language, pushEnabled, setPrefs])
+  }, [
+    country,
+    currency,
+    finishOnboarding,
+    gender,
+    handlePushSetup,
+    language,
+    pushEnabled,
+    setPrefs,
+    setStoredGender,
+    show,
+  ])
 
   return (
     <Screen bleedTop bleedBottom>
@@ -118,16 +140,38 @@ export default function LocaleOnboarding() {
           <SafeAreaView className="flex-1 justify-between px-4 pt-6" edges={["bottom"]}>
             {/* FORM GROUP */}
             <View className="flex-col gap-2">
-              {/* <View className="flex-col gap-4">
-                <View className="flex-col gap-2">
-                  <View>
-                    <Text className="text-[20px] font-semibold">Personalization</Text>
-                    <Muted className="text-sm">Set your preferences to personalize your experience</Muted>
-                  </View>
-
-                  
+              <View className="flex-col gap-3">
+                <View className="pt-1">
+                  <Text className="text-[20px] font-semibold">Gender / الجنس</Text>
+                  <Muted className="text-sm">Choose your gender / اختر جنسك</Muted>
                 </View>
-              </View> */}
+
+                <View className="flex-row gap-2">
+                  {[
+                    { id: "male" as const, label: "Male / ذكر" },
+                    { id: "female" as const, label: "Female / أنثى" },
+                  ].map((option) => {
+                    const active = gender === option.id
+                    return (
+                      <PressableOverlay
+                        key={option.id}
+                        haptic="light"
+                        onPress={() => setGender(option.id)}
+                        pressableClassName="flex-1"
+                        className={cn(
+                          "items-center justify-center rounded-2xl border px-3 py-3",
+                          active ? "border-brand bg-brand/10" : "border-[#E6E6E6] bg-white",
+                        )}
+                      >
+                        <RNText className={cn("text-[15px] font-semibold", active ? "text-brand" : "text-primary")}>
+                          {option.label}
+                        </RNText>
+                      </PressableOverlay>
+                    )
+                  })}
+                </View>
+              </View>
+
               {/* Country (pills grid; no FlatList) */}
               <View className="flex-col gap-3">
                 <View className="pt-1">

@@ -6,12 +6,14 @@ import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
+import { DOCK_HEIGHT } from "@/ui/nav/dockConstants"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { useRouter } from "expo-router"
 import { AlertTriangle, Check } from "lucide-react-native"
 import { useCallback, useState } from "react"
 import { Alert, ScrollView, Text, View } from "react-native"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 
 const DEFAULT_TITLE = "Account Deletion Request"
 const DEFAULT_BODY = `English: I request deletion of my OptionQaaf account and acknowledge that my personal data will be permanently removed.\n\nالعربية: أطلب حذف حسابي من OptionQaaf وأقر بأن بياناتي الشخصية ستُحذف نهائيًا.`
@@ -33,6 +35,7 @@ export default function AccountDeletionScreen() {
 }
 
 function AccountDeletionContent() {
+  const insets = useSafeAreaInsets()
   const { logout, isAuthenticated } = useShopifyAuth()
   const { data: profile } = useCustomerProfile({ enabled: isAuthenticated })
   const { show } = useToast()
@@ -41,6 +44,7 @@ function AccountDeletionContent() {
   const body = DEFAULT_BODY
   const [confirmed, setConfirmed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const bottomPadding = insets.bottom + DOCK_HEIGHT + 24
 
   const requestDeletion = useCallback(async () => {
     const email = profile?.email
@@ -95,7 +99,11 @@ function AccountDeletionContent() {
   }, [finalizeDeletion])
 
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 40 }} className="flex-1 bg-[#f8fafc]">
+    <ScrollView
+      contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding }}
+      scrollIndicatorInsets={{ top: 52, bottom: bottomPadding }}
+      className="flex-1 bg-[#f8fafc]"
+    >
       <View className="px-5 pt-6 gap-6">
         <View className="gap-2">
           <Text className="text-[#0f172a] font-geist-semibold text-[22px]">Delete Account</Text>

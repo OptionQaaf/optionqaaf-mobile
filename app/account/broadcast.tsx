@@ -5,6 +5,7 @@ import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
 import { isPushAdmin } from "@/features/notifications/admin"
 import { useToast } from "@/ui/feedback/Toast"
 import { Screen } from "@/ui/layout/Screen"
+import { DOCK_HEIGHT } from "@/ui/nav/dockConstants"
 import { Button } from "@/ui/primitives/Button"
 import { Input } from "@/ui/primitives/Input"
 import { Card } from "@/ui/surfaces/Card"
@@ -75,7 +76,7 @@ function BroadcastContent() {
   const scrollRef = useRef<ScrollView | null>(null)
   const insets = useSafeAreaInsets()
   const keyboardOffset = Platform.OS === "ios" ? insets.top : 0
-  const bottomPadding = insets.bottom + 24
+  const bottomPadding = insets.bottom + DOCK_HEIGHT + 24
 
   const [title, setTitle] = useState("")
   const [message, setMessage] = useState("")
@@ -275,12 +276,13 @@ function BroadcastContent() {
       <ScrollView
         ref={scrollRef}
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: bottomPadding, flexGrow: 1 }}
+        contentContainerStyle={{ paddingTop: 52, paddingBottom: bottomPadding, flexGrow: 1 }}
+        scrollIndicatorInsets={{ top: 52, bottom: bottomPadding }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         style={{ backgroundColor: "#f8fafc" }}
       >
-        <View className="px-5 pt-6 gap-6">
+        <View className="px-5 gap-6">
           <View className="gap-2">
             <Text className="text-[#0f172a] font-geist-semibold text-[20px]">Broadcast notification</Text>
             <Text className="text-[#475569] text-[14px] leading-[20px]">
