@@ -508,10 +508,6 @@ export default function CartScreen() {
         }, [handle])
 
         const opts = (variant?.selectedOptions ?? []) as { name: string; value: string }[]
-        const optionsText = opts
-          .filter((o) => o?.value && o?.name)
-          .map((o) => `${o.name}: ${o.value}`)
-          .join("  ·  ")
 
         return (
           <PressableOverlay
@@ -560,10 +556,17 @@ export default function CartScreen() {
                     <Text className="text-primary font-geist-semibold text-[14px]" numberOfLines={1}>
                       {product?.title ?? "Product"}
                     </Text>
-                    {optionsText ? (
-                      <Text className="text-secondary text-[11px] mt-0.5" numberOfLines={1}>
-                        {optionsText}
-                      </Text>
+                    {opts ? (
+                      <View className="flex-col items-start gap-1">
+                        {opts.map((o, i) => (
+                          <View key={i} className="py-0.5 rounded-sm bg-surface">
+                            <Text
+                              className="text-secondary text-[11px]"
+                              numberOfLines={1}
+                            >{`${o.name}: ${o.value}`}</Text>
+                          </View>
+                        ))}
+                      </View>
                     ) : null}
                   </View>
                   <PressableOverlay
@@ -673,7 +676,7 @@ export default function CartScreen() {
               windowSize={7}
               updateCellsBatchingPeriod={50}
               maxToRenderPerBatch={10}
-              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+              ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
             />
 
             {/* Floating sync pill */}
