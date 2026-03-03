@@ -4,16 +4,20 @@ import { isDeletionRequestPending } from "@/features/account/deletion"
 import { AccountSignInFallback } from "@/features/account/SignInFallback"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { useShopifyAuth } from "@/features/auth/useShopifyAuth"
+import { useRecentlyViewedProducts } from "@/features/personalization/recentlyViewed"
 import { qk } from "@/lib/shopify/queryKeys"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
+import { padToFullRow } from "@/ui/layout/gridUtils"
 import { Screen } from "@/ui/layout/Screen"
 import { Button } from "@/ui/primitives/Button"
+import { ProductTile } from "@/ui/product/ProductTile"
+import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { Card } from "@/ui/surfaces/Card"
 import { useQueryClient } from "@tanstack/react-query"
 import { RelativePathString, useRouter } from "expo-router"
-import { Heart, LogOut, MapPin, Package, Pencil, Settings2 } from "lucide-react-native"
+import { Clock, Heart, LogOut, MapPin, Package, Pencil, Settings2 } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { RefreshControl, ScrollView, Text, View } from "react-native"
 
@@ -50,6 +54,8 @@ function AccountContent() {
   const avatar = useMemo(() => avatarFromProfile(profile), [profile])
   const showProfileSkeleton = (isLoading && !profile) || !deletionPendingLoaded
   const deletionCacheRef = useRef(new Map<string, boolean>())
+  const { data: recentlyViewed } = useRecentlyViewedProducts(4)
+  const recentlyViewedGrid = useMemo(() => padToFullRow(recentlyViewed.slice(0, 4), 2), [recentlyViewed])
 
   useEffect(() => {
     if (!isAuthenticated) return
@@ -249,6 +255,44 @@ function AccountContent() {
                 ))}
           </View>
         </Section>
+
+        {recentlyViewed.length > 0 ? (
+          <Section title="Recently viewed">
+            <View className="gap-3">
+              <Card padding="lg" className="gap-3">
+                <View className="flex-row items-center justify-between">
+                  <Text className="text-[#0f172a] font-geist-semibold text-[15px]">Viewed but not saved</Text>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onPress={() => router.push("/account/recently-viewed" as RelativePathString)}
+                    leftIcon={<Clock color="#1f2937" size={14} strokeWidth={2} />}
+                  >
+                    See all
+                  </Button>
+                </View>
+                <StaticProductGrid
+                  data={recentlyViewedGrid}
+                  gap={8}
+                  renderItem={(item, itemWidth) => {
+                    if (!item) return <View style={{ width: itemWidth }} />
+                    return (
+                      <ProductTile
+                        width={itemWidth}
+                        image={item.imageUrl || "https://images.unsplash.com/photo-1542291026-7eec264c27ff"}
+                        brand={item.vendor ?? ""}
+                        title={item.title}
+                        price={item.price}
+                        currency={item.currencyCode}
+                        onPress={() => router.push(`/products/${item.handle}` as const)}
+                      />
+                    )
+                  }}
+                />
+              </Card>
+            </View>
+          </Section>
+        ) : null}
 
         <View className="pt-8 pb-16 gap-2" style={{ marginTop: "auto" }}>
           <Button

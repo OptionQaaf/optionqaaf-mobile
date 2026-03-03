@@ -84,6 +84,12 @@ function AccountSettingsContent() {
         Icon: UserRound,
         path: "/account/personalization" as RelativePathString,
       },
+      {
+        title: "Recently viewed",
+        body: "Products you viewed but haven’t saved to cart or wishlist.",
+        Icon: Clock,
+        path: "/account/recently-viewed" as RelativePathString,
+      },
     ],
     [],
   )
@@ -166,6 +172,7 @@ function AccountSettingsContent() {
       kv.del("notification-settings")
       kv.del("prefs")
       kv.del("personalization-settings")
+      kv.del("personalization-events-v1")
       await clearOnboardingFlag()
       show({ title: "Cache cleared. Restarting onboarding…", type: "success" })
       router.replace("/(onboarding)/locale" as const)

@@ -4,6 +4,7 @@ import { DrawerProvider } from "@/features/navigation/Drawer"
 import { useNotificationsService } from "@/features/notifications/notificationService"
 import { usePushToken } from "@/features/notifications/usePushToken"
 import { GenderChoiceHost } from "@/features/personalization/GenderChoiceHost"
+import { usePersonalizationSyncService } from "@/features/personalization/usePersonalizationSyncService"
 import { usePopupService } from "@/features/popup/usePopupService"
 import { requestTrackingAuthorizationIfNeeded } from "@/lib/TrackingAuthorizationManager"
 import { useAppMetadata } from "@/lib/diagnostics/appMetadata"
@@ -193,6 +194,7 @@ function AppBootstrap({ fontsReady, splashReady }: { fontsReady: boolean; splash
 
   useNotificationsService({ enabled: startupReady && !isExpoGo })
   usePushToken({ enabled: startupReady && !isExpoGo })
+  usePersonalizationSyncService({ enabled: startupReady && !isExpoGo })
   usePopupService({ fontsReady: startupReady, navigationReady: startupReady, splashReady: startupReady })
 
   useEffect(() => {

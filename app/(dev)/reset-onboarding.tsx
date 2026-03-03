@@ -14,6 +14,7 @@ export default function ResetOnboarding() {
 
 async function handleResetOnboarding() {
   kv.del("personalization-settings")
+  kv.del("personalization-events-v1")
   await clearOnboardingFlag()
   router.replace("/(onboarding)/locale")
 }

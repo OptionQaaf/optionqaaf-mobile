@@ -11,7 +11,8 @@ import { DOCK_HEIGHT } from "@/ui/nav/dockConstants"
 import { Button } from "@/ui/primitives/Button"
 import { Card } from "@/ui/surfaces/Card"
 import { cn } from "@/ui/utils/cva"
-import { useRouter } from "expo-router"
+import { RelativePathString, useRouter } from "expo-router"
+import { Clock } from "lucide-react-native"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ScrollView, Text, View } from "react-native"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -146,6 +147,22 @@ function PersonalizationContent() {
 
           <Button size="md" fullWidth onPress={handleSave} isLoading={saving} disabled={!selectedGender || !hasChanges}>
             Save preferences
+          </Button>
+        </Card>
+
+        <Card padding="lg" className="gap-3">
+          <Text className="text-[#0f172a] font-geist-semibold text-[16px]">History</Text>
+          <Text className="text-[#475569] text-[13px] leading-[18px]">
+            Review products you viewed but did not save to cart or wishlist.
+          </Text>
+          <Button
+            variant="outline"
+            size="md"
+            fullWidth
+            onPress={() => router.push("/account/recently-viewed" as RelativePathString)}
+            leftIcon={<Clock size={16} color="#111827" />}
+          >
+            Open recently viewed
           </Button>
         </Card>
       </View>

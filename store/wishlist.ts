@@ -1,4 +1,5 @@
 import { kv } from "@/lib/storage/storage"
+import { usePersonalizationEvents } from "@/store/personalizationEvents"
 import { create } from "zustand"
 
 export type WishlistItem = {
@@ -55,6 +56,11 @@ export const useWishlist = create<WishlistState>((set, get) => {
         if (state.items.some((i) => i.productId === item.productId)) return state
         const items = [item, ...state.items]
         persist(items)
+        usePersonalizationEvents.getState().recordEvent({
+          type: "product_added_to_wishlist",
+          productId: item.productId,
+          handle: item.handle,
+        })
         return { items }
       })
     },

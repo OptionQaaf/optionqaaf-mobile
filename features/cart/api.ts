@@ -1,4 +1,5 @@
 import { qk } from "@/lib/shopify/queryKeys"
+import { usePersonalizationEvents } from "@/store/personalizationEvents"
 import {
   addLines,
   createCart,
@@ -53,6 +54,8 @@ export function useAddToCart() {
       quantity: number
       tracking?: {
         handle?: string | null
+        productId?: string | null
+        variantId?: string | null
         vendor?: string | null
         productType?: string | null
         tags?: string[] | null
@@ -82,7 +85,16 @@ export function useAddToCart() {
       let id = cartId ?? (await ensureCartId())
 
       try {
-        return await addTo(id)
+        const result = await addTo(id)
+        if (payload.tracking?.handle) {
+          usePersonalizationEvents.getState().recordEvent({
+            type: "product_added_to_cart",
+            productId: payload.tracking.productId ?? payload.merchandiseId,
+            handle: payload.tracking.handle,
+            variantId: payload.tracking.variantId ?? payload.merchandiseId,
+          })
+        }
+        return result
       } catch (error: any) {
         const message = String(error?.message || "")
         if (!message.toLowerCase().includes("cart") || !message.toLowerCase().includes("exist")) throw error
@@ -97,7 +109,16 @@ export function useAddToCart() {
         setCartId(newId)
         primeCart(newId, created.cartCreate?.cart ?? null)
         id = newId
-        return await addTo(newId)
+        const result = await addTo(newId)
+        if (payload.tracking?.handle) {
+          usePersonalizationEvents.getState().recordEvent({
+            type: "product_added_to_cart",
+            productId: payload.tracking.productId ?? payload.merchandiseId,
+            handle: payload.tracking.handle,
+            variantId: payload.tracking.variantId ?? payload.merchandiseId,
+          })
+        }
+        return result
       }
     },
   })

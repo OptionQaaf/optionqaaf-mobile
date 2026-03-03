@@ -10,6 +10,10 @@ export const qk = {
   customerProfile: () => ["customer", "profile"] as const,
   customerOrders: (pageSize: number) => ["customer", "orders", pageSize] as const,
   customerOrder: (orderId: string) => ["customer", "order", orderId] as const,
+  personalization: {
+    recentlyViewed: (handles: string[], locale: { country?: string; language?: string }) =>
+      ["personalization", "recently-viewed", handles, locale] as const,
+  },
   forYou: {
     profile: (locale: { country?: string; language?: string }, customerId?: string | null) =>
       ["for-you", "profile", locale, customerId ?? "guest"] as const,

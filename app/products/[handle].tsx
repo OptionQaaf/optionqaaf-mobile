@@ -7,6 +7,7 @@ import { useRecommendedProducts } from "@/features/recommendations/api"
 import { useSearch } from "@/features/search/api"
 import { shareRemoteImage } from "@/src/lib/media/shareRemoteImage"
 import type { WishlistItem } from "@/store/wishlist"
+import { usePersonalizationEvents } from "@/store/personalizationEvents"
 import { useWishlist } from "@/store/wishlist"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
@@ -73,6 +74,7 @@ export default function ProductScreen() {
   const { show } = useToast()
   const wishlistItems = useWishlist((s) => s.items)
   const toggleWishlist = useWishlist((s) => s.toggle)
+  const recordPersonalizationEvent = usePersonalizationEvents((state) => state.recordEvent)
 
   const options = useMemo<{ name: string; values: string[] }[]>(() => (product as any)?.options ?? [], [product])
   const variants = useMemo<any[]>(() => (product as any)?.variants?.nodes ?? [], [product])
@@ -322,7 +324,7 @@ export default function ProductScreen() {
       title: isWishlisted ? "Removed from wishlist" : "Added to wishlist",
       type: isWishlisted ? "info" : "success",
     })
-  }, [wishlistData, toggleWishlist, isWishlisted, show, isAuthenticated, login, h])
+  }, [isAuthenticated, isWishlisted, login, show, toggleWishlist, wishlistData])
 
   const copyVariantCode = useCallback(() => {
     if (!variantCode) return
@@ -337,13 +339,27 @@ export default function ProductScreen() {
       await add.mutateAsync({
         merchandiseId: String(selectedVariant.id),
         quantity: 1,
-        tracking: { handle: h },
+        tracking: {
+          handle: h,
+          productId: productId ?? null,
+          variantId: String(selectedVariant.id),
+        },
       })
       show({ title: "Added to cart", type: "success" })
     } catch (e: any) {
       show({ title: e?.message || "Failed to add to cart", type: "danger" })
     }
-  }, [add, ensure, h, selectedVariant?.id, show])
+  }, [add, ensure, h, productId, selectedVariant?.id, show])
+
+  useEffect(() => {
+    if (!productId || !h) return
+    recordPersonalizationEvent({
+      type: "product_viewed",
+      productId,
+      handle: h,
+      variantId: selectedVariant?.id ? String(selectedVariant.id) : null,
+    })
+  }, [h, productId, recordPersonalizationEvent, selectedVariant?.id])
 
   if (isLoading) {
     return (
