@@ -55,6 +55,5 @@
 	"vars": {
 		"BUCKET_NAME": "",
 		"ADMIN_EMAILS": "",
-		"ADMIN_SECRET": "",
 	},
 }
