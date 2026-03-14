@@ -14,9 +14,6 @@ import { AlertTriangle, Check } from "lucide-react-native"
 import { useCallback, useState } from "react"
 import { Alert, ScrollView, Text, View } from "react-native"
 
-const DEFAULT_TITLE = "Account Deletion Request"
-const DEFAULT_BODY = `English: I request deletion of my OptionQaaf account and acknowledge that my personal data will be permanently removed.\n\nالعربية: أطلب حذف حسابي من OptionQaaf وأقر بأن بياناتي الشخصية ستُحذف نهائيًا.`
-const ACCOUNT_API_BASE = process.env.EXPO_PUBLIC_ACCOUNT_API_BASE || "https://api.optionqaaf.com"
 
 export default function AccountDeletionScreen() {
   const router = useRouter()
@@ -39,40 +36,12 @@ function AccountDeletionContent() {
   const { data: profile } = useCustomerProfile({ enabled: isAuthenticated })
   const { show } = useToast()
   const router = useRouter()
-  const title = DEFAULT_TITLE
-  const body = DEFAULT_BODY
   const [confirmed, setConfirmed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const requestDeletion = useCallback(async () => {
-    const email = profile?.email
-    if (!email) {
-      throw new Error("Email is required to submit a deletion request.")
-    }
-    const response = await fetch(`${ACCOUNT_API_BASE}/account/delete`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: title.trim(),
-        body,
-        email,
-      }),
-    })
-
-    if (response.status !== 202) {
-      let message = "Unable to submit the deletion request."
-      try {
-        const data = await response.json()
-        if (data?.error) message = data.error
-      } catch {}
-      throw new Error(message)
-    }
-  }, [body, profile?.email, title])
 
   const finalizeDeletion = useCallback(async () => {
     setIsSubmitting(true)
     try {
-      await requestDeletion()
       await setDeletionRequestTimestamp(new Date(), profile?.email ?? null)
       await logout()
       router.replace("/account" as const)
@@ -83,7 +52,7 @@ function AccountDeletionContent() {
     } finally {
       setIsSubmitting(false)
     }
-  }, [logout, profile?.email, requestDeletion, router, show])
+  }, [logout, profile?.email, router, show])
 
   const handleSubmit = useCallback(() => {
     Alert.alert(

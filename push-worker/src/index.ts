@@ -84,6 +84,21 @@ export class PushTokensDO {
 			return Response.json(values);
 		}
 
+		if (url.pathname === '/bulk-import' && request.method === 'POST') {
+			const tokens = await request.json<Array<{ token: string; email: string | null }>>();
+			if (!Array.isArray(tokens)) {
+				return new Response('Expected array', { status: 400 });
+			}
+			const entries: Record<string, { token: string; email: string | null }> = {};
+			for (const entry of tokens) {
+				if (typeof entry?.token === 'string' && entry.token.length > 0) {
+					entries[entry.token] = { token: entry.token, email: entry.email ?? null };
+				}
+			}
+			await this.storage.put(entries);
+			return Response.json({ imported: Object.keys(entries).length });
+		}
+
 		return new Response('Not found', { status: 404 });
 	}
 }
@@ -234,6 +249,24 @@ export class NotificationStatsDO {
 			const items = Array.from(list.values());
 			items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 			return Response.json(items.slice(0, Number.isFinite(limit) ? limit : 20));
+		}
+
+		if (url.pathname === '/export' && request.method === 'GET') {
+			const all = await this.storage.list();
+			const entries: Record<string, unknown> = {};
+			for (const [key, value] of all) {
+				entries[key] = value;
+			}
+			return Response.json(entries);
+		}
+
+		if (url.pathname === '/bulk-import' && request.method === 'POST') {
+			const entries = await request.json<Record<string, unknown>>();
+			if (typeof entries !== 'object' || entries === null) {
+				return new Response('Expected object', { status: 400 });
+			}
+			await this.storage.put(entries as Record<string, NotificationStats>);
+			return Response.json({ imported: Object.keys(entries).length });
 		}
 
 		return new Response('Not found', { status: 404 });
@@ -579,6 +612,24 @@ export class PopupDO {
 			return Response.json({ ok: true })
 		}
 
+		if (url.pathname === "/export" && request.method === "GET") {
+			const all = await this.storage.list()
+			const entries: Record<string, unknown> = {}
+			for (const [key, value] of all) {
+				entries[key] = value
+			}
+			return Response.json(entries)
+		}
+
+		if (url.pathname === "/bulk-import" && request.method === "POST") {
+			const entries = await request.json<Record<string, unknown>>()
+			if (typeof entries !== "object" || entries === null) {
+				return new Response("Expected object", { status: 400 })
+			}
+			await this.storage.put(entries as Record<string, unknown>)
+			return Response.json({ imported: Object.keys(entries).length })
+		}
+
 		return new Response("Not found", { status: 404 })
 	}
 
@@ -647,6 +698,14 @@ export default {
 
 		if (url.pathname === '/api/track/open' && request.method === 'POST') {
 			return handleTrackOpen(request, env);
+		}
+
+		if (url.pathname === '/api/admin/export' && request.method === 'GET') {
+			return handleAdminExport(request, env);
+		}
+
+		if (url.pathname === '/api/admin/import' && request.method === 'POST') {
+			return handleAdminImport(request, env);
 		}
 
 		return new Response('Not found', { status: 404 });
@@ -1055,4 +1114,69 @@ async function handleAdminPopupClearCurrent(request: Request, env: Env): Promise
 		return new Response(text || 'Failed to clear popup', { status: 500 });
 	}
 	return Response.json({ ok: true });
+}
+
+async function handleAdminExport(request: Request, env: Env): Promise<Response> {
+	const secret = request.headers.get('x-admin-secret');
+	if (!isAdminSecretValid(secret, env)) {
+		return new Response('Unauthorized', { status: 401 });
+	}
+
+	const tokensId = env.PUSH_TOKENS_DO.idFromName('global');
+	const tokensStub = env.PUSH_TOKENS_DO.get(tokensId);
+	const tokensRes = await tokensStub.fetch('https://do/get-all');
+	const tokens = tokensRes.ok ? await tokensRes.json<unknown[]>() : [];
+
+	const statsId = env.PUSH_STATS_DO.idFromName('global');
+	const statsStub = env.PUSH_STATS_DO.get(statsId);
+	const statsRes = await statsStub.fetch('https://do/export');
+	const stats = statsRes.ok ? await statsRes.json<unknown>() : {};
+
+	const popupStub = getPopupStub(env);
+	const popupRes = await popupStub.fetch('https://do/export');
+	const popup = popupRes.ok ? await popupRes.json<unknown>() : {};
+
+	return Response.json({ tokens, stats, popup });
+}
+
+async function handleAdminImport(request: Request, env: Env): Promise<Response> {
+	const secret = request.headers.get('x-admin-secret');
+	if (!isAdminSecretValid(secret, env)) {
+		return new Response('Unauthorized', { status: 401 });
+	}
+
+	const body = await request.json<{ tokens?: unknown; stats?: unknown; popup?: unknown }>();
+
+	const results: Record<string, unknown> = {};
+
+	if (Array.isArray(body?.tokens) && body.tokens.length > 0) {
+		const tokensId = env.PUSH_TOKENS_DO.idFromName('global');
+		const tokensStub = env.PUSH_TOKENS_DO.get(tokensId);
+		const res = await tokensStub.fetch('https://do/bulk-import', {
+			method: 'POST',
+			body: JSON.stringify(body.tokens),
+		});
+		results.tokens = res.ok ? await res.json() : { error: await res.text() };
+	}
+
+	if (body?.stats && typeof body.stats === 'object') {
+		const statsId = env.PUSH_STATS_DO.idFromName('global');
+		const statsStub = env.PUSH_STATS_DO.get(statsId);
+		const res = await statsStub.fetch('https://do/bulk-import', {
+			method: 'POST',
+			body: JSON.stringify(body.stats),
+		});
+		results.stats = res.ok ? await res.json() : { error: await res.text() };
+	}
+
+	if (body?.popup && typeof body.popup === 'object') {
+		const popupStub = getPopupStub(env);
+		const res = await popupStub.fetch('https://do/bulk-import', {
+			method: 'POST',
+			body: JSON.stringify(body.popup),
+		});
+		results.popup = res.ok ? await res.json() : { error: await res.text() };
+	}
+
+	return Response.json({ ok: true, results });
 }
