@@ -62,13 +62,13 @@ export const BrandCloud = memo(function BrandCloud({ title, onPressBrand, size }
         toValue: 1,
         duration: 160,
         easing: Easing.out(Easing.ease),
-        useNativeDriver: false, // we animate opacity+scale; keep simple
+        useNativeDriver: true,
       }).start()
     } else {
       Animated.timing(fadeAnim, {
         toValue: 0,
         duration: 100,
-        useNativeDriver: false,
+        useNativeDriver: true,
       }).start()
     }
   }, [active, previewImage, previewLoading])

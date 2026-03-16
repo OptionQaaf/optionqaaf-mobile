@@ -1,5 +1,6 @@
 import { convertAmount } from "@/features/currency/rates"
 import { usePrefs } from "@/store/prefs"
+import { useMemo } from "react"
 import { ImageBackground, Pressable, Text, useWindowDimensions, View } from "react-native"
 
 // Lazy import gradient to avoid hard dependency
@@ -43,8 +44,15 @@ export function HomeProductTile({
   const line = Math.round(titleSize)
   const brandSize = 8
 
+  const formattedPrice = useMemo(() => {
+    if (!showPrice || typeof price !== "number") return null
+    const target = (prefCurrency || currency || "USD").toUpperCase()
+    const amt = convertAmount(price, currency, target)
+    return new Intl.NumberFormat(undefined, { style: "currency", currency: target }).format(amt)
+  }, [showPrice, price, prefCurrency, currency])
+
   const PricePill = () =>
-    showPrice && typeof price === "number" ? (
+    formattedPrice ? (
       <View
         style={{
           position: "absolute",
@@ -56,12 +64,7 @@ export function HomeProductTile({
           borderRadius: 999,
         }}
       >
-        {(() => {
-          const target = (prefCurrency || currency || "USD").toUpperCase()
-          const amt = convertAmount(price, currency, target)
-          const txt = new Intl.NumberFormat(undefined, { style: "currency", currency: target }).format(amt)
-          return <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>{txt}</Text>
-        })()}
+        <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 12 }}>{formattedPrice}</Text>
       </View>
     ) : null
 

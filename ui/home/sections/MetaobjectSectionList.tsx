@@ -1,4 +1,5 @@
 import type { AppHomeSection } from "@/lib/shopify/services/home"
+import { useCallback, useMemo } from "react"
 import { sectionRegistry } from "./registry"
 
 export type NavigateHandler = (url?: string) => void
@@ -57,7 +58,10 @@ export function MetaobjectSectionList({
   sections?: AppHomeSection[] | null | undefined
   onNavigate?: NavigateHandler
 }) {
-  const navigate = onNavigate ?? noop
-  if (!sections?.length) return null
-  return sections.map((section) => renderMetaobjectSection(section, navigate))
+  const navigate = useCallback<NavigateHandler>((url) => (onNavigate ?? noop)(url), [onNavigate])
+  const rendered = useMemo(
+    () => (sections?.length ? sections.map((section) => renderMetaobjectSection(section, navigate)) : null),
+    [sections, navigate],
+  )
+  return rendered
 }

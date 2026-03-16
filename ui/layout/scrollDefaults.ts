@@ -13,4 +13,11 @@ const androidProps: Pick<ScrollViewProps, "overScrollMode"> = {
 export const verticalScrollProps: Partial<ScrollViewProps> =
   Platform.OS === "ios" ? iosProps : Platform.OS === "android" ? androidProps : {}
 
+/** Same bounce/overscroll settings typed for FlashList (which narrows `style` vs ScrollViewProps). */
+export const flashListScrollProps: {
+  bounces?: boolean
+  alwaysBounceVertical?: boolean
+  overScrollMode?: "auto" | "always" | "never"
+} = Platform.OS === "ios" ? iosProps : Platform.OS === "android" ? androidProps : {}
+
 export const defaultKeyboardShouldPersistTaps: ScrollViewProps["keyboardShouldPersistTaps"] = "handled"

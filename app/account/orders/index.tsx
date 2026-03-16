@@ -12,7 +12,8 @@ import { Card } from "@/ui/surfaces/Card"
 import { Image } from "expo-image"
 import { useRouter } from "expo-router"
 import { useCallback, useEffect, useMemo } from "react"
-import { ActivityIndicator, FlatList, RefreshControl, Text, View } from "react-native"
+import { FlashList } from "@shopify/flash-list"
+import { ActivityIndicator, RefreshControl, Text, View } from "react-native"
 
 const PAGE_SIZE = 10
 
@@ -144,7 +145,7 @@ function OrdersContent() {
         Recent orders from the last 60 days are shown here. Older orders are still safe—contact us if you need the full
         history.
       </Text>
-      <FlatList
+      <FlashList
         data={orders}
         keyExtractor={(order) => order.id}
         renderItem={renderItem}

@@ -6,11 +6,12 @@ import { Skeleton } from "@/ui/feedback/Skeleton"
 import { MetaobjectSectionList } from "@/ui/home/sections/MetaobjectSectionList"
 import { PageScrollView } from "@/ui/layout/PageScrollView"
 import { Screen } from "@/ui/layout/Screen"
+import { flashListScrollProps } from "@/ui/layout/scrollDefaults"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { ProductTileSkeleton } from "@/ui/product/ProductTileSkeleton"
-import { StaticProductGrid } from "@/ui/product/StaticProductGrid"
 import { padToFullRow } from "@/ui/layout/gridUtils"
+import { FlashList } from "@shopify/flash-list"
 import { router, useLocalSearchParams } from "expo-router"
 import { LayoutGrid, Square } from "lucide-react-native"
 import { useEffect, useMemo, useState } from "react"
@@ -207,7 +208,7 @@ export default function CollectionScreen() {
     if (loadedCount >= 120) return
     const t = setTimeout(() => {
       activeFetchNextPage()
-    }, 80)
+    }, 500)
     return () => clearTimeout(t)
   }, [
     searchTerm,
@@ -221,6 +222,8 @@ export default function CollectionScreen() {
   const { width } = useWindowDimensions()
   const heroH = Math.max(280, Math.min(440, Math.round(width * 1.0)))
   const titleSize = Math.round(Math.min(72, Math.max(40, width * 0.16)))
+  const mx = 16
+  const itemW = Math.floor((width - mx * 2 - GRID_GAP * (view - 1)) / view)
 
   // If special men-1 / women-1: render aesthetic sections + PLP-like grid
   if (special) {
@@ -245,193 +248,202 @@ export default function CollectionScreen() {
     )
   }
 
+  const listHeader = (
+    <>
+      {/* Hero */}
+      <View className="w-full overflow-hidden" style={{ height: heroH }}>
+        {heroState === "image" ? (
+          <ImageBackground source={{ uri: heroImage }} resizeMode="cover" className="flex-1">
+            {LinearGradient ? (
+              <LinearGradient
+                colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0.55)"]}
+                start={{ x: 0.5, y: 0.1 }}
+                end={{ x: 0.5, y: 1 }}
+                className="absolute inset-0"
+              />
+            ) : null}
+            <View className="flex-1 items-center justify-end pb-6">
+              <Text
+                className="text-white font-extrabold px-4 text-center"
+                style={{
+                  fontSize: titleSize,
+                  textShadowColor: "rgba(0,0,0,0.2)",
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 2,
+                }}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.6}
+              >
+                {title}
+              </Text>
+            </View>
+          </ImageBackground>
+        ) : heroState === "skeleton" ? (
+          <View className="flex-1 bg-[#f1f5f9] px-4 pb-6 justify-end gap-3">
+            <View className="flex-row justify-center">
+              <Skeleton className="h-5 w-24 rounded-full bg-white/70" />
+            </View>
+            <Skeleton className="h-12 w-3/4 self-center rounded-3xl bg-white/80" />
+          </View>
+        ) : (
+          <View className="flex-1 px-4 pb-6 items-center justify-end" style={{ backgroundColor: "#0f172a" }}>
+            <Text
+              className="text-white font-extrabold text-center"
+              style={{
+                fontSize: titleSize,
+                textShadowColor: "rgba(0,0,0,0.2)",
+                textShadowOffset: { width: 0, height: 1 },
+                textShadowRadius: 2,
+              }}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
+            >
+              {title}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Controls container */}
+      <View className="px-4 -mt-8">
+        <View className="flex-row items-center gap-4">
+          {/* search box */}
+          <View className="flex-1">
+            <View className="bg-white rounded-3xl border border-black/10 px-3 py-1.5 flex-row items-center justify-between">
+              <TextInput
+                value={searchTerm}
+                onChangeText={setSearchTerm}
+                placeholder="Search in collection"
+                placeholderTextColor="#6B7280"
+                className="flex-1 py-1 px-2"
+                style={{ textAlignVertical: "center" }}
+              />
+            </View>
+          </View>
+
+          {/* grid/list toggle */}
+          <View className="flex-row rounded-full bg-white border border-neutral-200 overflow-hidden p-0.5 relative">
+            <View
+              className={`absolute top-0.5 bottom-0.5 w-1/2 bg-[#8E1A26] rounded-full ${view === 1 ? "left-0.5" : "right-0.5"}`}
+            />
+            <Pressable onPress={() => selectView(1)} className="py-2.5 px-3 z-10">
+              <Square size={18} color={view === 1 ? "#FFF" : "#0B0B0B"} />
+            </Pressable>
+            <Pressable onPress={() => selectView(2)} className="py-2.5 px-3 z-10">
+              <LayoutGrid size={18} color={view === 2 ? "#FFF" : "#0B0B0B"} />
+            </Pressable>
+          </View>
+        </View>
+
+        {pillFilters.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            className="mt-3"
+            contentContainerClassName="gap-2.5"
+          >
+            {pillFilters.map((pill) => (
+              <Pressable
+                key={pill.key}
+                onPress={pill.onPress}
+                className={`py-2.5 px-4 rounded-sm ${pill.active ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
+              >
+                <Text className={`${pill.active ? "text-white" : "text-neutral-900"} font-bold`}>{pill.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
+      </View>
+
+      {/* Loading skeleton or empty state */}
+      {isLoadingProducts ? (
+        <View className="mt-4 px-4">
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: GRID_GAP }}>
+            {Array.from({ length: view === 2 ? 6 : 4 }, (_, idx) => (
+              <ProductTileSkeleton
+                key={`init-skeleton-${idx}`}
+                width={itemW}
+                imageRatio={3 / 4}
+                padding={view === 2 ? "sm" : "md"}
+              />
+            ))}
+          </View>
+        </View>
+      ) : visibleProducts.length === 0 ? (
+        <View className="items-center py-10">
+          <Text className="text-neutral-900 font-bold text-lg mb-1.5">No products found</Text>
+          <Text className="text-gray-500">Try adjusting filters or search.</Text>
+        </View>
+      ) : null}
+      <View style={{ height: 16 }} />
+    </>
+  )
+
   return (
     <Screen bleedTop bleedBottom>
       <View className="flex-1 bg-white">
         <MenuBar floating />
 
-        <PageScrollView
-          scrollEventThrottle={16}
-          onScroll={(e) => {
-            const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent
-            const threshold = 400
-            if (
-              activeHasNextPage &&
-              !reachedCap &&
-              !activeIsFetchingNextPage &&
-              contentOffset.y + layoutMeasurement.height > contentSize.height - threshold
-            ) {
-              activeFetchNextPage()
-            }
-          }}
-        >
-          {/* Hero */}
-          <View className="w-full overflow-hidden" style={{ height: heroH }}>
-            {heroState === "image" ? (
-              <ImageBackground source={{ uri: heroImage }} resizeMode="cover" className="flex-1">
-                {LinearGradient ? (
-                  <LinearGradient
-                    colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0.55)"]}
-                    start={{ x: 0.5, y: 0.1 }}
-                    end={{ x: 0.5, y: 1 }}
-                    className="absolute inset-0"
-                  />
-                ) : null}
-                <View className="flex-1 items-center justify-end pb-6">
-                  <Text
-                    className="text-white font-extrabold px-4 text-center"
-                    style={{
-                      fontSize: titleSize,
-                      textShadowColor: "rgba(0,0,0,0.2)",
-                      textShadowOffset: { width: 0, height: 1 },
-                      textShadowRadius: 2,
-                    }}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.6}
-                  >
-                    {title}
-                  </Text>
-                </View>
-              </ImageBackground>
-            ) : heroState === "skeleton" ? (
-              <View className="flex-1 bg-[#f1f5f9] px-4 pb-6 justify-end gap-3">
-                <View className="flex-row justify-center">
-                  <Skeleton className="h-5 w-24 rounded-full bg-white/70" />
-                </View>
-                <Skeleton className="h-12 w-3/4 self-center rounded-3xl bg-white/80" />
-              </View>
-            ) : (
-              <View className="flex-1 px-4 pb-6 items-center justify-end" style={{ backgroundColor: "#0f172a" }}>
-                <Text
-                  className="text-white font-extrabold text-center"
-                  style={{
-                    fontSize: titleSize,
-                    textShadowColor: "rgba(0,0,0,0.2)",
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 2,
-                  }}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.6}
-                >
-                  {title}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Controls container */}
-          <View className="px-4 -mt-8">
-            <View className="flex-row items-center gap-4">
-              {/* search box */}
-              <View className="flex-1">
-                <View className="bg-white rounded-3xl border border-black/10 px-3 py-1.5 flex-row items-center justify-between">
-                  <TextInput
-                    value={searchTerm}
-                    onChangeText={setSearchTerm}
-                    placeholder="Search in collection"
-                    placeholderTextColor="#6B7280"
-                    className="flex-1 py-1 px-2"
-                    style={{ textAlignVertical: "center" }}
-                  />
-                </View>
-              </View>
-
-              {/* grid/list toggle */}
-              <View className="flex-row rounded-full bg-white border border-neutral-200 overflow-hidden p-0.5 relative">
-                <View
-                  className={`absolute top-0.5 bottom-0.5 w-1/2 bg-[#8E1A26] rounded-full ${view === 1 ? "left-0.5" : "right-0.5"}`}
-                />
-                <Pressable onPress={() => selectView(1)} className="py-2.5 px-3 z-10">
-                  <Square size={18} color={view === 1 ? "#FFF" : "#0B0B0B"} />
-                </Pressable>
-                <Pressable onPress={() => selectView(2)} className="py-2.5 px-3 z-10">
-                  <LayoutGrid size={18} color={view === 2 ? "#FFF" : "#0B0B0B"} />
-                </Pressable>
-              </View>
-            </View>
-
-            {pillFilters.length > 0 ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                className="mt-3"
-                contentContainerClassName="gap-2.5"
-              >
-                {pillFilters.map((pill) => (
-                  <Pressable
-                    key={pill.key}
-                    onPress={pill.onPress}
-                    className={`py-2.5 px-4 rounded-sm ${pill.active ? "bg-[#8E1A26]" : "bg-neutral-200"}`}
-                  >
-                    <Text className={`${pill.active ? "text-white" : "text-neutral-900"} font-bold`}>{pill.label}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-            ) : null}
-          </View>
-
-          {/* Products */}
-          <View className="mt-4 mb-8">
-            {isLoadingProducts ? (
-              <StaticProductGrid
-                data={Array.from({ length: view === 2 ? 6 : 4 }, (_, idx) => idx)}
-                columns={view}
-                gap={GRID_GAP}
-                renderItem={(_, itemW: number) => (
+        <FlashList
+          {...flashListScrollProps}
+          key={String(view)}
+          data={isLoadingProducts ? [] : gridItems}
+          numColumns={view}
+          keyExtractor={(item: any, index: number) => item?._key ?? item?.id ?? item?.handle ?? `item-${index}`}
+          renderItem={({ item, index }: any) => {
+            const colIndex = view > 1 ? index % view : 0
+            const ml = colIndex === 0 ? mx : GRID_GAP
+            if (!item) return <View style={{ width: itemW, marginLeft: ml }} />
+            if (item?.__skeleton)
+              return (
+                <View style={{ marginLeft: ml }}>
                   <ProductTileSkeleton width={itemW} imageRatio={3 / 4} padding={view === 2 ? "sm" : "md"} />
-                )}
-              />
-            ) : (
-              <>
-                {visibleProducts.length === 0 ? (
-                  <View className="items-center py-10">
-                    <Text className="text-neutral-900 font-bold text-lg mb-1.5">No products found</Text>
-                    <Text className="text-gray-500">Try adjusting filters or search.</Text>
-                  </View>
-                ) : null}
-                <StaticProductGrid
-                  data={gridItems}
-                  columns={view}
-                  gap={GRID_GAP}
-                  renderItem={(item: any, itemW: number) =>
-                    item?.__skeleton ? (
-                      <ProductTileSkeleton width={itemW} imageRatio={3 / 4} padding={view === 2 ? "sm" : "md"} />
-                    ) : (
-                      <ProductTile
-                        image={item?.featuredImage?.url ?? ""}
-                        images={(item?.images?.nodes ?? []).map((node: any) => node?.url).filter(Boolean)}
-                        brand={item?.vendor ?? ""}
-                        title={item?.title ?? ""}
-                        price={Number(item?.priceRange?.minVariantPrice?.amount ?? 0)}
-                        compareAt={(() => {
-                          const cmp = Number(item?.compareAtPriceRange?.minVariantPrice?.amount ?? 0)
-                          const amt = Number(item?.priceRange?.minVariantPrice?.amount ?? 0)
-                          return cmp > amt ? cmp : undefined
-                        })()}
-                        currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
-                        width={itemW}
-                        imageRatio={3 / 4}
-                        padding={view === 2 ? "sm" : "md"}
-                        onPress={() => {
-                          const h = item?.handle
-                          if (h) router.push(`/products/${h}` as any)
-                        }}
-                      />
-                    )
-                  }
+                </View>
+              )
+            return (
+              <View style={{ marginLeft: ml }}>
+                <ProductTile
+                  image={item?.featuredImage?.url ?? ""}
+                  images={(item?.images?.nodes ?? []).map((node: any) => node?.url).filter(Boolean)}
+                  brand={item?.vendor ?? ""}
+                  title={item?.title ?? ""}
+                  price={Number(item?.priceRange?.minVariantPrice?.amount ?? 0)}
+                  compareAt={(() => {
+                    const cmp = Number(item?.compareAtPriceRange?.minVariantPrice?.amount ?? 0)
+                    const amt = Number(item?.priceRange?.minVariantPrice?.amount ?? 0)
+                    return cmp > amt ? cmp : undefined
+                  })()}
+                  currency={(item?.priceRange?.minVariantPrice?.currencyCode as any) ?? "USD"}
+                  width={itemW}
+                  imageRatio={3 / 4}
+                  padding={view === 2 ? "sm" : "md"}
+                  onPress={() => {
+                    const handle = item?.handle
+                    if (handle) router.push(`/products/${handle}` as any)
+                  }}
                 />
-
-                {visibleProducts.length > 0 && reachedCap && !activeIsFetchingNextPage ? (
-                  <View className="py-6 items-center">
-                    <Text className="text-gray-500">You’ve reached the end</Text>
-                  </View>
-                ) : null}
-              </>
-            )}
-          </View>
-        </PageScrollView>
+              </View>
+            )
+          }}
+          ListHeaderComponent={listHeader}
+          ListFooterComponent={
+            visibleProducts.length > 0 && reachedCap && !activeIsFetchingNextPage ? (
+              <View className="py-6 items-center">
+                <Text className="text-gray-500">You’ve reached the end</Text>
+              </View>
+            ) : null
+          }
+          ItemSeparatorComponent={() => <View style={{ height: GRID_GAP }} />}
+          contentContainerStyle={{ paddingTop: 4, paddingBottom: 32 }}
+          estimatedItemSize={view === 2 ? Math.round(itemW * (4 / 3)) : Math.round(itemW * (4 / 3))}
+          onEndReached={() => {
+            if (activeHasNextPage && !activeIsFetchingNextPage) activeFetchNextPage()
+          }}
+          onEndReachedThreshold={0.5}
+          showsVerticalScrollIndicator={false}
+        />
       </View>
     </Screen>
   )

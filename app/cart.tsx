@@ -14,7 +14,7 @@ import { usePrefs } from "@/store/prefs"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
-import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
+import { defaultKeyboardShouldPersistTaps, flashListScrollProps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { Animated, MOTION } from "@/ui/motion/motion"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
@@ -28,7 +28,8 @@ import { router, useLocalSearchParams } from "expo-router"
 import { Lock, Trash2, X } from "lucide-react-native"
 import * as React from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Alert, FlatList, KeyboardAvoidingView, PixelRatio, Platform, Text, View } from "react-native"
+import { FlashList } from "@shopify/flash-list"
+import { Alert, KeyboardAvoidingView, PixelRatio, Platform, Text, View } from "react-native"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 ``
 const KSA_ORDER_PAUSE_START = Date.UTC(2026, 1, 7, 23, 59, 59)
@@ -51,14 +52,16 @@ export default function CartScreen() {
   const { isAuthenticated, initializing: authInitializing, login, getToken } = useShopifyAuth()
   const [loginPending, setLoginPending] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const pauseWindowOver = useMemo(() => Date.now() >= KSA_ORDER_PAUSE_END, [])
   const { mutateAsync: attachBuyerToCustomer, isPending: attachingBuyer } = useAttachCartToCustomer()
   const [buyerLinked, setBuyerLinked] = useState(false)
   const { data: customerProfile, refetch: refetchProfile } = useCustomerProfile({ enabled: isAuthenticated })
 
   useEffect(() => {
+    if (pauseWindowOver) return
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
-  }, [])
+  }, [pauseWindowOver])
 
   // Ensure there is a cart as early as possible (for codes, etc.)
   const ensure = useEnsureCart()
@@ -652,8 +655,8 @@ export default function CartScreen() {
         {/* Content */}
         {!loadingState && !errorState ? (
           <>
-            <FlatList
-              {...verticalScrollProps}
+            <FlashList
+              {...flashListScrollProps}
               data={localLines}
               keyExtractor={(l) => l.id}
               renderItem={({ item }) => <LineItem item={item} />}
@@ -663,11 +666,6 @@ export default function CartScreen() {
               keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
               scrollIndicatorInsets={{ bottom: listBottomPad }}
               showsVerticalScrollIndicator={false}
-              removeClippedSubviews
-              initialNumToRender={8}
-              windowSize={7}
-              updateCellsBatchingPeriod={50}
-              maxToRenderPerBatch={10}
             />
 
             {/* Floating sync pill */}

@@ -2,7 +2,7 @@ import { useSearch } from "@/features/search/api"
 import { optimizeImageUrl } from "@/lib/images/optimize"
 import { Skeleton } from "@/ui/feedback/Skeleton"
 import { Screen } from "@/ui/layout/Screen"
-import { defaultKeyboardShouldPersistTaps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
+import { defaultKeyboardShouldPersistTaps, flashListScrollProps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
 import { useDeferredFooter } from "@/ui/layout/useDeferredFooter"
 import { ProductTile } from "@/ui/product/ProductTile"
 import { padToFullRow } from "@/ui/layout/gridUtils"
@@ -10,7 +10,8 @@ import { Image as ExpoImage } from "expo-image"
 import { router } from "expo-router"
 import { ChevronLeft, X } from "lucide-react-native"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { FlatList, PixelRatio, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native"
+import { FlashList } from "@shopify/flash-list"
+import { PixelRatio, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native"
 
 export default function SearchScreen() {
   const [input, setInput] = useState("")
@@ -120,15 +121,15 @@ export default function SearchScreen() {
         </View>
       </View>
 
-      <FlatList
-        {...verticalScrollProps}
+      <FlashList
+        {...flashListScrollProps}
         onLayout={onListLayout}
         onContentSizeChange={onListContentSize}
         data={gridNodes}
         keyExtractor={(item: any, i) => (item ? (item?.id ?? item?.handle ?? String(i)) : `placeholder-${i}`)}
         numColumns={2}
-        columnWrapperStyle={{ gap }}
-        contentContainerStyle={{ paddingHorizontal: padH, paddingVertical: 24, rowGap: gap }}
+        contentContainerStyle={{ paddingHorizontal: padH, paddingVertical: 24 }}
+        ItemSeparatorComponent={() => <View style={{ height: gap }} />}
         ListHeaderComponent={
           <View className="px-0">
             {showLoadingGrid && nodes.length === 0 ? (
@@ -156,11 +157,12 @@ export default function SearchScreen() {
           </View>
         }
         renderItem={({ item, index }: any) => {
+          const isRightColumn = index % 2 === 1
           if (!item) {
-            return <View style={{ width: itemW }} />
+            return <View style={{ width: itemW, marginLeft: isRightColumn ? gap : 0 }} />
           }
           return (
-            <View style={{ width: itemW }}>
+            <View style={{ width: itemW, marginLeft: isRightColumn ? gap : 0 }}>
               <ProductTile
                 image={item?.featuredImage?.url ?? ""}
                 brand={item?.vendor ?? ""}
@@ -208,10 +210,6 @@ export default function SearchScreen() {
             revealFooter()
           }
         }}
-        initialNumToRender={8}
-        maxToRenderPerBatch={8}
-        windowSize={7}
-        removeClippedSubviews
         keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
         scrollIndicatorInsets={{ bottom: 24 }}
         showsVerticalScrollIndicator={false}

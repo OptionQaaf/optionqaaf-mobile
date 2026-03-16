@@ -29,6 +29,10 @@ export const ProductTileCarousel = memo(function ProductTileCarousel({ images, w
     setLayout({ width, height })
   }, [width, height])
 
+  useEffect(() => {
+    setImageIndex(0)
+  }, [images[0]])
+
   const onLayout = (event: LayoutChangeEvent) => {
     const nextWidth = Math.round(event.nativeEvent.layout.width)
     const nextHeight = Math.round(event.nativeEvent.layout.height)
@@ -56,9 +60,10 @@ export const ProductTileCarousel = memo(function ProductTileCarousel({ images, w
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
             transition={priority === "high" || index === 0 ? 0 : 150}
-            cachePolicy="disk"
+            cachePolicy="memory-disk"
             priority={resolvedPriority}
             placeholder={DEFAULT_PLACEHOLDER}
+            recyclingKey={item}
           />
         )}
       />

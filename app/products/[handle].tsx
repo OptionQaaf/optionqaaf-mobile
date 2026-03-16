@@ -211,17 +211,9 @@ export default function ProductScreen() {
   // Inline vs sticky states with hysteresis and fade crossfade
   const [mode, setMode] = useState<"inline" | "sticky">("inline")
   const [sentinelY, setSentinelY] = useState<number>(Number.POSITIVE_INFINITY)
-  const [scrollY, setScrollY] = useState(0)
+  const sentinelYRef = useRef(Number.POSITIVE_INFINITY)
+  const scrollModeRef = useRef<"inline" | "sticky">("inline")
   const { height } = useWindowDimensions()
-  const viewportBottom = scrollY + height - insets.bottom
-  const engageStickyAt = sentinelY - BAR_H - GAP
-  const disengageStickyAt = sentinelY - GAP
-
-  useEffect(() => {
-    if (!Number.isFinite(sentinelY)) return
-    if (mode === "inline" && viewportBottom < engageStickyAt) setMode("sticky")
-    else if (mode === "sticky" && viewportBottom > disengageStickyAt) setMode("inline")
-  }, [viewportBottom, engageStickyAt, disengageStickyAt, sentinelY, mode])
 
   const stickyStyle = useCrossfade(mode === "sticky", MOTION.dur.sm)
   const inlineStyle = useCrossfade(mode === "inline", MOTION.dur.sm)
@@ -475,7 +467,12 @@ export default function ProductScreen() {
               </Animated.View>
             </View>
 
-            <View onLayout={(e) => setSentinelY(e.nativeEvent.layout.y)} />
+            <View
+              onLayout={(e) => {
+                sentinelYRef.current = e.nativeEvent.layout.y
+                setSentinelY(e.nativeEvent.layout.y)
+              }}
+            />
             <Recommended
               productId={(product as any)?.id}
               vendor={(product as any)?.vendor}
@@ -489,7 +486,17 @@ export default function ProductScreen() {
         keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
         showsVerticalScrollIndicator={false}
         scrollIndicatorInsets={{ bottom: BAR_H + insets.bottom + 12 }}
-        onScroll={(e: any) => setScrollY(e.nativeEvent.contentOffset?.y ?? 0)}
+        onScroll={(e: any) => {
+          const y = e.nativeEvent.contentOffset?.y ?? 0
+          const vb = y + height - insets.bottom
+          if (scrollModeRef.current === "inline" && vb < sentinelYRef.current - BAR_H - GAP) {
+            scrollModeRef.current = "sticky"
+            setMode("sticky")
+          } else if (scrollModeRef.current === "sticky" && vb > sentinelYRef.current - GAP) {
+            scrollModeRef.current = "inline"
+            setMode("inline")
+          }
+        }}
         scrollEventThrottle={16}
         onEndReached={revealFooter}
         onEndReachedThreshold={0.1}

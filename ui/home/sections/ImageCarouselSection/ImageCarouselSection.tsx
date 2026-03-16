@@ -1,7 +1,7 @@
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
 import type { PosterCell, SectionSize } from "@/lib/shopify/services/home"
 import { Image } from "expo-image"
-import { memo, useState } from "react"
+import { memo, useCallback, useMemo, useState } from "react"
 import { Dimensions, Pressable, View } from "react-native"
 import Carousel from "react-native-reanimated-carousel"
 import { sizeScale } from "../sectionSize"
@@ -18,26 +18,57 @@ type Props = {
 const { width: screenWidth } = Dimensions.get("window")
 
 export const ImageCarouselSection = memo(function ImageCarouselSection({ items = [], height, onPressItem, size }: Props) {
-  const slides = (items ?? []).filter((x) => x.image?.url)
   const [activeIndex, setActiveIndex] = useState(0)
 
-  if (!slides.length) return null
-
-  const scale = sizeScale(size)
-  const slideHeight =
-    typeof height === "number" && Number.isFinite(height)
-      ? Math.max(200, height * scale)
-      : Math.round(Math.min(Math.max(screenWidth * 0.85, 340), 520) * scale)
-
-  const optimized = slides.map(
-    (item) =>
-      optimizeImageUrl(item.image?.url, {
-        width: Math.round(screenWidth),
-        height: Math.round(slideHeight),
-        format: "webp",
-        dpr: 2,
-      }) ?? item.image?.url,
+  const slides = useMemo(() => (items ?? []).filter((x) => x.image?.url), [items])
+  const scale = useMemo(() => sizeScale(size), [size])
+  const slideHeight = useMemo(
+    () =>
+      typeof height === "number" && Number.isFinite(height)
+        ? Math.max(200, height * scale)
+        : Math.round(Math.min(Math.max(screenWidth * 0.85, 340), 520) * scale),
+    [height, scale],
   )
+  const optimized = useMemo(
+    () =>
+      slides.map(
+        (item) =>
+          optimizeImageUrl(item.image?.url, {
+            width: Math.round(screenWidth),
+            height: Math.round(slideHeight),
+            format: "webp",
+            dpr: 2,
+          }) ?? item.image?.url,
+      ),
+    [slides, slideHeight],
+  )
+  const renderItem = useCallback(
+    ({ item, index }: { item: CarouselItem; index: number }) => {
+      const uri = optimized[index]
+      return (
+        <Pressable
+          className="w-full"
+          style={{ height: slideHeight }}
+          onPress={() => onPressItem?.(item.url, index)}
+        >
+          {uri ? (
+            <Image
+              source={{ uri }}
+              style={{ width: "100%", height: "100%" }}
+              contentFit="cover"
+              transition={index === 0 ? 0 : 200}
+              placeholder={DEFAULT_PLACEHOLDER}
+            />
+          ) : (
+            <View className="flex-1 bg-gray-200" />
+          )}
+        </Pressable>
+      )
+    },
+    [optimized, slideHeight, onPressItem],
+  )
+
+  if (!slides.length) return null
 
   return (
     <View className="w-full items-center">
@@ -51,28 +82,7 @@ export const ImageCarouselSection = memo(function ImageCarouselSection({ items =
         pagingEnabled
         scrollAnimationDuration={700}
         onSnapToItem={(index) => setActiveIndex(index)}
-        renderItem={({ item, index }) => {
-          const uri = optimized[index]
-          return (
-            <Pressable
-              className="w-full"
-              style={{ height: slideHeight }}
-              onPress={() => onPressItem?.(item.url, index)}
-            >
-              {uri ? (
-                <Image
-                  source={{ uri }}
-                  style={{ width: "100%", height: "100%" }}
-                  contentFit="cover"
-                  transition={index === 0 ? 0 : 200}
-                  placeholder={DEFAULT_PLACEHOLDER}
-                />
-              ) : (
-                <View className="flex-1 bg-gray-200" />
-              )}
-            </Pressable>
-          )
-        }}
+        renderItem={renderItem}
       />
 
       {/* pagination dots */}

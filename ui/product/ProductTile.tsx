@@ -151,9 +151,10 @@ export function ProductTile({
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
               transition={priority === "high" ? 0 : 150}
-              cachePolicy="disk"
+              cachePolicy="memory-disk"
               priority={priority ?? (width && width > 0 ? "normal" : "low")}
               placeholder={DEFAULT_PLACEHOLDER}
+              recyclingKey={src}
             />
           )}
         </View>
