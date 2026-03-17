@@ -3,7 +3,7 @@
     "name": "OptionQaaf",
     "slug": "optionqaaf-app",
     "owner": "option-qaaf",
-    "version": "2.0.3",
+    "version": "2.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/white-icon.png",
     "scheme": ["optionqaafmobile", "shop.85072904499.app"],
@@ -11,7 +11,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "2",
+      "buildNumber": "3",
       "bundleIdentifier": "co.shopney.optionqaaf",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -21,7 +21,7 @@
       }
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "intentFilters": [
         {
           "action": "VIEW",

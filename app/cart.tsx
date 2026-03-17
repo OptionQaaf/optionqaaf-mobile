@@ -31,7 +31,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { FlashList } from "@shopify/flash-list"
 import { Alert, KeyboardAvoidingView, PixelRatio, Platform, Text, View } from "react-native"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
-``
+
 const KSA_ORDER_PAUSE_START = Date.UTC(2026, 1, 7, 23, 59, 59)
 const KSA_ORDER_PAUSE_END = Date.UTC(2026, 1, 21, 23, 59, 59)
 

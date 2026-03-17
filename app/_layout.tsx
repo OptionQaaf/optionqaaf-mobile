@@ -4,15 +4,15 @@ import { DrawerProvider } from "@/features/navigation/Drawer"
 import { useNotificationsService } from "@/features/notifications/notificationService"
 import { usePushToken } from "@/features/notifications/usePushToken"
 import { usePopupService } from "@/features/popup/usePopupService"
+import { useForceUpdate } from "@/features/update/useForceUpdate"
 import { requestTrackingAuthorizationIfNeeded } from "@/lib/TrackingAuthorizationManager"
-import { useAppMetadata } from "@/lib/diagnostics/appMetadata"
-import { useNetworkStatus } from "@/lib/network/useNetworkStatus"
 import { hydrateCartId } from "@/store/cartId"
 import { usePopupStore } from "@/store/popup"
 import { FontProvider } from "@/theme/FontProvider"
 import type { PopupCTA } from "@/types/popup"
 import { ToastHost } from "@/ui/feedback/Toast"
 import { InAppPopupModal } from "@/ui/popup/InAppPopupModal"
+import { ForceUpdateModal } from "@/ui/update/ForceUpdateModal"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { router, Stack, useSegments } from "expo-router"
 import * as SplashScreen from "expo-splash-screen"
@@ -38,19 +38,19 @@ export default function RootLayout() {
   const [cartReady, setCartReady] = useState(false)
 
   useEffect(() => {
-    SplashScreen.preventAutoHideAsync().catch(() => {})
-    ;(async () => {
-      try {
-        await hydrateCartId()
-        setCartReady(true)
-      } catch {
-        setCartReady(true)
-      }
-    })()
+    try {
+      SplashScreen.preventAutoHideAsync().catch(() => {})
+    } catch {}
+    hydrateCartId()
+      .catch(() => {})
+      .finally(() => setCartReady(true))
   }, [])
 
   useEffect(() => {
-    if (fontsReady && cartReady) SplashScreen.hideAsync().catch(() => {})
+    if (!fontsReady || !cartReady) return
+    try {
+      SplashScreen.hideAsync().catch(() => {})
+    } catch {}
   }, [fontsReady, cartReady])
 
   return (
@@ -81,6 +81,7 @@ export default function RootLayout() {
             </SafeAreaProvider>
           </AuthGate>
           <InAppPopupHost />
+          <ForceUpdateHost fontsReady={fontsReady} />
         </GestureHandlerRootView>
       </QueryClientProvider>
     </ShopifyAuthProvider>
@@ -130,11 +131,14 @@ function InAppPopupHost() {
   return <InAppPopupModal popup={popup} visible={Boolean(popup)} onDismiss={handleDismiss} onCtaPress={handleCta} />
 }
 
+function ForceUpdateHost({ fontsReady }: { fontsReady: boolean }) {
+  const { needsUpdate, storeUrl } = useForceUpdate({ fontsReady })
+  return <ForceUpdateModal visible={needsUpdate} storeUrl={storeUrl} />
+}
+
 function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
-  const metadata = useAppMetadata()
   const segments = useSegments()
   const navigationReady = segments.length > 0
-  const networkStatus = useNetworkStatus()
 
   useNotificationsService()
   usePushToken()
@@ -143,19 +147,6 @@ function AppBootstrap({ fontsReady }: { fontsReady: boolean }) {
   useEffect(() => {
     requestTrackingAuthorizationIfNeeded()
   }, [])
-
-  useEffect(() => {
-    console.debug("[app] metadata", metadata)
-  }, [metadata, metadata.appName, metadata.version, metadata.buildNumber, metadata.applicationId, metadata.ownership])
-
-  const { isConnected, isInternetReachable, type } = networkStatus
-  useEffect(() => {
-    console.debug("[app] network", {
-      isConnected,
-      isInternetReachable,
-      type,
-    })
-  }, [isConnected, isInternetReachable, type])
 
   return null
 }

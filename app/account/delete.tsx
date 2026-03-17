@@ -14,7 +14,6 @@ import { AlertTriangle, Check } from "lucide-react-native"
 import { useCallback, useState } from "react"
 import { Alert, ScrollView, Text, View } from "react-native"
 
-
 export default function AccountDeletionScreen() {
   const router = useRouter()
 
