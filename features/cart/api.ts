@@ -120,18 +120,22 @@ export function useUpdateLine() {
       const newQty = Number(payload.quantity ?? oldQty)
       const delta = newQty - oldQty
       line.quantity = newQty
-      const unit = Number(line?.merchandise?.price?.amount ?? 0)
+      const existingLineCost = Number(line?.cost?.subtotalAmount?.amount)
+      const oldLineCost = Number.isFinite(existingLineCost)
+        ? existingLineCost
+        : Number(line?.merchandise?.price?.amount ?? 0) * oldQty
+      const newLineCost = oldQty > 0 ? (oldLineCost / oldQty) * newQty : 0
       // update line subtotal
       if (!line.cost) line.cost = {}
       line.cost.subtotalAmount = {
         ...(line.cost.subtotalAmount ?? { currencyCode: cart?.cost?.totalAmount?.currencyCode ?? "USD" }),
-        amount: String((unit * newQty).toFixed(2)),
+        amount: String(newLineCost.toFixed(2)),
       }
       // recompute subtotal from lines
-      const subtotal = nodes.reduce(
-        (sum, l) => sum + Number(l?.merchandise?.price?.amount ?? 0) * Number(l?.quantity ?? 1),
-        0,
-      )
+      const subtotal = nodes.reduce((sum, l) => {
+        const lc = Number(l?.cost?.subtotalAmount?.amount)
+        return sum + (Number.isFinite(lc) ? lc : Number(l?.merchandise?.price?.amount ?? 0) * Number(l?.quantity ?? 1))
+      }, 0)
       if (!cart.cost) cart.cost = {}
       cart.cost.subtotalAmount = {
         ...(cart.cost.subtotalAmount ?? { currencyCode: cart?.cost?.totalAmount?.currencyCode ?? "USD" }),
@@ -257,13 +261,12 @@ export function useRemoveLine() {
       if (idx === -1) return { prev }
       const line = nodes[idx]
       const qty = Number(line?.quantity ?? 1)
-      const unit = Number(line?.merchandise?.price?.amount ?? 0)
       nodes.splice(idx, 1)
       // recompute subtotal
-      const subtotal = nodes.reduce(
-        (sum, l) => sum + Number(l?.merchandise?.price?.amount ?? 0) * Number(l?.quantity ?? 1),
-        0,
-      )
+      const subtotal = nodes.reduce((sum, l) => {
+        const lc = Number(l?.cost?.subtotalAmount?.amount)
+        return sum + (Number.isFinite(lc) ? lc : Number(l?.merchandise?.price?.amount ?? 0) * Number(l?.quantity ?? 1))
+      }, 0)
       if (!cart.cost) cart.cost = {}
       cart.cost.subtotalAmount = {
         ...(cart.cost.subtotalAmount ?? { currencyCode: cart?.cost?.totalAmount?.currencyCode ?? "USD" }),
@@ -296,7 +299,7 @@ export function useUpdateDiscountCodes() {
   const qc = useQueryClient()
 
   return useMutation({
-    mutationFn: async (codes: string[] | undefined) => {
+    mutationFn: async (codes: string[]) => {
       if (!cartId) throw new Error("Cart not initialized")
       const res = await updateDiscountCodes(cartId, codes, locale)
       return res.cartDiscountCodesUpdate?.cart ?? null
@@ -369,6 +372,7 @@ export function useSyncCartChanges() {
       if (!prev) return { prev }
       const cart = JSON.parse(JSON.stringify(prev))
       const nodes: any[] = cart?.lines?.nodes ?? []
+      const currency = cart?.cost?.totalAmount?.currencyCode ?? cart?.cost?.subtotalAmount?.currencyCode ?? "USD"
       // Removes
       if (payload.removes?.length) {
         for (const id of payload.removes) {
@@ -380,16 +384,29 @@ export function useSyncCartChanges() {
       if (payload.updates?.length) {
         for (const u of payload.updates) {
           const line = nodes.find((n) => n.id === u.id)
-          if (line) line.quantity = u.quantity
+          if (line) {
+            const oldQty = Number(line.quantity ?? 1)
+            const newQty = Number(u.quantity ?? oldQty)
+            const existingCost = Number(line?.cost?.subtotalAmount?.amount)
+            const oldLineCost = Number.isFinite(existingCost)
+              ? existingCost
+              : Number(line?.merchandise?.price?.amount ?? 0) * oldQty
+            const newLineCost = oldQty > 0 ? (oldLineCost / oldQty) * newQty : 0
+            line.quantity = newQty
+            if (!line.cost) line.cost = {}
+            line.cost.subtotalAmount = {
+              ...(line.cost?.subtotalAmount ?? { currencyCode: currency }),
+              amount: String(newLineCost.toFixed(2)),
+            }
+          }
         }
       }
-      // Recompute costs optimistically based on variant unit price
-      const subtotal = nodes.reduce(
-        (sum, l) => sum + Number(l?.merchandise?.price?.amount ?? 0) * Number(l?.quantity ?? 1),
-        0,
-      )
+      // Recompute costs optimistically, preserving line-level discounts via cost.subtotalAmount
+      const subtotal = nodes.reduce((sum, l) => {
+        const lc = Number(l?.cost?.subtotalAmount?.amount)
+        return sum + (Number.isFinite(lc) ? lc : Number(l?.merchandise?.price?.amount ?? 0) * Number(l?.quantity ?? 1))
+      }, 0)
       if (!cart.cost) cart.cost = {}
-      const currency = cart?.cost?.totalAmount?.currencyCode ?? cart?.cost?.subtotalAmount?.currencyCode ?? "USD"
       cart.cost.subtotalAmount = { currencyCode: currency, amount: String(subtotal.toFixed(2)) }
       cart.cost.totalAmount = { currencyCode: currency, amount: String(Math.max(0, subtotal).toFixed(2)) }
       cart.totalQuantity = nodes.reduce((n: number, l: any) => n + Number(l?.quantity ?? 0), 0)

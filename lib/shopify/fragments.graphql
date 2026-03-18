@@ -123,6 +123,17 @@ fragment CartCommon on Cart {
       ...Money
     }
   }
+  deliveryGroups(first: 5) {
+    nodes {
+      selectedDeliveryOption {
+        title
+        estimatedCost {
+          amount
+          currencyCode
+        }
+      }
+    }
+  }
   lines(first: 50) {
     nodes {
       id

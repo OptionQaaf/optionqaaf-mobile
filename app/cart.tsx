@@ -22,7 +22,6 @@ import { Input } from "@/ui/primitives/Input"
 import { Price } from "@/ui/product/Price"
 import { QuantityStepper } from "@/ui/product/QuantityStepper"
 import { Card } from "@/ui/surfaces/Card"
-import { BlurView } from "expo-blur"
 import { Image } from "expo-image"
 import { router, useLocalSearchParams } from "expo-router"
 import { Lock, Trash2, X } from "lucide-react-native"
@@ -75,6 +74,7 @@ export default function CartScreen() {
   const { mutateAsync: updateDiscountCodesAsync, isPending: updatingDiscounts } = useUpdateDiscountCodes()
   const { mutateAsync: replaceDeliveryAddresses } = useReplaceCartDeliveryAddresses()
   const [codeInput, setCodeInput] = useState("")
+  const deliveryAddressSetRef = useRef(false)
 
   useEffect(() => {
     if (authInitializing) return
@@ -117,6 +117,25 @@ export default function CartScreen() {
     isAuthenticated,
     show,
   ])
+
+  // Proactively set the delivery address so Shopify can compute shipping estimates
+  useEffect(() => {
+    if (!buyerLinked) return
+    if (!cart?.id) return
+    if (!customerProfile?.addresses?.length) return
+    if (deliveryAddressSetRef.current) return
+    const defaultAddressId = customerProfile.defaultAddress?.id ?? customerProfile.addresses[0]?.id ?? null
+    if (!defaultAddressId) return
+    deliveryAddressSetRef.current = true
+    const addressPayload = customerProfile.addresses.map((addr) => ({
+      address: { copyFromCustomerAddressId: addr.id },
+      selected: addr.id === defaultAddressId,
+      oneTimeUse: false,
+    }))
+    replaceDeliveryAddresses(addressPayload).catch(() => {
+      deliveryAddressSetRef.current = false
+    })
+  }, [buyerLinked, cart?.id, customerProfile, replaceDeliveryAddresses])
 
   const promptLogin = useCallback(async () => {
     if (loginPending) return false
@@ -314,7 +333,7 @@ export default function CartScreen() {
 
   // Derived money (compact & consistent)
   // Derived money (compact & consistent)
-  const { subBefore, discount, total, tax, hasItems } = useMemo(() => {
+  const { subBefore, discount, shipping, hasShippingEstimate, total, tax, hasItems } = useMemo(() => {
     const serverSubtotal = n(cart?.cost?.subtotalAmount?.amount, NaN)
     const taxAmount = n(cart?.cost?.totalTaxAmount?.amount, 0)
     const cartDiscountAllocations = (cart as any)?.discountAllocations ?? []
@@ -351,10 +370,25 @@ export default function CartScreen() {
     const subtotalAfterDiscounts = Math.max(0, resolvedSubtotal - appliedDiscount)
 
     const savings = Math.max(0, baseSavings + appliedDiscount)
+
+    // Estimated shipping from delivery groups (populated once buyer address is set)
+    const deliveryGroups = (cart as any)?.deliveryGroups?.nodes ?? []
+    let shippingAmount = 0
+    let hasShippingEstimate = false
+    for (const group of deliveryGroups) {
+      const est = group?.selectedDeliveryOption?.estimatedCost?.amount
+      if (est !== undefined) {
+        shippingAmount += n(est, 0)
+        hasShippingEstimate = true
+      }
+    }
+
     return {
       subBefore: subBeforeDiscounts,
       discount: savings,
-      total: subtotalAfterDiscounts, // exclude shipping; show pure products total
+      shipping: shippingAmount,
+      hasShippingEstimate,
+      total: subtotalAfterDiscounts + shippingAmount,
       tax: taxAmount,
       hasItems: itemCount > 0,
     }
@@ -484,7 +518,23 @@ export default function CartScreen() {
         pendingRemoves.current.delete(lineId)
         pendingUpdates.current.set(lineId, q)
         setLocalLines((prev) =>
-          dedupeLines(prev.map((l) => (l.id === lineId ? { ...l, quantity: q, cost: undefined } : l))),
+          dedupeLines(
+            prev.map((l) => {
+              if (l.id !== lineId) return l
+              const oldQty = n(l.quantity, 1)
+              const existingCost = l.cost?.subtotalAmount?.amount
+              const newCostAmount =
+                existingCost !== undefined ? String(((Number(existingCost) / oldQty) * q).toFixed(2)) : undefined
+              return {
+                ...l,
+                quantity: q,
+                cost:
+                  newCostAmount !== undefined
+                    ? { ...l.cost, subtotalAmount: { ...l.cost?.subtotalAmount, amount: newCostAmount } }
+                    : undefined,
+              }
+            }),
+          ),
         )
       }
       setDirty(true)
@@ -668,9 +718,6 @@ export default function CartScreen() {
               showsVerticalScrollIndicator={false}
             />
 
-            {/* Floating sync pill */}
-            {sync.isPending ? <SyncPill /> : null}
-
             {/* Sticky summary */}
             <KeyboardAvoidingView
               behavior={Platform.select({ ios: "padding", android: "height" })}
@@ -769,6 +816,8 @@ export default function CartScreen() {
                         const discUSD = convertAmount(discount, currency, "USD")
                         const taxDisp = convertAmount(tax, currency, prefCurrency)
                         const taxUSD = convertAmount(tax, currency, "USD")
+                        const shipDisp = convertAmount(shipping, currency, prefCurrency)
+                        const shipUSD = convertAmount(shipping, currency, "USD")
                         const totDisp = convertAmount(total, currency, prefCurrency)
                         const totUSD = convertAmount(total, currency, "USD")
                         return (
@@ -796,6 +845,14 @@ export default function CartScreen() {
                                 />
                               </Row>
                             ) : null}
+                            {hasShippingEstimate ? (
+                              <Row label="Shipping">
+                                <DualAmount
+                                  main={shipping === 0 ? "Free" : formatCurrencyText(shipDisp, prefCurrency)}
+                                  alt={showUSD && shipping > 0 ? formatCurrencyText(shipUSD, "USD") : undefined}
+                                />
+                              </Row>
+                            ) : null}
                             <Divider />
                             <Row label="Total">
                               <DualAmount
@@ -804,6 +861,11 @@ export default function CartScreen() {
                                 emphasize
                               />
                             </Row>
+                            {!hasShippingEstimate ? (
+                              <Text className="text-secondary text-[11px] text-center mt-1">
+                                Shipping & taxes calculated at checkout
+                              </Text>
+                            ) : null}
                           </>
                         )
                       })()}
@@ -872,53 +934,6 @@ function DualAmount({
 
 function Divider() {
   return <View className="h-[1px] bg-border my-2" />
-}
-
-function SyncPill() {
-  return (
-    <Animated.View
-      entering={MOTION.enter.fade}
-      exiting={MOTION.exit.fade}
-      style={{ position: "absolute", left: 0, right: 0, bottom: 220, alignItems: "center", zIndex: 10 }}
-      accessible
-      accessibilityLiveRegion="polite"
-    >
-      <View
-        style={{
-          borderRadius: 999,
-          paddingHorizontal: 12,
-          paddingVertical: 4,
-          shadowColor: "#000",
-          shadowOpacity: 0.08,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: 2 },
-          overflow: "hidden",
-        }}
-      >
-        <BlurView
-          intensity={28}
-          tint="light"
-          style={{
-            ...Platform.select({
-              ios: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: 999 },
-              android: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: 999 },
-            }),
-          }}
-        />
-        <Text
-          className="text-muted text-[13px]"
-          style={{
-            textAlign: "center",
-            backgroundColor: "rgba(255,255,255,0.28)",
-            borderRadius: 999,
-            overflow: "hidden",
-          }}
-        >
-          Synchronizing…
-        </Text>
-      </View>
-    </Animated.View>
-  )
 }
 
 function EmptyCart() {

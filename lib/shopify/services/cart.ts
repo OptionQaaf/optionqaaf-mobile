@@ -97,7 +97,7 @@ export async function removeLines(cartId: string, lineIds: string[], locale?: { 
 
 export async function updateDiscountCodes(
   cartId: string,
-  codes: string[] | undefined,
+  codes: string[],
   locale?: { country?: string; language?: string },
 ) {
   return callShopify<CartDiscountCodesUpdateMutation>(async () => {
