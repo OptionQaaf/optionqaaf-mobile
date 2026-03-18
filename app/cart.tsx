@@ -183,7 +183,9 @@ export default function CartScreen() {
         return false
       }
       const normalized = input.toUpperCase()
-      const existing = discountCodes.map((d) => d.code)
+      const existing = (cart?.discountCodes ?? [])
+        .map((d) => d?.code)
+        .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
       const alreadyApplied = existing.some((c) => c.toUpperCase() === normalized)
       if (alreadyApplied) {
         show({ title: "Code already applied", type: "info" })
@@ -198,9 +200,13 @@ export default function CartScreen() {
         }[]
         const applied = updatedDiscounts.find((d) => d?.code?.toUpperCase() === normalized)
         const hasItems = Number(updatedCart?.totalQuantity ?? 0) > 0
+        const hasDeliveryOption = ((updatedCart as any)?.deliveryGroups?.nodes ?? []).some(
+          (g: any) => g?.selectedDeliveryOption != null,
+        )
         if (!applied || applied.applicable === false) {
-          if (!hasItems) {
-            show({ title: "Coupon saved; add items to activate it", type: "info" })
+          if (!hasItems || !hasDeliveryOption) {
+            // Code accepted but can't be validated yet (no items or no delivery selection)
+            show({ title: "Coupon saved; it will activate at checkout", type: "info" })
             return true
           }
           await updateDiscountCodesAsync(existing)
@@ -337,10 +343,12 @@ export default function CartScreen() {
     const serverSubtotal = n(cart?.cost?.subtotalAmount?.amount, NaN)
     const taxAmount = n(cart?.cost?.totalTaxAmount?.amount, 0)
     const cartDiscountAllocations = (cart as any)?.discountAllocations ?? []
-    const cartDiscount = cartDiscountAllocations.reduce(
-      (sum: number, alloc: any) => sum + n(alloc?.discountedAmount?.amount, 0),
-      0,
-    )
+    const cartLineDiscount = cartDiscountAllocations
+      .filter((a: any) => a?.targetType !== "SHIPPING_LINE")
+      .reduce((sum: number, a: any) => sum + n(a?.discountedAmount?.amount, 0), 0)
+    const cartShippingDiscount = cartDiscountAllocations
+      .filter((a: any) => a?.targetType === "SHIPPING_LINE")
+      .reduce((sum: number, a: any) => sum + n(a?.discountedAmount?.amount, 0), 0)
 
     let subBeforeDiscounts = 0 // compareAt × qty
     let lineSubtotal = 0 // line cost (or unit price) × qty (before discount allocations)
@@ -364,24 +372,27 @@ export default function CartScreen() {
       lineDiscount += lineDiscountTotal
     }
 
-    const appliedDiscount = cartDiscount > 0 ? cartDiscount : lineDiscount
+    const appliedDiscount = cartLineDiscount > 0 ? cartLineDiscount : lineDiscount
     const baseSavings = Math.max(0, subBeforeDiscounts - lineSubtotal)
     const resolvedSubtotal = dirty ? lineSubtotal : Number.isFinite(serverSubtotal) ? serverSubtotal : lineSubtotal
     const subtotalAfterDiscounts = Math.max(0, resolvedSubtotal - appliedDiscount)
 
     const savings = Math.max(0, baseSavings + appliedDiscount)
 
-    // Estimated shipping from delivery groups (populated once buyer address is set)
+    // Estimated shipping from delivery groups.
+    // Subtract any SHIPPING_LINE discount allocations from the raw estimate.
+    // Only suppress the estimate when no delivery option has been selected yet.
     const deliveryGroups = (cart as any)?.deliveryGroups?.nodes ?? []
-    let shippingAmount = 0
+    let rawShipping = 0
     let hasShippingEstimate = false
     for (const group of deliveryGroups) {
       const est = group?.selectedDeliveryOption?.estimatedCost?.amount
       if (est !== undefined) {
-        shippingAmount += n(est, 0)
+        rawShipping += n(est, 0)
         hasShippingEstimate = true
       }
     }
+    const shippingAmount = hasShippingEstimate ? Math.max(0, rawShipping - cartShippingDiscount) : 0
 
     return {
       subBefore: subBeforeDiscounts,

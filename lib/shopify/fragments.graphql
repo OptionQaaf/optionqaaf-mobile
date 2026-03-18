@@ -111,6 +111,7 @@ fragment CartCommon on Cart {
     discountedAmount {
       ...Money
     }
+    targetType
   }
   cost {
     subtotalAmount {
