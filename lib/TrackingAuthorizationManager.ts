@@ -6,7 +6,7 @@ let requested = false
 function isSupportedIOSVersion() {
   if (Platform.OS !== "ios") return false
 
-  const version = Number(Platform.Version)
+  const version = parseInt(String(Platform.Version), 10)
   return Number.isFinite(version) && version >= 14
 }
 
