@@ -137,8 +137,15 @@ fragment CartCommon on Cart {
   }
   lines(first: 50) {
     nodes {
+      __typename
       id
       quantity
+      ... on CartLine {
+        instructions {
+          canRemove
+          canUpdateQuantity
+        }
+      }
       merchandise {
         ... on ProductVariant {
           id
@@ -171,10 +178,28 @@ fragment CartCommon on Cart {
         subtotalAmount {
           ...Money
         }
+        totalAmount {
+          ...Money
+        }
+        amountPerQuantity {
+          ...Money
+        }
       }
       discountAllocations {
         discountedAmount {
           ...Money
+        }
+        ... on CartAutomaticDiscountAllocation {
+          title
+          discountedAmount {
+            ...Money
+          }
+        }
+        ... on CartCodeDiscountAllocation {
+          code
+          discountedAmount {
+            ...Money
+          }
         }
       }
     }

@@ -4,9 +4,10 @@ import {
   useAttachCartToCustomer,
   useCartQuery,
   useEnsureCart,
+  useRemoveLine,
   useReplaceCartDeliveryAddresses,
-  useSyncCartChanges,
   useUpdateDiscountCodes,
+  useUpdateLine,
 } from "@/features/cart/api"
 import { convertAmount } from "@/features/currency/rates"
 import { DEFAULT_PLACEHOLDER, optimizeImageUrl } from "@/lib/images/optimize"
@@ -14,7 +15,7 @@ import { usePrefs } from "@/store/prefs"
 import { useToast } from "@/ui/feedback/Toast"
 import { PressableOverlay } from "@/ui/interactive/PressableOverlay"
 import { Screen } from "@/ui/layout/Screen"
-import { defaultKeyboardShouldPersistTaps, flashListScrollProps, verticalScrollProps } from "@/ui/layout/scrollDefaults"
+import { defaultKeyboardShouldPersistTaps, flashListScrollProps } from "@/ui/layout/scrollDefaults"
 import { Animated, MOTION } from "@/ui/motion/motion"
 import { MenuBar } from "@/ui/nav/MenuBar"
 import { Button } from "@/ui/primitives/Button"
@@ -22,26 +23,14 @@ import { Input } from "@/ui/primitives/Input"
 import { Price } from "@/ui/product/Price"
 import { QuantityStepper } from "@/ui/product/QuantityStepper"
 import { Card } from "@/ui/surfaces/Card"
+import { FlashList } from "@shopify/flash-list"
 import { Image } from "expo-image"
 import { router, useLocalSearchParams } from "expo-router"
-import { Lock, Trash2, X } from "lucide-react-native"
+import { Trash2, X } from "lucide-react-native"
 import * as React from "react"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { FlashList } from "@shopify/flash-list"
 import { Alert, KeyboardAvoidingView, PixelRatio, Platform, Text, View } from "react-native"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
-
-const KSA_ORDER_PAUSE_START = Date.UTC(2026, 1, 7, 23, 59, 59)
-const KSA_ORDER_PAUSE_END = Date.UTC(2026, 1, 21, 23, 59, 59)
-
-/** ──────────────────────────────────────────────────────────────
- * Cart Screen (calm, compact, resilient)
- * - Pull-to-refresh
- * - Loading & error & empty states
- * - Sticky summary (subtotal/discount/total) with local/dirty fallback
- * - Optimistic batched line updates (no flicker)
- * - A11y labels + steadier image sizing
- * ───────────────────────────────────────────────────────────── */
 
 export default function CartScreen() {
   const insets = useSafeAreaInsets()
@@ -50,32 +39,28 @@ export default function CartScreen() {
   const params = useLocalSearchParams<{ coupon?: string }>()
   const { isAuthenticated, initializing: authInitializing, login, getToken } = useShopifyAuth()
   const [loginPending, setLoginPending] = useState(false)
-  const [now, setNow] = useState(() => Date.now())
-  const pauseWindowOver = useMemo(() => Date.now() >= KSA_ORDER_PAUSE_END, [])
   const { mutateAsync: attachBuyerToCustomer, isPending: attachingBuyer } = useAttachCartToCustomer()
   const [buyerLinked, setBuyerLinked] = useState(false)
   const { data: customerProfile, refetch: refetchProfile } = useCustomerProfile({ enabled: isAuthenticated })
 
-  useEffect(() => {
-    if (pauseWindowOver) return
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [pauseWindowOver])
-
-  // Ensure there is a cart as early as possible (for codes, etc.)
+  // Ensure cart exists as early as possible (needed for coupon URL param flow)
   const ensure = useEnsureCart()
   useEffect(() => {
     if (!ensure.isPending && !ensure.isSuccess) ensure.mutate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const { data: cart, isLoading, isFetching, isError, refetch } = useCartQuery()
-  const sync = useSyncCartChanges()
+  const { data: cart, isLoading, isError, refetch } = useCartQuery()
+  const { mutateAsync: updateLineAsync } = useUpdateLine()
+  const { mutateAsync: removeLineAsync } = useRemoveLine()
   const { mutateAsync: updateDiscountCodesAsync, isPending: updatingDiscounts } = useUpdateDiscountCodes()
   const { mutateAsync: replaceDeliveryAddresses } = useReplaceCartDeliveryAddresses()
+
   const [codeInput, setCodeInput] = useState("")
   const deliveryAddressSetRef = useRef(false)
+  const couponHandledRef = useRef<string | null>(null)
 
+  // ── Auth: attach buyer identity when logged in ────────────────────────────
   useEffect(() => {
     if (authInitializing) return
     if (!isAuthenticated) {
@@ -97,12 +82,9 @@ export default function CartScreen() {
         await attachBuyerToCustomer({ customerAccessToken: token })
         if (!cancelled) setBuyerLinked(true)
       } catch (err: any) {
-        if (!cancelled) {
-          show({ title: err?.message || "Could not link your account to this cart.", type: "danger" })
-        }
+        if (!cancelled) show({ title: err?.message || "Could not link your account to this cart.", type: "danger" })
       }
     })()
-
     return () => {
       cancelled = true
     }
@@ -118,25 +100,24 @@ export default function CartScreen() {
     show,
   ])
 
-  // Proactively set the delivery address so Shopify can compute shipping estimates
+  // ── Proactively set delivery address so Shopify can compute shipping ──────
   useEffect(() => {
-    if (!buyerLinked) return
-    if (!cart?.id) return
-    if (!customerProfile?.addresses?.length) return
+    if (!buyerLinked || !cart?.id || !customerProfile?.addresses?.length) return
     if (deliveryAddressSetRef.current) return
     const defaultAddressId = customerProfile.defaultAddress?.id ?? customerProfile.addresses[0]?.id ?? null
     if (!defaultAddressId) return
     deliveryAddressSetRef.current = true
-    const addressPayload = customerProfile.addresses.map((addr) => ({
+    const payload = customerProfile.addresses.map((addr) => ({
       address: { copyFromCustomerAddressId: addr.id },
       selected: addr.id === defaultAddressId,
       oneTimeUse: false,
     }))
-    replaceDeliveryAddresses(addressPayload).catch(() => {
+    replaceDeliveryAddresses(payload).catch(() => {
       deliveryAddressSetRef.current = false
     })
   }, [buyerLinked, cart?.id, customerProfile, replaceDeliveryAddresses])
 
+  // ── Login helper ──────────────────────────────────────────────────────────
   const promptLogin = useCallback(async () => {
     if (loginPending) return false
     setLoginPending(true)
@@ -146,15 +127,14 @@ export default function CartScreen() {
       success = true
     } catch (err: any) {
       const message = err?.message
-      if (message && message !== "Login cancelled/failed") {
-        show({ title: message, type: "danger" })
-      }
+      if (message && message !== "Login cancelled/failed") show({ title: message, type: "danger" })
     } finally {
       setLoginPending(false)
     }
     return success
   }, [login, loginPending, show])
 
+  // ── Discount codes ────────────────────────────────────────────────────────
   const { active: discountCodes, saved: savedDiscountCodes } = useMemo(() => {
     const raw = (cart?.discountCodes ?? []) as { code?: string | null; applicable?: boolean | null }[]
     const active: { code: string; applicable: boolean | null }[] = []
@@ -186,29 +166,25 @@ export default function CartScreen() {
       const existing = (cart?.discountCodes ?? [])
         .map((d) => d?.code)
         .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
-      const alreadyApplied = existing.some((c) => c.toUpperCase() === normalized)
-      if (alreadyApplied) {
+      if (existing.some((c) => c.toUpperCase() === normalized)) {
         show({ title: "Code already applied", type: "info" })
         return true
       }
       try {
-        const nextCodes = [...existing, normalized]
-        const updatedCart = await updateDiscountCodesAsync(nextCodes)
-        const updatedDiscounts = (updatedCart?.discountCodes ?? []) as {
-          code?: string | null
-          applicable?: boolean | null
-        }[]
-        const applied = updatedDiscounts.find((d) => d?.code?.toUpperCase() === normalized)
+        const updatedCart = await updateDiscountCodesAsync([...existing, normalized])
+        const updatedCodes = (updatedCart?.discountCodes ?? []) as { code?: string | null; applicable?: boolean | null }[]
+        const applied = updatedCodes.find((d) => d?.code?.toUpperCase() === normalized)
         const hasItems = Number(updatedCart?.totalQuantity ?? 0) > 0
-        const hasDeliveryOption = ((updatedCart as any)?.deliveryGroups?.nodes ?? []).some(
+        const hasDelivery = ((updatedCart as any)?.deliveryGroups?.nodes ?? []).some(
           (g: any) => g?.selectedDeliveryOption != null,
         )
         if (!applied || applied.applicable === false) {
-          if (!hasItems || !hasDeliveryOption) {
-            // Code accepted but can't be validated yet (no items or no delivery selection)
+          if (!hasItems || !hasDelivery) {
+            // Shopify cannot validate the code without items/delivery — save it for checkout
             show({ title: "Coupon saved; it will activate at checkout", type: "info" })
             return true
           }
+          // Code is invalid — revert
           await updateDiscountCodesAsync(existing)
           show({ title: "Code not valid or not applicable", type: "danger" })
           return false
@@ -220,7 +196,7 @@ export default function CartScreen() {
         return false
       }
     },
-    [discountCodes, ensure, show, updateDiscountCodesAsync],
+    [cart?.discountCodes, ensure, show, updateDiscountCodesAsync],
   )
 
   const handleApplyDiscount = useCallback(async () => {
@@ -231,7 +207,9 @@ export default function CartScreen() {
 
   const handleRemoveDiscount = useCallback(
     async (code: string) => {
-      const existing = discountCodes.map((d) => d.code)
+      const existing = (cart?.discountCodes ?? [])
+        .map((d) => d?.code)
+        .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
       const next = existing.filter((c) => c.toUpperCase() !== code.toUpperCase())
       try {
         await updateDiscountCodesAsync(next)
@@ -240,182 +218,170 @@ export default function CartScreen() {
         show({ title: err?.message || "Could not remove that code", type: "danger" })
       }
     },
-    [discountCodes, show, updateDiscountCodesAsync],
+    [cart?.discountCodes, show, updateDiscountCodesAsync],
   )
 
+  // Handle coupon from URL param (/cart?coupon=CODE)
   useEffect(() => {
     const raw = typeof params.coupon === "string" ? params.coupon.trim() : ""
-    if (!raw) return
-    if (!cart?.id) return
-    if (couponHandledRef.current === raw) return
+    if (!raw || !cart?.id || couponHandledRef.current === raw) return
     couponHandledRef.current = raw
     let cancelled = false
-
     const run = async () => {
       await applyDiscountCode(raw)
-      if (cancelled) return
-      void router.replace("/cart")
+      if (!cancelled) void router.replace("/cart")
     }
-
     void run()
     return () => {
       cancelled = true
     }
   }, [params.coupon, applyDiscountCode, cart?.id])
 
-  // Local model for snappy UX
-  const [localLines, setLocalLines] = useState<LineNode[]>([])
-  const [dirty, setDirty] = useState(false)
-  const pendingUpdates = useRef<Map<string, number>>(new Map())
-  const pendingRemoves = useRef<Set<string>>(new Set())
-  const awaitingRefresh = useRef(false)
-  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const flushRef = useRef<(() => Promise<void>) | null>(null)
-  const couponHandledRef = useRef<string | null>(null)
+  // ── Line quantity / removal ───────────────────────────────────────────────
+  // pending: Set of merchandiseIds currently mutating (controls disabled)
+  // optimisticQtys: Map of merchandiseId → display quantity (before server confirms)
+  const pendingMerchandiseIds = useRef<Set<string>>(new Set())
+  const optimisticQtys = useRef<Map<string, number>>(new Map())
+  const [renderTick, setRenderTick] = useState(0)
+  const forceUpdate = useCallback(() => setRenderTick((v) => v + 1), [])
 
-  const scheduleSync = useCallback((delay = 700) => {
-    if (syncTimer.current) clearTimeout(syncTimer.current)
-    syncTimer.current = setTimeout(() => {
-      flushRef.current?.()
-    }, delay)
+  // Always resolve the line ID from the latest cart data, not a stale closure
+  const cartRef = useRef(cart)
+  useEffect(() => {
+    cartRef.current = cart
+  }, [cart])
+
+  const resolveLineId = useCallback((merchandiseId: string, mode: "update" | "remove"): string | null => {
+    const nodes = ((cartRef.current?.lines?.nodes ?? []) as any[]).filter(Boolean)
+    const node = nodes.find((n: any) => {
+      if (n?.merchandise?.id !== merchandiseId) return false
+      return mode === "update" ? n?.instructions?.canUpdateQuantity !== false : n?.instructions?.canRemove !== false
+    })
+    return node?.id ?? null
   }, [])
 
-  const flush = useCallback(async () => {
-    if (sync.isPending) return
-    const removes = Array.from(pendingRemoves.current)
-    const updates = Array.from(pendingUpdates.current.entries())
-      .filter(([id]) => !pendingRemoves.current.has(id))
-      .map(([id, quantity]) => ({ id, quantity }))
-      .filter((u) => u.quantity >= 1)
+  const onChangeQty = useCallback(
+    async (merchandiseId: string, newQty: number) => {
+      if (pendingMerchandiseIds.current.has(merchandiseId)) return
 
-    if (!removes.length && !updates.length) return
-    try {
-      awaitingRefresh.current = true
-      await sync.mutateAsync({ removes, updates })
-      removes.forEach((id) => pendingRemoves.current.delete(id))
-      updates.forEach((u) => pendingUpdates.current.delete(u.id))
-      if (pendingRemoves.current.size || pendingUpdates.current.size) scheduleSync(200)
-    } catch (e: any) {
-      show({ title: e?.message || "Failed to update cart", type: "danger" })
-    }
-  }, [scheduleSync, show, sync])
+      const lineId = resolveLineId(merchandiseId, newQty <= 0 ? "remove" : "update")
+      if (!lineId) {
+        // Line no longer on server — refresh and bail
+        void refetch()
+        return
+      }
 
-  useEffect(() => {
-    flushRef.current = flush
-  }, [flush])
+      pendingMerchandiseIds.current.add(merchandiseId)
+      optimisticQtys.current.set(merchandiseId, Math.max(0, newQty))
+      forceUpdate()
 
-  // Adopt server snapshot or merge with pending edits
-  useEffect(() => {
-    const nodes = dedupeLines(((cart?.lines?.nodes ?? []) as LineNode[]).filter(Boolean) as LineNode[])
-    const hasPending = pendingRemoves.current.size > 0 || pendingUpdates.current.size > 0
-    if (awaitingRefresh.current) awaitingRefresh.current = false
+      try {
+        if (newQty <= 0) {
+          await removeLineAsync(lineId)
+          // Await a fresh cart fetch before clearing the optimistic hide state.
+          // The cartLinesRemove mutation response may still contain BOGO/automatic
+          // free lines for the removed merchandise — they only vanish on the next
+          // cart query. Without this await, the free lines briefly reappear.
+          await refetch()
+        } else {
+          await updateLineAsync({ id: lineId, quantity: newQty })
+        }
+      } catch (e: any) {
+        show({ title: e?.message || "Failed to update cart", type: "danger" })
+      } finally {
+        pendingMerchandiseIds.current.delete(merchandiseId)
+        optimisticQtys.current.delete(merchandiseId)
+        forceUpdate()
+      }
+    },
+    [forceUpdate, refetch, removeLineAsync, resolveLineId, show, updateLineAsync],
+  )
 
-    if (hasPending) {
-      const removeSet = new Set(pendingRemoves.current)
-      const updateMap = new Map(pendingUpdates.current)
-      const merged = nodes
-        .filter((l) => !removeSet.has(l.id))
-        .map((l) => (updateMap.has(l.id) ? { ...l, quantity: updateMap.get(l.id)! } : l))
-      setLocalLines(dedupeLines(merged))
-      return
-    }
-    // No pending → adopt server unless user is mid-edit "dirty"
-    if (!dirty) {
-      setLocalLines(nodes)
-    } else if (!isFetching) {
-      setDirty(false)
-    }
-  }, [cart, dirty, isFetching])
+  const onDelete = useCallback(
+    (merchandiseId: string) => {
+      void onChangeQty(merchandiseId, 0)
+    },
+    [onChangeQty],
+  )
 
-  useEffect(() => {
-    return () => {
-      if (syncTimer.current) clearTimeout(syncTimer.current)
-    }
-  }, [])
+  // ── Display lines: server state + optimistic qty overrides ────────────────
+  const displayLines = useMemo(() => {
+    const nodes = ((cart?.lines?.nodes ?? []) as LineNode[])
+      .filter(Boolean)
+      .filter((l) => l.__typename !== "ComponentizableCartLine")
+      .filter((l) => {
+        // Optimistically hide lines being removed
+        const optQty = optimisticQtys.current.get(l.merchandise?.id ?? "")
+        return optQty === undefined || optQty > 0
+      })
+      .map((l) => {
+        const mid = l.merchandise?.id ?? ""
+        const optQty = optimisticQtys.current.get(mid)
+        // Only apply optimistic qty to lines the user can actually update.
+        // Free BOGO lines share the same merchandise.id but are locked by Shopify
+        // (canUpdateQuantity=false). Applying the paid line's optimistic qty to
+        // them would show nonsense numbers (e.g. "+5 FREE" instead of "+2 FREE").
+        const canBeUpdated = l.instructions?.canUpdateQuantity !== false
+        return {
+          ...l,
+          quantity: optQty !== undefined && canBeUpdated ? optQty : l.quantity,
+          _pending: pendingMerchandiseIds.current.has(mid),
+        }
+      })
+    return groupByMerchandise(nodes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart?.lines?.nodes, renderTick])
 
-  // Currency + numbers
-  const currency = String(cart?.cost?.totalAmount?.currencyCode ?? "USD").toUpperCase()
-  const prefCurrency = String(prefCurrencyState || currency || "USD").toUpperCase()
+  // ── Money: server values only — never calculated client-side ──────────────
+  // This ensures the cart always shows exactly what Shopify will charge at checkout.
+  const { subtotal, discountAmount, shipping, hasShippingEstimate, tax, total, hasItems } = useMemo(() => {
+    const subtotal = n(cart?.cost?.subtotalAmount?.amount)
+    const tax = n(cart?.cost?.totalTaxAmount?.amount)
+    // totalAmount from Shopify = subtotal + taxes - cart-level discounts (excludes shipping)
+    const serverTotal = n(cart?.cost?.totalAmount?.amount)
 
-  // Derived money (compact & consistent)
-  // Derived money (compact & consistent)
-  const { subBefore, discount, shipping, hasShippingEstimate, total, tax, hasItems } = useMemo(() => {
-    const serverSubtotal = n(cart?.cost?.subtotalAmount?.amount, NaN)
-    const taxAmount = n(cart?.cost?.totalTaxAmount?.amount, 0)
-    const cartDiscountAllocations = (cart as any)?.discountAllocations ?? []
-    const cartLineDiscount = cartDiscountAllocations
-      .filter((a: any) => a?.targetType !== "SHIPPING_LINE")
-      .reduce((sum: number, a: any) => sum + n(a?.discountedAmount?.amount, 0), 0)
-    const cartShippingDiscount = cartDiscountAllocations
+    // Cart-level discount allocations (discount codes, cart scripts, etc.)
+    const allDiscountAllocations = (cart as any)?.discountAllocations ?? []
+    const shippingDiscountAmt = allDiscountAllocations
       .filter((a: any) => a?.targetType === "SHIPPING_LINE")
-      .reduce((sum: number, a: any) => sum + n(a?.discountedAmount?.amount, 0), 0)
+      .reduce((s: number, a: any) => s + n(a?.discountedAmount?.amount), 0)
+    const merchandiseDiscountAmt = allDiscountAllocations
+      .filter((a: any) => a?.targetType !== "SHIPPING_LINE")
+      .reduce((s: number, a: any) => s + n(a?.discountedAmount?.amount), 0)
 
-    let subBeforeDiscounts = 0 // compareAt × qty
-    let lineSubtotal = 0 // line cost (or unit price) × qty (before discount allocations)
-    let lineDiscount = 0
-    let itemCount = 0
-
-    for (const line of localLines) {
-      const quantity = n(line?.quantity, 0)
-      const unitPrice = n(line?.merchandise?.price?.amount)
-      const compareAt = n(line?.merchandise?.compareAtPrice?.amount ?? unitPrice)
-      const lineCost = n(line?.cost?.subtotalAmount?.amount, NaN)
-      const lineDiscounts = (line as any)?.discountAllocations ?? []
-      const lineDiscountTotal = lineDiscounts.reduce(
-        (sum: number, alloc: any) => sum + n(alloc?.discountedAmount?.amount, 0),
-        0,
-      )
-
-      itemCount += quantity
-      subBeforeDiscounts += compareAt * quantity
-      lineSubtotal += Number.isFinite(lineCost) ? lineCost : unitPrice * quantity
-      lineDiscount += lineDiscountTotal
-    }
-
-    const appliedDiscount = cartLineDiscount > 0 ? cartLineDiscount : lineDiscount
-    const baseSavings = Math.max(0, subBeforeDiscounts - lineSubtotal)
-    const resolvedSubtotal = dirty ? lineSubtotal : Number.isFinite(serverSubtotal) ? serverSubtotal : lineSubtotal
-    const subtotalAfterDiscounts = Math.max(0, resolvedSubtotal - appliedDiscount)
-
-    const savings = Math.max(0, baseSavings + appliedDiscount)
-
-    // Estimated shipping from delivery groups.
-    // Subtract any SHIPPING_LINE discount allocations from the raw estimate.
-    // Only suppress the estimate when no delivery option has been selected yet.
-    const deliveryGroups = (cart as any)?.deliveryGroups?.nodes ?? []
+    // Shipping estimate from selected delivery option (displayed as a line item, NOT added to total).
+    // In current Shopify Cart API, cost.totalAmount already incorporates the selected
+    // delivery cost — adding it again produces a total higher than what checkout charges.
+    const deliveryNodes = (cart as any)?.deliveryGroups?.nodes ?? []
     let rawShipping = 0
     let hasShippingEstimate = false
-    for (const group of deliveryGroups) {
-      const est = group?.selectedDeliveryOption?.estimatedCost?.amount
-      if (est !== undefined) {
-        rawShipping += n(est, 0)
+    for (const group of deliveryNodes) {
+      const amt = group?.selectedDeliveryOption?.estimatedCost?.amount
+      if (amt !== undefined) {
+        rawShipping += n(amt)
         hasShippingEstimate = true
       }
     }
-    const shippingAmount = hasShippingEstimate ? Math.max(0, rawShipping - cartShippingDiscount) : 0
+    const shipping = hasShippingEstimate ? Math.max(0, rawShipping - shippingDiscountAmt) : 0
+
+    // Use totalAmount directly — it is Shopify's authoritative grand total (subtotal +
+    // taxes + shipping - discounts). Do NOT add shipping on top; that double-counts it.
+    const total = serverTotal
 
     return {
-      subBefore: subBeforeDiscounts,
-      discount: savings,
-      shipping: shippingAmount,
+      subtotal,
+      discountAmount: merchandiseDiscountAmt,
+      shipping,
       hasShippingEstimate,
-      total: subtotalAfterDiscounts + shippingAmount,
-      tax: taxAmount,
-      hasItems: itemCount > 0,
+      tax,
+      total,
+      hasItems: n(cart?.totalQuantity) > 0,
     }
-  }, [cart, dirty, localLines])
+  }, [cart])
 
-  const ordersPaused = now >= KSA_ORDER_PAUSE_START && now <= KSA_ORDER_PAUSE_END
-  const pauseCountdownMs = Math.max(KSA_ORDER_PAUSE_END - now, 0)
-  const pauseCountdownLabel = useMemo(
-    () => (ordersPaused ? formatPauseCountdown(pauseCountdownMs) : ""),
-    [ordersPaused, pauseCountdownMs],
-  )
-
-  // Handlers
+  // ── Checkout ──────────────────────────────────────────────────────────────
   const onCheckout = useCallback(async () => {
-    if (!hasItems || attachingBuyer || ordersPaused) return
-
+    if (!hasItems || attachingBuyer) return
     if (authInitializing) return
 
     if (!isAuthenticated) {
@@ -439,12 +405,9 @@ export default function CartScreen() {
     let latestProfile = customerProfile
     try {
       const refreshed = await refetchProfile()
-      if (refreshed?.data) {
-        latestProfile = refreshed.data
-      }
+      if (refreshed?.data) latestProfile = refreshed.data
     } catch (err: any) {
-      const message = err?.message || "Could not check your addresses yet"
-      show({ title: message, type: "danger" })
+      show({ title: err?.message || "Could not check your addresses yet", type: "danger" })
       return
     }
 
@@ -453,14 +416,14 @@ export default function CartScreen() {
       return
     }
 
-    const hasSavedAddress = (latestProfile?.addresses?.length ?? 0) > 0
-    const defaultAddressId = latestProfile?.defaultAddress?.id ?? latestProfile?.addresses?.[0]?.id ?? null
-
     const url = cart?.checkoutUrl
     if (!url) {
       Alert.alert("Checkout unavailable", "Missing checkout URL")
       return
     }
+
+    const hasSavedAddress = (latestProfile?.addresses?.length ?? 0) > 0
+    const defaultAddressId = latestProfile?.defaultAddress?.id ?? latestProfile?.addresses?.[0]?.id ?? null
 
     if (!hasSavedAddress) {
       const checkoutUrlParam = encodeURIComponent(url)
@@ -480,90 +443,69 @@ export default function CartScreen() {
         }))
         await replaceDeliveryAddresses(addressPayload)
       } catch (err: any) {
-        const message = err?.message || "Could not prepare your default address"
-        show({ title: message, type: "danger" })
+        show({ title: err?.message || "Could not prepare your default address", type: "danger" })
         return
       }
     }
 
-    await flush()
+    // Block checkout if any line is mid-mutation
+    if (pendingMerchandiseIds.current.size > 0) {
+      show({ title: "Please wait while your cart updates", type: "info" })
+      return
+    }
 
     router.push({ pathname: "/checkout", params: { url, cartId: cart?.id ?? "" } } as any)
   }, [
-    attachingBuyer,
     attachBuyerToCustomer,
+    attachingBuyer,
     authInitializing,
     cart?.buyerIdentity?.customer?.id,
+    cart?.checkoutUrl,
     cart?.id,
     customerProfile,
-    cart?.checkoutUrl,
-    flush,
     getToken,
     hasItems,
-    ordersPaused,
     isAuthenticated,
-    replaceDeliveryAddresses,
-    refetchProfile,
     promptLogin,
+    refetchProfile,
+    replaceDeliveryAddresses,
     show,
   ])
 
-  const onDelete = useCallback(
-    (lineId: string) => {
-      pendingRemoves.current.add(lineId)
-      pendingUpdates.current.delete(lineId)
-      setLocalLines((prev) => dedupeLines(prev.filter((l) => l.id !== lineId)))
-      setDirty(true)
-      scheduleSync()
-    },
-    [scheduleSync],
-  )
+  // ── Currency display helper ───────────────────────────────────────────────
+  const cartCurrency = String(cart?.cost?.totalAmount?.currencyCode ?? "USD").toUpperCase()
+  const prefCurrency = String(prefCurrencyState || cartCurrency || "USD").toUpperCase()
 
-  const onChangeQty = useCallback(
-    (lineId: string, q: number) => {
-      if (q <= 0) {
-        pendingRemoves.current.add(lineId)
-        pendingUpdates.current.delete(lineId)
-        setLocalLines((prev) => dedupeLines(prev.filter((l) => l.id !== lineId)))
-      } else {
-        pendingRemoves.current.delete(lineId)
-        pendingUpdates.current.set(lineId, q)
-        setLocalLines((prev) =>
-          dedupeLines(
-            prev.map((l) => {
-              if (l.id !== lineId) return l
-              const oldQty = n(l.quantity, 1)
-              const existingCost = l.cost?.subtotalAmount?.amount
-              const newCostAmount =
-                existingCost !== undefined ? String(((Number(existingCost) / oldQty) * q).toFixed(2)) : undefined
-              return {
-                ...l,
-                quantity: q,
-                cost:
-                  newCostAmount !== undefined
-                    ? { ...l.cost, subtotalAmount: { ...l.cost?.subtotalAmount, amount: newCostAmount } }
-                    : undefined,
-              }
-            }),
-          ),
-        )
+  const fmt = useMemo(
+    () => (v: number, cur: string) => {
+      try {
+        return new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: (cur || "USD").toUpperCase(),
+          maximumFractionDigits: 2,
+        }).format(v)
+      } catch {
+        return `${v.toFixed(2)} ${(cur || "USD").toUpperCase()}`
       }
-      setDirty(true)
-      scheduleSync()
     },
-    [scheduleSync],
+    [],
   )
 
-  // Item component (memoized)
+  // ── Line item component ───────────────────────────────────────────────────
   const LineItem = useMemo(
     () =>
-      memo(function LineItem({ item }: { item: LineNode }) {
+      memo(function LineItem({ item }: { item: DisplayLine }) {
         const variant = item?.merchandise
         const product = variant?.product
+        const merchandiseId = variant?.id ?? item.id
         const qty = n(item?.quantity, 1)
         const unitPrice = n(variant?.price?.amount)
         const imageUrl = variant?.image?.url || product?.featuredImage?.url || ""
         const handle = product?.handle as string | undefined
+        const isFree = item._freeQty > 0
+        const autoDiscountTitle = item._autoDiscountTitle || item?.discountAllocations?.[0]?.title
+        const canUpdateQty = !item._pending && item?.instructions?.canUpdateQuantity !== false
+        const canRemove = !item._pending && item?.instructions?.canRemove !== false
 
         const goToPDP = useCallback(() => {
           if (!handle) return
@@ -584,11 +526,7 @@ export default function CartScreen() {
             className="flex-row gap-3 p-3 mb-3 rounded-md bg-surface border border-border"
             accessibilityRole="summary"
           >
-            <PressableOverlay
-              onPress={goToPDP}
-              className="rounded-md overflow-hidden"
-              accessibilityLabel="Open product"
-            >
+            <PressableOverlay onPress={goToPDP} className="rounded-md overflow-hidden" accessibilityLabel="Open product">
               <Image
                 source={
                   imageUrl
@@ -613,7 +551,6 @@ export default function CartScreen() {
             </PressableOverlay>
 
             <View className="flex-1 min-w-0">
-              {/* Title + delete */}
               <View className="flex-row items-start">
                 <View className="flex-1 min-w-0 pr-2">
                   <PressableOverlay onPress={goToPDP} className="active:opacity-90">
@@ -627,54 +564,54 @@ export default function CartScreen() {
                     </Text>
                   ) : null}
                 </View>
-                <PressableOverlay
-                  accessibilityLabel="Remove from cart"
-                  onPress={() => onDelete(item.id)}
-                  className="w-9 h-9 rounded-full items-center justify-center"
-                >
-                  <Trash2 size={18} color="#8a8a8a" />
-                </PressableOverlay>
+                {canRemove ? (
+                  <PressableOverlay
+                    accessibilityLabel="Remove from cart"
+                    onPress={() => onDelete(merchandiseId)}
+                    className="w-9 h-9 rounded-full items-center justify-center"
+                  >
+                    <Trash2 size={18} color="#8a8a8a" />
+                  </PressableOverlay>
+                ) : null}
               </View>
 
-              {/* Price + Qty */}
               <View className="flex-row items-center justify-between mt-2">
                 <View className="flex-1 min-w-0 pr-3">
-                  <Price amount={unitPrice} currency={String(variant?.price?.currencyCode ?? currency)} />
+                  <Price amount={unitPrice} currency={String(variant?.price?.currencyCode ?? cartCurrency)} />
                 </View>
                 <View className="px-2 py-1 rounded-full bg-surface border border-border">
-                  <QuantityStepper value={qty} onChange={(q) => onChangeQty(item.id, q)} />
+                  <QuantityStepper
+                    value={qty}
+                    onChange={(q) => onChangeQty(merchandiseId, q)}
+                    disabled={!canUpdateQty}
+                  />
                 </View>
               </View>
+
+              {isFree ? (
+                <View className="px-2 py-0.5 rounded bg-green-100 self-start mt-1">
+                  <Text className="text-green-700 text-[11px] font-geist-semibold">+{item._freeQty} FREE</Text>
+                </View>
+              ) : autoDiscountTitle ? (
+                <View className="px-2 py-0.5 rounded bg-green-100 self-start mt-1">
+                  <Text className="text-green-700 text-[11px] font-geist-semibold">{autoDiscountTitle}</Text>
+                </View>
+              ) : null}
             </View>
           </Animated.View>
         )
       }),
-    [currency, onChangeQty, onDelete],
+    [cartCurrency, onChangeQty, onDelete],
   )
 
-  // Footer sizing
+  // ── Footer sizing ─────────────────────────────────────────────────────────
   const [footerH, setFooterH] = useState(220)
   const listBottomPad = Math.max(footerH + (insets?.bottom ?? 0) + 16, 24)
 
-  // Currency display helper
-  const formatCurrencyText = useMemo(
-    () => (v: number, cur: string) => {
-      try {
-        return new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: (cur || "USD").toUpperCase(),
-          maximumFractionDigits: 2,
-        }).format(v)
-      } catch {
-        return `${v.toFixed(2)} ${(cur || "USD").toUpperCase()}`
-      }
-    },
-    [],
-  )
-
-  // States
   const loadingState = (isLoading && !cart) || ensure.isPending
   const errorState = isError && !cart
+
+  const showUSD = prefCurrency !== "USD"
 
   return (
     <Screen bleedBottom>
@@ -690,7 +627,7 @@ export default function CartScreen() {
               <View className="gap-1">
                 <Text className="text-[#0f172a] font-geist-semibold text-[16px]">Sign in for faster checkout</Text>
                 <Text className="text-[#475569] text-[13px] leading-[18px]">
-                  We’ll save your addresses and keep this cart synced across devices.
+                  We'll save your addresses and keep this cart synced across devices.
                 </Text>
               </View>
               <Button variant="outline" size="md" fullWidth onPress={promptLogin} isLoading={loginPending}>
@@ -700,7 +637,6 @@ export default function CartScreen() {
           </View>
         ) : null}
 
-        {/* Error */}
         {errorState ? (
           <CenteredState
             title="Something went wrong"
@@ -710,18 +646,16 @@ export default function CartScreen() {
           />
         ) : null}
 
-        {/* Initial loading */}
         {loadingState ? <SkeletonList /> : null}
 
-        {/* Content */}
         {!loadingState && !errorState ? (
           <>
             <FlashList
               {...flashListScrollProps}
-              data={localLines}
-              keyExtractor={(l) => l.id}
+              data={displayLines}
+              keyExtractor={(l: DisplayLine) => l.merchandise?.id ?? l.id}
               renderItem={({ item }) => <LineItem item={item} />}
-              extraData={localLines.length}
+              extraData={displayLines.length}
               ListEmptyComponent={<EmptyCart />}
               contentContainerStyle={{ padding: 16, paddingBottom: listBottomPad }}
               keyboardShouldPersistTaps={defaultKeyboardShouldPersistTaps}
@@ -729,7 +663,7 @@ export default function CartScreen() {
               showsVerticalScrollIndicator={false}
             />
 
-            {/* Sticky summary */}
+            {/* Sticky summary footer */}
             <KeyboardAvoidingView
               behavior={Platform.select({ ios: "padding", android: "height" })}
               style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}
@@ -743,6 +677,7 @@ export default function CartScreen() {
                     style={{ backgroundColor: "#fff" }}
                   >
                     <View className="p-3 border border-border rounded-2xl bg-surface gap-2">
+                      {/* Discount codes */}
                       <View className="gap-2">
                         {discountCodes.length > 0 ? (
                           <View className="gap-2">
@@ -769,6 +704,7 @@ export default function CartScreen() {
                             ))}
                           </View>
                         ) : null}
+
                         {!hasItems && savedDiscountCodes.length > 0 ? (
                           <View className="gap-2">
                             <Text className="text-[#475569] text-[12px] font-geist-semibold">Saved coupons</Text>
@@ -779,8 +715,12 @@ export default function CartScreen() {
                                   className="flex-row items-center justify-between rounded-xl border border-dashed border-border bg-[#fdf2fa] px-3 py-2"
                                 >
                                   <View className="flex-1 pr-3">
-                                    <Text className="text-[#0f172a] font-geist-semibold text-[14px]">{code.code}</Text>
-                                    <Text className="text-[#6b7280] text-[11px]">Will activate once you add items</Text>
+                                    <Text className="text-[#0f172a] font-geist-semibold text-[14px]">
+                                      {code.code}
+                                    </Text>
+                                    <Text className="text-[#6b7280] text-[11px]">
+                                      Will activate once you add items
+                                    </Text>
                                   </View>
                                   <PressableOverlay
                                     onPress={() => handleRemoveDiscount(code.code)}
@@ -819,78 +759,29 @@ export default function CartScreen() {
                         </View>
                       </View>
 
-                      {(() => {
-                        const showUSD = prefCurrency !== "USD"
-                        const subDisp = convertAmount(subBefore, currency, prefCurrency)
-                        const subUSD = convertAmount(subBefore, currency, "USD")
-                        const discDisp = convertAmount(discount, currency, prefCurrency)
-                        const discUSD = convertAmount(discount, currency, "USD")
-                        const taxDisp = convertAmount(tax, currency, prefCurrency)
-                        const taxUSD = convertAmount(tax, currency, "USD")
-                        const shipDisp = convertAmount(shipping, currency, prefCurrency)
-                        const shipUSD = convertAmount(shipping, currency, "USD")
-                        const totDisp = convertAmount(total, currency, prefCurrency)
-                        const totUSD = convertAmount(total, currency, "USD")
-                        return (
-                          <>
-                            <Row label="Subtotal">
-                              <DualAmount
-                                main={formatCurrencyText(subDisp, prefCurrency)}
-                                alt={showUSD ? formatCurrencyText(subUSD, "USD") : undefined}
-                              />
-                            </Row>
-                            {tax > 0 ? (
-                              <Row label="Taxes">
-                                <DualAmount
-                                  main={formatCurrencyText(taxDisp, prefCurrency)}
-                                  alt={showUSD ? formatCurrencyText(taxUSD, "USD") : undefined}
-                                />
-                              </Row>
-                            ) : null}
-                            {discount > 0 ? (
-                              <Row label="Discounts">
-                                <DualAmount
-                                  main={`-${formatCurrencyText(discDisp, prefCurrency)}`}
-                                  alt={showUSD ? `-${formatCurrencyText(discUSD, "USD")}` : undefined}
-                                  tone="danger"
-                                />
-                              </Row>
-                            ) : null}
-                            {hasShippingEstimate ? (
-                              <Row label="Shipping">
-                                <DualAmount
-                                  main={shipping === 0 ? "Free" : formatCurrencyText(shipDisp, prefCurrency)}
-                                  alt={showUSD && shipping > 0 ? formatCurrencyText(shipUSD, "USD") : undefined}
-                                />
-                              </Row>
-                            ) : null}
-                            <Divider />
-                            <Row label="Total">
-                              <DualAmount
-                                main={formatCurrencyText(totDisp, prefCurrency)}
-                                alt={showUSD ? formatCurrencyText(totUSD, "USD") : undefined}
-                                emphasize
-                              />
-                            </Row>
-                            {!hasShippingEstimate ? (
-                              <Text className="text-secondary text-[11px] text-center mt-1">
-                                Shipping & taxes calculated at checkout
-                              </Text>
-                            ) : null}
-                          </>
-                        )
-                      })()}
+                      {/* Pricing breakdown — always from server, never calculated */}
+                      <SummaryRows
+                        subtotal={subtotal}
+                        discountAmount={discountAmount}
+                        shipping={shipping}
+                        hasShippingEstimate={hasShippingEstimate}
+                        tax={tax}
+                        total={total}
+                        cartCurrency={cartCurrency}
+                        prefCurrency={prefCurrency}
+                        showUSD={showUSD}
+                        fmt={fmt}
+                      />
 
                       <Button
                         size="lg"
                         fullWidth
                         onPress={onCheckout}
                         isLoading={attachingBuyer}
-                        disabled={!hasItems || attachingBuyer || ordersPaused}
+                        disabled={!hasItems || attachingBuyer}
                         className="mt-3 bg-neutral-900"
-                        leftIcon={ordersPaused ? <Lock size={16} color="#fff" /> : undefined}
                       >
-                        {ordersPaused ? `Orders resume in ${pauseCountdownLabel}` : "Checkout"}
+                        Checkout
                       </Button>
                     </View>
                   </View>
@@ -904,9 +795,79 @@ export default function CartScreen() {
   )
 }
 
-/** ────────────────────────────
- * Subcomponents (compact)
- * ──────────────────────────── */
+// ── Subcomponents ─────────────────────────────────────────────────────────────
+
+function SummaryRows({
+  subtotal,
+  discountAmount,
+  shipping,
+  hasShippingEstimate,
+  tax,
+  total,
+  cartCurrency,
+  prefCurrency,
+  showUSD,
+  fmt,
+}: {
+  subtotal: number
+  discountAmount: number
+  shipping: number
+  hasShippingEstimate: boolean
+  tax: number
+  total: number
+  cartCurrency: string
+  prefCurrency: string
+  showUSD: boolean
+  fmt: (v: number, cur: string) => string
+}) {
+  const cv = (v: number, toCur: string) => convertAmount(v, cartCurrency, toCur)
+  return (
+    <>
+      <Row label="Subtotal">
+        <DualAmount
+          main={fmt(cv(subtotal, prefCurrency), prefCurrency)}
+          alt={showUSD ? fmt(cv(subtotal, "USD"), "USD") : undefined}
+        />
+      </Row>
+      {tax > 0 ? (
+        <Row label="Taxes">
+          <DualAmount
+            main={fmt(cv(tax, prefCurrency), prefCurrency)}
+            alt={showUSD ? fmt(cv(tax, "USD"), "USD") : undefined}
+          />
+        </Row>
+      ) : null}
+      {discountAmount > 0 ? (
+        <Row label="Discounts">
+          <DualAmount
+            main={`-${fmt(cv(discountAmount, prefCurrency), prefCurrency)}`}
+            alt={showUSD ? `-${fmt(cv(discountAmount, "USD"), "USD")}` : undefined}
+            tone="danger"
+          />
+        </Row>
+      ) : null}
+      {hasShippingEstimate ? (
+        <Row label="Shipping">
+          <DualAmount
+            main={shipping === 0 ? "Free" : fmt(cv(shipping, prefCurrency), prefCurrency)}
+            alt={showUSD && shipping > 0 ? fmt(cv(shipping, "USD"), "USD") : undefined}
+          />
+        </Row>
+      ) : null}
+      <Divider />
+      <Row label="Total">
+        <DualAmount
+          main={fmt(cv(total, prefCurrency), prefCurrency)}
+          alt={showUSD ? fmt(cv(total, "USD"), "USD") : undefined}
+          emphasize
+        />
+      </Row>
+      {!hasShippingEstimate ? (
+        <Text className="text-secondary text-[11px] text-center mt-1">Shipping & taxes calculated at checkout</Text>
+      ) : null}
+    </>
+  )
+}
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -1000,14 +961,15 @@ function SkeletonList() {
   )
 }
 
-/** ────────────────────────────
- * Types + utils
- * ──────────────────────────── */
+// ── Types + utils ─────────────────────────────────────────────────────────────
 
 type LineNode = {
   id: string
   quantity: number
+  __typename?: string
+  instructions?: { canRemove: boolean; canUpdateQuantity: boolean }
   merchandise?: {
+    id?: string
     price?: { amount?: number | string; currencyCode?: string }
     compareAtPrice?: { amount?: number | string }
     image?: { url?: string }
@@ -1021,35 +983,49 @@ type LineNode = {
   }
   cost?: {
     subtotalAmount?: { amount?: number | string; currencyCode?: string }
+    totalAmount?: { amount?: number | string; currencyCode?: string }
+    amountPerQuantity?: { amount?: number | string; currencyCode?: string }
   }
-  discountAllocations?: { discountedAmount?: { amount?: number | string; currencyCode?: string } }[]
+  discountAllocations?: {
+    discountedAmount?: { amount?: number | string; currencyCode?: string }
+    title?: string
+    code?: string
+  }[]
+}
+
+type DisplayLine = LineNode & { _freeQty: number; _autoDiscountTitle: string; _pending: boolean }
+
+// Group lines by merchandiseId, folding free BOGO lines into the primary line.
+function groupByMerchandise(lines: (LineNode & { _pending: boolean })[]): DisplayLine[] {
+  const groups = new Map<string, DisplayLine>()
+  for (const line of lines) {
+    const mid = line.merchandise?.id ?? line.id
+    // A line is "free" if Shopify marks it non-updatable or its total cost is zero
+    const isFree =
+      line.instructions?.canUpdateQuantity === false ||
+      (n(line.cost?.totalAmount?.amount) === 0 && n(line.quantity) > 0)
+    const autoTitle = line.discountAllocations?.find((d) => d.title)?.title ?? ""
+    const existing = groups.get(mid)
+    if (!existing) {
+      groups.set(mid, { ...line, _freeQty: isFree ? n(line.quantity) : 0, _autoDiscountTitle: isFree ? autoTitle : "" })
+    } else if (isFree) {
+      groups.set(mid, {
+        ...existing,
+        _freeQty: existing._freeQty + n(line.quantity),
+        _autoDiscountTitle: existing._autoDiscountTitle || autoTitle,
+      })
+    } else {
+      groups.set(mid, {
+        ...line,
+        _freeQty: existing._freeQty,
+        _autoDiscountTitle: existing._autoDiscountTitle,
+      })
+    }
+  }
+  return Array.from(groups.values())
 }
 
 function n(x: unknown, fallback = 0): number {
   const v = Number(x)
   return Number.isFinite(v) ? v : fallback
-}
-
-function dedupeLines(list: LineNode[]): LineNode[] {
-  const seen = new Map<string, LineNode>()
-  for (const line of list) {
-    if (!line || typeof line.id !== "string" || !line.id) continue
-    const existing = seen.get(line.id)
-    seen.set(line.id, existing ? { ...existing, ...line } : line)
-  }
-  return Array.from(seen.values())
-}
-
-function formatPauseCountdown(ms: number) {
-  const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
-  const days = Math.floor(totalSeconds / 86400)
-  const hours = Math.floor((totalSeconds % 86400) / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  const parts: string[] = []
-  if (days) parts.push(`${days}d`)
-  if (hours || days) parts.push(`${String(hours).padStart(2, "0")}h`)
-  if (minutes || hours || days) parts.push(`${String(minutes).padStart(2, "0")}m`)
-  parts.push(`${String(seconds).padStart(2, "0")}s`)
-  return parts.join(" ")
 }
