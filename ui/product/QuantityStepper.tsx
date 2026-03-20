@@ -16,19 +16,20 @@ export function QuantityStepper({ value, min = 1, max = 99, onChange, disabled, 
   const inc = () => !disabled && onChange(Math.min(max, value + 1))
 
   return (
-    <View className={"flex-row items-center gap-3 " + (className ?? "")}>
+    <View
+      className={"flex-row items-center rounded-sm border border-border overflow-hidden " + (className ?? "")}
+    >
       <PressableOverlay
         onPress={dec}
         disabled={disabled}
-        className="w-10 h-10 rounded-full bg-surface border border-border items-center justify-center"
+        className="w-8 h-8 items-center justify-center"
       >
-        <Minus size={16} color={disabled ? "#d1d5db" : undefined} />
+        <Minus size={13} color={disabled ? "#d1d5db" : "#6b7280"} />
       </PressableOverlay>
 
-      {/* fixed width + centered + tabular-nums */}
       <Text
-        className="text-primary font-geist-medium text-[16px] text-center"
-        style={{ minWidth: 28, fontVariant: ["tabular-nums"] }}
+        className="text-primary font-geist-medium text-[13px] text-center"
+        style={{ minWidth: 20, fontVariant: ["tabular-nums"] }}
       >
         {value}
       </Text>
@@ -36,9 +37,9 @@ export function QuantityStepper({ value, min = 1, max = 99, onChange, disabled, 
       <PressableOverlay
         onPress={inc}
         disabled={disabled}
-        className="w-10 h-10 rounded-full bg-surface border border-border items-center justify-center"
+        className="w-8 h-8 items-center justify-center"
       >
-        <Plus size={16} color={disabled ? "#d1d5db" : undefined} />
+        <Plus size={13} color={disabled ? "#d1d5db" : "#6b7280"} />
       </PressableOverlay>
     </View>
   )

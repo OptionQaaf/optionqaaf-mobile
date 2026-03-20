@@ -3,7 +3,7 @@
     "name": "OptionQaaf",
     "slug": "optionqaaf-app",
     "owner": "option-qaaf",
-    "version": "2.0.5",
+    "version": "2.0.6",
     "orientation": "portrait",
     "icon": "./assets/images/white-icon.png",
     "scheme": ["optionqaafmobile", "shop.85072904499.app"],

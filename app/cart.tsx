@@ -566,18 +566,18 @@ export default function CartScreen() {
             entering={MOTION.enter.fadeDown}
             exiting={MOTION.exit.fadeUp}
             layout={MOTION.spring()}
-            className="flex-row gap-3 p-3 mb-3 rounded-md bg-surface border border-border"
+            className="flex-row items-center gap-2.5 py-2.5 mb-2"
             accessibilityRole="summary"
           >
-            <PressableOverlay onPress={goToPDP} className="rounded-md overflow-hidden" accessibilityLabel="Open product">
+            <PressableOverlay onPress={goToPDP} className="rounded-sm overflow-hidden" accessibilityLabel="Open product">
               <Image
                 source={
                   imageUrl
                     ? {
                         uri:
                           optimizeImageUrl(imageUrl, {
-                            width: 168,
-                            height: 120,
+                            width: 144,
+                            height: 144,
                             format: "webp",
                             dpr: Math.min(3, Math.max(1, PixelRatio.get?.() ?? 1)),
                           }) || imageUrl,
@@ -586,7 +586,7 @@ export default function CartScreen() {
                 }
                 contentFit="cover"
                 className="bg-neutral-100"
-                style={{ width: 84, height: 84, borderRadius: 16 }}
+                style={{ width: 72, height: 72, borderRadius: 4 }}
                 cachePolicy="disk"
                 transition={120}
                 placeholder={DEFAULT_PLACEHOLDER}
@@ -594,15 +594,15 @@ export default function CartScreen() {
             </PressableOverlay>
 
             <View className="flex-1 min-w-0">
-              <View className="flex-row items-start">
-                <View className="flex-1 min-w-0 pr-2">
+              <View className="flex-row items-center">
+                <View className="flex-1 min-w-0 pr-1">
                   <PressableOverlay onPress={goToPDP} className="active:opacity-90">
-                    <Text className="text-primary font-geist-semibold text-[16px]" numberOfLines={1}>
+                    <Text className="text-primary font-geist-semibold text-[14px]" numberOfLines={1}>
                       {product?.title ?? "Product"}
                     </Text>
                   </PressableOverlay>
                   {optionsText ? (
-                    <Text className="text-secondary text-[12px] mt-1" numberOfLines={1}>
+                    <Text className="text-secondary text-[11px] mt-0.5" numberOfLines={1}>
                       {optionsText}
                     </Text>
                   ) : null}
@@ -611,9 +611,9 @@ export default function CartScreen() {
                   <PressableOverlay
                     accessibilityLabel="Remove from cart"
                     onPress={() => onDelete(lineId)}
-                    className="w-9 h-9 rounded-full items-center justify-center"
+                    className="w-8 h-8 items-center justify-center"
                   >
-                    <Trash2 size={18} color="#8a8a8a" />
+                    <Trash2 size={15} color="#9ca3af" />
                   </PressableOverlay>
                 ) : null}
               </View>
@@ -621,21 +621,17 @@ export default function CartScreen() {
               <View className="flex-row items-center justify-between mt-2">
                 <View className="flex-1 min-w-0 pr-3">
                   {isFree ? (
-                    // Free line: show original price struck through + FREE in green
-                    <View>
+                    <View className="flex-row items-center gap-1.5">
                       {originalPrice > 0 ? (
-                        <Text className="text-muted text-[13px] line-through">
-                          {new Intl.NumberFormat("en-US", {
-                            style: "currency",
-                            currency: priceCurrency,
-                            maximumFractionDigits: 2,
-                          }).format(originalPrice)}
+                        <Text className="text-muted text-[12px] line-through">
+                          {fmt(convertAmount(originalPrice, priceCurrency, prefCurrency), prefCurrency)}
                         </Text>
                       ) : null}
-                      <Text className="text-green-600 font-geist-semibold text-[15px]">FREE</Text>
+                      <View className="px-1.5 py-0.5 rounded-sm bg-green-100">
+                        <Text className="text-green-700 font-geist-semibold text-[11px]">Free</Text>
+                      </View>
                     </View>
                   ) : (
-                    // Paid line: show effective price; if discounted, compareAt shows original struck through
                     <Price
                       amount={effectiveUnitPrice}
                       compareAt={isDiscounted ? originalPrice : undefined}
@@ -643,21 +639,16 @@ export default function CartScreen() {
                     />
                   )}
                 </View>
-                <View className="px-2 py-1 rounded-full bg-surface border border-border">
-                  <QuantityStepper
-                    value={qty}
-                    onChange={(q) => onChangeQty(lineId, q)}
-                    disabled={!canUpdateQty}
-                  />
-                </View>
+                <QuantityStepper
+                  value={qty}
+                  min={0}
+                  onChange={(q) => onChangeQty(lineId, q)}
+                  disabled={!canUpdateQty}
+                />
               </View>
 
-              {isFree ? (
-                <View className="px-2 py-0.5 rounded bg-green-100 self-start mt-1">
-                  <Text className="text-green-700 text-[11px] font-geist-semibold">Free item</Text>
-                </View>
-              ) : discountTitle ? (
-                <View className="px-2 py-0.5 rounded bg-green-100 self-start mt-1">
+              {!isFree && discountTitle ? (
+                <View className="px-1.5 py-0.5 rounded-sm bg-green-100 self-start mt-1.5">
                   <Text className="text-green-700 text-[11px] font-geist-semibold">{discountTitle}</Text>
                 </View>
               ) : null}
@@ -665,7 +656,7 @@ export default function CartScreen() {
           </Animated.View>
         )
       }),
-    [cartCurrency, onChangeQty, onDelete],
+    [cartCurrency, prefCurrency, fmt, onChangeQty, onDelete],
   )
 
   // ── Footer sizing ─────────────────────────────────────────────────────────
