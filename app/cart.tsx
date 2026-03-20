@@ -238,41 +238,42 @@ export default function CartScreen() {
   }, [params.coupon, applyDiscountCode, cart?.id])
 
   // ── Line quantity / removal ───────────────────────────────────────────────
-  // pending: Set of merchandiseIds currently mutating (controls disabled)
-  // optimisticQtys: Map of merchandiseId → display quantity (before server confirms)
-  const pendingMerchandiseIds = useRef<Set<string>>(new Set())
+  // pending: Set of lineIds currently mutating (controls disabled)
+  // optimisticQtys: Map of lineId → display quantity (before server confirms)
+  const pendingLineIds = useRef<Set<string>>(new Set())
   const optimisticQtys = useRef<Map<string, number>>(new Map())
   const [renderTick, setRenderTick] = useState(0)
   const forceUpdate = useCallback(() => setRenderTick((v) => v + 1), [])
 
-  // Always resolve the line ID from the latest cart data, not a stale closure
+  // Always read the latest cart data from a ref to avoid stale closures
   const cartRef = useRef(cart)
   useEffect(() => {
     cartRef.current = cart
   }, [cart])
 
-  const resolveLineId = useCallback((merchandiseId: string, mode: "update" | "remove"): string | null => {
-    const nodes = ((cartRef.current?.lines?.nodes ?? []) as any[]).filter(Boolean)
-    const node = nodes.find((n: any) => {
-      if (n?.merchandise?.id !== merchandiseId) return false
-      return mode === "update" ? n?.instructions?.canUpdateQuantity !== false : n?.instructions?.canRemove !== false
-    })
-    return node?.id ?? null
-  }, [])
-
   const onChangeQty = useCallback(
-    async (merchandiseId: string, newQty: number) => {
-      if (pendingMerchandiseIds.current.has(merchandiseId)) return
+    async (lineId: string, newQty: number) => {
+      if (pendingLineIds.current.has(lineId)) return
 
-      const lineId = resolveLineId(merchandiseId, newQty <= 0 ? "remove" : "update")
-      if (!lineId) {
-        // Line no longer on server — refresh and bail
-        void refetch()
-        return
+      pendingLineIds.current.add(lineId)
+      optimisticQtys.current.set(lineId, Math.max(0, newQty))
+
+      // When removing: also optimistically hide associated free lines (same merchandise.id,
+      // canRemove=false) so they don't flash visible while waiting for refetch.
+      const allNodes = ((cartRef.current?.lines?.nodes ?? []) as any[]).filter(Boolean)
+      const targetLine = allNodes.find((n: any) => n.id === lineId)
+      if (newQty <= 0 && targetLine) {
+        for (const node of allNodes) {
+          if (
+            node.merchandise?.id === targetLine.merchandise?.id &&
+            node.id !== lineId &&
+            node.instructions?.canRemove === false
+          ) {
+            optimisticQtys.current.set(node.id, 0)
+          }
+        }
       }
 
-      pendingMerchandiseIds.current.add(merchandiseId)
-      optimisticQtys.current.set(merchandiseId, Math.max(0, newQty))
       forceUpdate()
 
       try {
@@ -280,8 +281,7 @@ export default function CartScreen() {
           await removeLineAsync(lineId)
           // Await a fresh cart fetch before clearing the optimistic hide state.
           // The cartLinesRemove mutation response may still contain BOGO/automatic
-          // free lines for the removed merchandise — they only vanish on the next
-          // cart query. Without this await, the free lines briefly reappear.
+          // free lines — they only vanish on the next full cart query.
           await refetch()
         } else {
           await updateLineAsync({ id: lineId, quantity: newQty })
@@ -289,46 +289,84 @@ export default function CartScreen() {
       } catch (e: any) {
         show({ title: e?.message || "Failed to update cart", type: "danger" })
       } finally {
-        pendingMerchandiseIds.current.delete(merchandiseId)
-        optimisticQtys.current.delete(merchandiseId)
+        // Clear this line and any associated free lines we hid
+        const latestNodes = ((cartRef.current?.lines?.nodes ?? []) as any[]).filter(Boolean)
+        const latestTarget = latestNodes.find((n: any) => n.id === lineId)
+        if (latestTarget) {
+          for (const node of latestNodes) {
+            if (
+              node.merchandise?.id === latestTarget.merchandise?.id &&
+              node.instructions?.canRemove === false
+            ) {
+              optimisticQtys.current.delete(node.id)
+              pendingLineIds.current.delete(node.id)
+            }
+          }
+        }
+        pendingLineIds.current.delete(lineId)
+        optimisticQtys.current.delete(lineId)
         forceUpdate()
       }
     },
-    [forceUpdate, refetch, removeLineAsync, resolveLineId, show, updateLineAsync],
+    [forceUpdate, refetch, removeLineAsync, show, updateLineAsync],
   )
 
   const onDelete = useCallback(
-    (merchandiseId: string) => {
-      void onChangeQty(merchandiseId, 0)
+    (lineId: string) => {
+      void onChangeQty(lineId, 0)
     },
     [onChangeQty],
   )
 
   // ── Display lines: server state + optimistic qty overrides ────────────────
-  const displayLines = useMemo(() => {
+  // Each CartLine from the API is shown as its own row — no grouping or merging.
+  // Free BOGO lines (canUpdateQuantity/canRemove === false) appear separately with
+  // visual indicators. All state is keyed by line.id, not merchandise.id.
+  const displayLines = useMemo((): DisplayLine[] => {
     const nodes = ((cart?.lines?.nodes ?? []) as LineNode[])
       .filter(Boolean)
       .filter((l) => l.__typename !== "ComponentizableCartLine")
+
+    return nodes
       .filter((l) => {
-        // Optimistically hide lines being removed
-        const optQty = optimisticQtys.current.get(l.merchandise?.id ?? "")
-        return optQty === undefined || optQty > 0
+        // Hide this line if it is being optimistically removed
+        const lineOptQty = optimisticQtys.current.get(l.id)
+        if (lineOptQty !== undefined && lineOptQty <= 0) return false
+        // Free (locked) lines: also hide if the paid sibling for the same merchandise
+        // is currently being removed, so both vanish together without a flash
+        const isFreeNode = l.instructions?.canUpdateQuantity === false || l.instructions?.canRemove === false
+        if (isFreeNode) {
+          const paidSiblingRemoving = nodes.some(
+            (s) =>
+              s.id !== l.id &&
+              s.merchandise?.id === l.merchandise?.id &&
+              s.instructions?.canRemove !== false &&
+              (optimisticQtys.current.get(s.id) ?? 1) <= 0,
+          )
+          if (paidSiblingRemoving) return false
+        }
+        return true
       })
-      .map((l) => {
-        const mid = l.merchandise?.id ?? ""
-        const optQty = optimisticQtys.current.get(mid)
-        // Only apply optimistic qty to lines the user can actually update.
-        // Free BOGO lines share the same merchandise.id but are locked by Shopify
-        // (canUpdateQuantity=false). Applying the paid line's optimistic qty to
-        // them would show nonsense numbers (e.g. "+5 FREE" instead of "+2 FREE").
+      .map((l): DisplayLine => {
+        const isFree =
+          l.instructions?.canUpdateQuantity === false ||
+          (n(l.cost?.totalAmount?.amount) === 0 && n(l.quantity) > 0)
+        const discountTitle =
+          (l.discountAllocations?.find((d: any) => d.title) as any)?.title ??
+          (l.discountAllocations?.find((d: any) => d.code) as any)?.code ??
+          ""
+        const effectiveUnitPrice = n(l.cost?.amountPerQuantity?.amount)
+        const optQty = optimisticQtys.current.get(l.id)
         const canBeUpdated = l.instructions?.canUpdateQuantity !== false
         return {
           ...l,
           quantity: optQty !== undefined && canBeUpdated ? optQty : l.quantity,
-          _pending: pendingMerchandiseIds.current.has(mid),
+          _isFree: isFree,
+          _discountTitle: discountTitle,
+          _effectiveUnitPrice: effectiveUnitPrice,
+          _pending: pendingLineIds.current.has(l.id),
         }
       })
-    return groupByMerchandise(nodes)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cart?.lines?.nodes, renderTick])
 
@@ -449,7 +487,7 @@ export default function CartScreen() {
     }
 
     // Block checkout if any line is mid-mutation
-    if (pendingMerchandiseIds.current.size > 0) {
+    if (pendingLineIds.current.size > 0) {
       show({ title: "Please wait while your cart updates", type: "info" })
       return
     }
@@ -497,15 +535,20 @@ export default function CartScreen() {
       memo(function LineItem({ item }: { item: DisplayLine }) {
         const variant = item?.merchandise
         const product = variant?.product
-        const merchandiseId = variant?.id ?? item.id
+        const lineId = item.id
         const qty = n(item?.quantity, 1)
-        const unitPrice = n(variant?.price?.amount)
+        const originalPrice = n(variant?.price?.amount)
+        const effectiveUnitPrice = item._effectiveUnitPrice
+        const priceCurrency = String(variant?.price?.currencyCode ?? cartCurrency)
         const imageUrl = variant?.image?.url || product?.featuredImage?.url || ""
         const handle = product?.handle as string | undefined
-        const isFree = item._freeQty > 0
-        const autoDiscountTitle = item._autoDiscountTitle || item?.discountAllocations?.[0]?.title
+        const isFree = item._isFree
+        const discountTitle = item._discountTitle
         const canUpdateQty = !item._pending && item?.instructions?.canUpdateQuantity !== false
         const canRemove = !item._pending && item?.instructions?.canRemove !== false
+        // Show strikethrough compareAt when the line is discounted (and not free —
+        // free lines get their own separate price display below)
+        const isDiscounted = !isFree && effectiveUnitPrice < originalPrice && originalPrice > 0
 
         const goToPDP = useCallback(() => {
           if (!handle) return
@@ -567,7 +610,7 @@ export default function CartScreen() {
                 {canRemove ? (
                   <PressableOverlay
                     accessibilityLabel="Remove from cart"
-                    onPress={() => onDelete(merchandiseId)}
+                    onPress={() => onDelete(lineId)}
                     className="w-9 h-9 rounded-full items-center justify-center"
                   >
                     <Trash2 size={18} color="#8a8a8a" />
@@ -577,12 +620,33 @@ export default function CartScreen() {
 
               <View className="flex-row items-center justify-between mt-2">
                 <View className="flex-1 min-w-0 pr-3">
-                  <Price amount={unitPrice} currency={String(variant?.price?.currencyCode ?? cartCurrency)} />
+                  {isFree ? (
+                    // Free line: show original price struck through + FREE in green
+                    <View>
+                      {originalPrice > 0 ? (
+                        <Text className="text-muted text-[13px] line-through">
+                          {new Intl.NumberFormat("en-US", {
+                            style: "currency",
+                            currency: priceCurrency,
+                            maximumFractionDigits: 2,
+                          }).format(originalPrice)}
+                        </Text>
+                      ) : null}
+                      <Text className="text-green-600 font-geist-semibold text-[15px]">FREE</Text>
+                    </View>
+                  ) : (
+                    // Paid line: show effective price; if discounted, compareAt shows original struck through
+                    <Price
+                      amount={effectiveUnitPrice}
+                      compareAt={isDiscounted ? originalPrice : undefined}
+                      currency={priceCurrency}
+                    />
+                  )}
                 </View>
                 <View className="px-2 py-1 rounded-full bg-surface border border-border">
                   <QuantityStepper
                     value={qty}
-                    onChange={(q) => onChangeQty(merchandiseId, q)}
+                    onChange={(q) => onChangeQty(lineId, q)}
                     disabled={!canUpdateQty}
                   />
                 </View>
@@ -590,11 +654,11 @@ export default function CartScreen() {
 
               {isFree ? (
                 <View className="px-2 py-0.5 rounded bg-green-100 self-start mt-1">
-                  <Text className="text-green-700 text-[11px] font-geist-semibold">+{item._freeQty} FREE</Text>
+                  <Text className="text-green-700 text-[11px] font-geist-semibold">Free item</Text>
                 </View>
-              ) : autoDiscountTitle ? (
+              ) : discountTitle ? (
                 <View className="px-2 py-0.5 rounded bg-green-100 self-start mt-1">
-                  <Text className="text-green-700 text-[11px] font-geist-semibold">{autoDiscountTitle}</Text>
+                  <Text className="text-green-700 text-[11px] font-geist-semibold">{discountTitle}</Text>
                 </View>
               ) : null}
             </View>
@@ -653,7 +717,7 @@ export default function CartScreen() {
             <FlashList
               {...flashListScrollProps}
               data={displayLines}
-              keyExtractor={(l: DisplayLine) => l.merchandise?.id ?? l.id}
+              keyExtractor={(l: DisplayLine) => l.id}
               renderItem={({ item }) => <LineItem item={item} />}
               extraData={displayLines.length}
               ListEmptyComponent={<EmptyCart />}
@@ -993,36 +1057,11 @@ type LineNode = {
   }[]
 }
 
-type DisplayLine = LineNode & { _freeQty: number; _autoDiscountTitle: string; _pending: boolean }
-
-// Group lines by merchandiseId, folding free BOGO lines into the primary line.
-function groupByMerchandise(lines: (LineNode & { _pending: boolean })[]): DisplayLine[] {
-  const groups = new Map<string, DisplayLine>()
-  for (const line of lines) {
-    const mid = line.merchandise?.id ?? line.id
-    // A line is "free" if Shopify marks it non-updatable or its total cost is zero
-    const isFree =
-      line.instructions?.canUpdateQuantity === false ||
-      (n(line.cost?.totalAmount?.amount) === 0 && n(line.quantity) > 0)
-    const autoTitle = line.discountAllocations?.find((d) => d.title)?.title ?? ""
-    const existing = groups.get(mid)
-    if (!existing) {
-      groups.set(mid, { ...line, _freeQty: isFree ? n(line.quantity) : 0, _autoDiscountTitle: isFree ? autoTitle : "" })
-    } else if (isFree) {
-      groups.set(mid, {
-        ...existing,
-        _freeQty: existing._freeQty + n(line.quantity),
-        _autoDiscountTitle: existing._autoDiscountTitle || autoTitle,
-      })
-    } else {
-      groups.set(mid, {
-        ...line,
-        _freeQty: existing._freeQty,
-        _autoDiscountTitle: existing._autoDiscountTitle,
-      })
-    }
-  }
-  return Array.from(groups.values())
+type DisplayLine = LineNode & {
+  _isFree: boolean
+  _discountTitle: string
+  _effectiveUnitPrice: number
+  _pending: boolean
 }
 
 function n(x: unknown, fallback = 0): number {
